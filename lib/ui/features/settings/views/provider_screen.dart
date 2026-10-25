@@ -1,0 +1,204 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/across_providers.dart';
+import '../../../core/app_prefs.dart';
+import '../../../core/icons.dart';
+import '../../../core/l10n.dart';
+import '../../../core/selected_service.dart';
+import '../../../core/theme.dart';
+import '../../../core/widgets.dart';
+import '../../accounts/view_models/accounts_view_model.dart';
+import 'settings_widgets.dart';
+
+/// One connected provider: who is signed in, making it the active one, and signing out.
+class ProviderScreen extends StatelessWidget {
+  const ProviderScreen({super.key, required this.service, required this.accounts});
+
+  final StreamingService service;
+  final AccountsViewModel accounts;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([accounts, selectedService]),
+      builder: (context, _) {
+        final connected = [for (final service in accounts.connected) service.slug];
+        final active = selectedService.among(connected) == service.slug;
+        final others = connected.where((slug) => slug != service.slug).toList();
+        final account = accounts.account(service.slug);
+        return SettingsPage(
+          title: service.name,
+          backLabel: false,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 22),
+              child: Column(
+                children: [
+                  BrandBadge(slug: service.slug, size: 64),
+                  const SizedBox(height: 12),
+                  Text(
+                    service.name,
+                    style: const TextStyle(fontFamily: displayFont, fontSize: 24, fontWeight: FontWeight.w700),
+                  ),
+                  if (account != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      context.t('providers.signedInAs', {'account': account}),
+                      style: TextStyle(fontSize: 14, color: CauceColors.mutedForeground),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (accounts.browsesOnly(service.slug))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 22),
+                child: _FreeNotice(service: service.name, slug: service.slug),
+              ),
+            SettingsGroup(
+              children: [
+                SettingsSwitch(
+                  title: context.t('providers.makeActive'),
+                  value: active,
+                  // Off hands the tabs to the next connected one; with none, it stays.
+                  onChanged: (on) => on
+                      ? selectedService.select(service.slug)
+                      : others.isEmpty
+                      ? null
+                      : selectedService.select(others.first),
+                ),
+              ],
+            ),
+            SettingsGroup(
+              footer: context.t('providers.keepsDownloadsOf', {'service': service.name}),
+              children: [
+                SettingsRow(
+                  title: context.t('providers.signOut'),
+                  titleColor: CauceColors.error,
+                  trailing: const SizedBox.shrink(),
+                  onTap: () {
+                    accounts.signOut(service.slug);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The order combined results take turns in, dragged by the grips.
+class ProviderOrderScreen extends StatelessWidget {
+  const ProviderOrderScreen({super.key, required this.accounts});
+
+  final AccountsViewModel accounts;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: appPrefs,
+      builder: (context, _) {
+        final slugs = ordered([for (final service in accounts.connected) service.slug], appPrefs.providerOrder);
+        return SettingsPage(
+          title: context.t('providers.order'),
+          backLabel: false,
+          children: [
+            SettingsGroup(
+              footer: context.t('providers.order.detail'),
+              children: [
+                ReorderableListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  onReorder: (from, to) {
+                    final order = [...slugs];
+                    order.insert(to > from ? to - 1 : to, order.removeAt(from));
+                    appPrefs.update((prefs) => prefs.providerOrder = order);
+                  },
+                  children: [
+                    for (final (index, slug) in slugs.indexed)
+                      Material(
+                        key: ValueKey(slug),
+                        type: MaterialType.transparency,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                          child: Row(
+                            children: [
+                              BrandBadge(slug: slug, size: 30),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Text(
+                                  streamingServices.firstWhere((service) => service.slug == slug).name,
+                                  style: const TextStyle(fontSize: 16.5),
+                                ),
+                              ),
+                              ReorderableDragStartListener(
+                                index: index,
+                                child: Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: CauceIcon(CauceGlyph.grip, size: 18, color: CauceColors.mutedForeground),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Says the account is a free one that only browses, where its songs play from, and that the
+/// service's Premium plan brings its own playback.
+class _FreeNotice extends StatelessWidget {
+  const _FreeNotice({required this.service, required this.slug});
+
+  final String service;
+  final String slug;
+
+  /// TIDAL has no free plan: an account without a subscription only gets previews.
+  String get _key => slug == 'tidal' ? 'providers.unsubscribed' : 'providers.free';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: CauceColors.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(CauceMetrics.groupRadius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CauceIcon(CauceGlyph.alert, size: 18, color: CauceColors.accent, weight: 2.2),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.t(_key, {'service': service}),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  context.t('$_key.detail', {'service': service}),
+                  style: TextStyle(fontSize: 13.5, height: 1.35, color: CauceColors.mutedForeground),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,18 @@
+[package]
+name = "cauce_bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+log = "0.4"
+anyhow = "1.0"
+flutter_rust_bridge = "=2.13.0"
+music = { path = "../vendor/sonora/crates/music", features = ["bundled-sqlite"] }
+cauce_core = { path = "../cauce_core" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

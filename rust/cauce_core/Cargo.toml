@@ -1,0 +1,27 @@
+[package]
+name = "cauce_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0"
+log = { version = "0.4", features = ["std"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "time"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+fastrand = "2.5"
+# Two rustls backends are compiled in (ring for librespot, aws-lc-rs for reqwest), so one is
+# installed by hand at init.
+# iOS has no root certificate file for librespot's native roots to read, so the Mozilla set is
+# written out as one.
+webpki-root-certs = "1"
+base64 = "0.22"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+music = { path = "../vendor/sonora/crates/music", features = ["bundled-sqlite"] }
+storage = { path = "../vendor/sonora/crates/storage", features = ["bundled-sqlite"] }
+
+# rquickjs-sys ships no prebuilt bindings for iOS/Android, so generate them at build time.
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+rquickjs-sys = { version = "0.12.2", features = ["bindgen"] }
