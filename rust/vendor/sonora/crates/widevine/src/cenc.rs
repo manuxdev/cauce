@@ -289,6 +289,95 @@ pub fn unlock(buf: &mut [u8], init: &Init) {
     }
 }
 
+/// What a decoder needs to open the audio track without demuxing it: the AudioSpecificConfig
+/// out of `esds`, and the rate and channel count the sample entry declares.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Audio {
+    pub config: Vec<u8>,
+    pub rate: u32,
+    pub channels: u16,
+}
+
+/// Reads the audio sample entry of the init segment, relabelled or not. `None` until `moov`
+/// has arrived whole, or when it carries no AAC entry.
+pub fn audio(data: &[u8]) -> Option<Audio> {
+    let (_, moov) = children(data, 0, data.len()).find(|(_, bx)| &bx.kind == b"moov")?;
+    let stsd = descendant(data, moov.body, moov.end, b"stsd")?;
+    let (_, entry) = children(data, stsd.body + 8, stsd.end)
+        .find(|(_, bx)| &bx.kind == ENCA || &bx.kind == MP4A)?;
+    // An audio sample entry: eight bytes of its own, eight reserved, then the channel count,
+    // the sample size, four more reserved and the rate in 16.16, before its children.
+    let channels = be16(data, entry.body + 16)?;
+    let rate = be32(data, entry.body + 24)? >> 16;
+    let esds = child(data, entry.body + 28, entry.end, b"esds")?;
+    let config = decoder_specific(data.get(esds.body + 4..esds.end)?)?.to_vec();
+    Some(Audio {
+        config,
+        rate,
+        channels,
+    })
+}
+
+/// The DecoderSpecificInfo of an ES_Descriptor, ISO/IEC 14496-1 section 7.2.6.5, which for AAC
+/// is the AudioSpecificConfig.
+fn decoder_specific(es: &[u8]) -> Option<&[u8]> {
+    let (0x03, body) = descriptor(es)? else {
+        return None;
+    };
+    // The ES id, then flags naming which optional fields follow.
+    let flags = *body.get(2)?;
+    let mut at = 3;
+    if flags & 0x80 != 0 {
+        at += 2;
+    }
+    if flags & 0x40 != 0 {
+        at += 1 + usize::from(*body.get(at)?);
+    }
+    if flags & 0x20 != 0 {
+        at += 2;
+    }
+    let (0x04, config) = descriptor(body.get(at..)?)? else {
+        return None;
+    };
+    // The object type, the stream type, the buffer size and two bitrates come first.
+    let (0x05, specific) = descriptor(config.get(13..)?)? else {
+        return None;
+    };
+    Some(specific)
+}
+
+/// One descriptor: its tag and its body, whose size takes up to four bytes of seven bits each.
+fn descriptor(data: &[u8]) -> Option<(u8, &[u8])> {
+    let tag = *data.first()?;
+    let mut len = 0usize;
+    let mut at = 1;
+    loop {
+        let byte = *data.get(at)?;
+        at += 1;
+        len = len << 7 | usize::from(byte & 0x7f);
+        if byte & 0x80 == 0 {
+            break;
+        }
+        if at > 4 {
+            return None;
+        }
+    }
+    Some((tag, data.get(at..at.checked_add(len)?)?))
+}
+
+/// The clear and encrypted byte counts of each subsample of a `len`-byte sample, as two
+/// parallel lists, which is how a platform decoder's crypto info takes them. A sample with no
+/// runs is one encrypted run.
+pub fn subsamples(len: usize, subs: &[(u32, u32)]) -> (Vec<usize>, Vec<usize>) {
+    match subs.is_empty() {
+        true => (vec![0], vec![len]),
+        false => subs
+            .iter()
+            .map(|&(clear, encrypted)| (clear as usize, encrypted as usize))
+            .unzip(),
+    }
+}
+
 /// The kind and total length of the box whose header starts `head`, which needs to be no
 /// longer than sixteen bytes. `None` means the header is incomplete or claims a size no box
 /// can have, so a caller can find where a box ends before it has the rest of the box.
@@ -827,5 +916,56 @@ mod tests {
         let data = boxed(b"trun", &trun_body);
         let trun = read(&data, 0).unwrap();
         assert!(read_trun(&data, &trun, &Tfhd::default()).is_none());
+    }
+
+    /// The AudioSpecificConfig, rate and channel count come out of the sample entry and its
+    /// `esds`, whether or not the entry has been relabelled yet.
+    #[test]
+    fn reads_the_audio_config_out_of_the_sample_entry() {
+        // ES_Descriptor: id, no flags, then DecoderConfig (AAC, audio, 13 bytes of rates) and
+        // DecoderSpecificInfo, the second with a long-form size.
+        let mut config = vec![0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        config.extend_from_slice(&[0x05, 0x80, 0x80, 0x02, 0x12, 0x10]);
+        let mut es = vec![0, 1, 0, 0x04, config.len() as u8];
+        es.extend_from_slice(&config);
+        let mut esds_body = vec![0, 0, 0, 0, 0x03, es.len() as u8];
+        esds_body.extend_from_slice(&es);
+        let esds = boxed(b"esds", &esds_body);
+        let mut entry = vec![0u8; 28];
+        entry[16..18].copy_from_slice(&2u16.to_be_bytes());
+        entry[24..28].copy_from_slice(&(44_100u32 << 16).to_be_bytes());
+        entry.extend_from_slice(&esds);
+        let mut stsd_body = vec![0, 0, 0, 0, 0, 0, 0, 1];
+        stsd_body.extend_from_slice(&boxed(ENCA, &entry));
+        let stsd = boxed(b"stsd", &stsd_body);
+        let trak = boxed(
+            b"trak",
+            &boxed(b"mdia", &boxed(b"minf", &boxed(b"stbl", &stsd))),
+        );
+        let mut data = joined(&[boxed(b"ftyp", b"isom"), boxed(b"moov", &trak)]);
+        let wanted = Audio {
+            config: vec![0x12, 0x10],
+            rate: 44_100,
+            channels: 2,
+        };
+        assert_eq!(audio(&data), Some(wanted.clone()));
+        let at = data.len() - esds.len() - 28 - 8;
+        data[at + 4..at + 8].copy_from_slice(MP4A);
+        assert_eq!(audio(&data), Some(wanted));
+        assert_eq!(
+            audio(&data[..data.len() - 1]),
+            None,
+            "a short moov has no answer"
+        );
+    }
+
+    /// A sample with no runs is one encrypted run; otherwise the runs pass through in order.
+    #[test]
+    fn lays_out_subsamples_for_a_decoder() {
+        assert_eq!(subsamples(300, &[]), (vec![0], vec![300]));
+        assert_eq!(
+            subsamples(300, &[(16, 100), (4, 180)]),
+            (vec![16, 4], vec![100, 180])
+        );
     }
 }

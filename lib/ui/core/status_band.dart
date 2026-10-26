@@ -7,7 +7,7 @@ import 'motion.dart';
 import 'theme.dart';
 import 'tint.dart';
 
-/// Whether the phone reaches the network, as iOS reports it.
+/// Whether the phone reaches the network, as the platform reports it.
 final online = ValueNotifier<bool>(true);
 
 /// What is still wrong, under a tab's header until it is put right: a service to sign in to again

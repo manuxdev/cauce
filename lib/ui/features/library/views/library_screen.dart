@@ -150,7 +150,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([widget.accounts, widget.favorites, widget.player, selectedService, downloads]),
+      listenable: Listenable.merge([
+        widget.accounts,
+        widget.favorites,
+        widget.player,
+        selectedService,
+        downloads,
+        online,
+      ]),
       builder: (context, _) {
         final connected = widget.accounts.connected;
         final sources = [
@@ -252,19 +259,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ),
                 Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (notification.depth == 0 && notification.metrics.axis == Axis.vertical) {
-                        _collapse.value = (notification.metrics.pixels / _collapseDistance).clamp(0.0, 1.0);
-                      }
-                      return false;
+                  // A fling sideways moves to the chip beside the one picked, in the row's order.
+                  child: GestureDetector(
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity.abs() < 300) return;
+                      final order = [?provider, if (connected.isNotEmpty) _playlists, _downloads, _files];
+                      final next = order.indexOf(source) + (velocity < 0 ? 1 : -1);
+                      if (next >= 0 && next < order.length) _choose(order[next]);
                     },
-                    child: switch (source) {
-                      _files => _filesList(),
-                      _downloads => _downloadsList(),
-                      _playlists => _playlistsList(connected),
-                      _ => _favoritesList(source),
-                    },
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.depth == 0 && notification.metrics.axis == Axis.vertical) {
+                          _collapse.value = (notification.metrics.pixels / _collapseDistance).clamp(0.0, 1.0);
+                        }
+                        return false;
+                      },
+                      child: switch (source) {
+                        _files => _filesList(),
+                        _downloads => _downloadsList(),
+                        _playlists => _playlistsList(connected),
+                        _ => _favoritesList(source),
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -397,7 +414,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
         if (item.state != core.DownloadState.done) item.track,
     ];
     final current = widget.player.track;
-    Widget tile(core.TrackItem track, VoidCallback onTap) => Dismissible(
+    final accounts = widget.accounts;
+    // Apple Music's stay shut until it is signed in, and while offline: they wait outside the queue.
+    final blocks = {for (final track in tracks) track: accounts.playBlockFor(track.source)};
+    final open = [
+      for (final track in tracks)
+        if (blocks[track] == PlayBlock.none) track,
+    ];
+    StreamingService service(String slug) => streamingServices.firstWhere((service) => service.slug == slug);
+    void play(core.TrackItem track) => switch (blocks[track]) {
+      PlayBlock.signIn => signIn(context, service(track.source), accounts),
+      // The player says it needs a connection.
+      PlayBlock.offline => widget.player.playQueue([track], 0),
+      _ => widget.player.playQueue(open, open.indexOf(track)),
+    };
+
+    Widget tile(core.TrackItem track, VoidCallback onTap, {String? note}) => Dismissible(
       key: ValueKey('${track.source}/${track.id}'),
       direction: DismissDirection.endToStart,
       background: Container(
@@ -430,6 +462,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         track: track,
         mixed: true,
         playing: current?.id == track.id && current?.source == track.source,
+        note: note,
         onTap: onTap,
       ),
     );
@@ -461,7 +494,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   AccentButton(
                     label: context.t('downloads.playAll'),
-                    onPressed: () => widget.player.playQueue(tracks, 0),
+                    onPressed: () => play(open.firstOrNull ?? tracks.first),
                   ),
                 ],
               ),
@@ -472,7 +505,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
           if (tracks.isNotEmpty) ...[
             Overline(context.t('downloads.done')),
-            for (final (index, track) in tracks.indexed) tile(track, () => widget.player.playQueue(tracks, index)),
+            for (final track in tracks)
+              tile(
+                track,
+                () => play(track),
+                note: switch (blocks[track]) {
+                  PlayBlock.signIn => context.t('downloads.signInToPlay', {'service': service(track.source).name}),
+                  PlayBlock.offline => context.t('downloads.connectionToPlay'),
+                  _ => null,
+                },
+              ),
           ],
         ],
       ),

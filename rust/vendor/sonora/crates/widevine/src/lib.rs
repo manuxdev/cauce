@@ -16,6 +16,8 @@
 //! - [`cenc`] reads just enough ISO-BMFF to say where every encrypted sample is, what its IV is
 //!   and where each fragment starts on the media timeline.
 //! - [`cenc::unlock`] relabels the sample entry so an ordinary decoder will open the cleartext.
+//! - On Android, where no cleartext comes back, `Decoder` feeds the ciphertext to the platform's
+//!   AAC decoder against the [`Cdm`]'s session and hands back PCM.
 //!
 //! `CAUCE_WIDEVINE_CDM` overrides the search with a path of the user's choosing, which is what
 //! a package with a CDM of its own should set. With no module anywhere there is no Widevine
@@ -27,6 +29,8 @@
 
 mod cdm;
 pub mod cenc;
+#[cfg(all(target_os = "android", not(feature = "cdm")))]
+mod codec;
 mod fetch;
 #[cfg(feature = "cdm")]
 mod host;
@@ -41,6 +45,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
 
 pub use cdm::Cdm;
+#[cfg(all(target_os = "android", not(feature = "cdm")))]
+pub use codec::{Decoder, Input, Taken};
 pub use fetch::{Offer, Release, fetch, latest, offer};
 pub use source::{Found, LIBRARY, Origin, configured, find, installed, store, stored, uninstall};
 
@@ -149,13 +155,14 @@ pub fn host(module: &Path) -> Result<()> {
 /// Whether this build has a host for a CDM. It says nothing about whether the machine has a
 /// CDM to open, only whether one could be used if it did.
 pub fn supported() -> bool {
-    cfg!(feature = "cdm")
+    cfg!(any(feature = "cdm", target_os = "android"))
 }
 
 /// Whether this build and this machine can open a CDM at all. A provider asks before offering
 /// playback, so the answer is a missing feature rather than a failed track.
 pub fn available() -> bool {
-    supported() && find().is_some()
+    // Android's CDM is the system's own `MediaDrm`, so there is no module to find.
+    cfg!(target_os = "android") || supported() && find().is_some()
 }
 
 /// Fails with the reason a CDM cannot be had, for a caller that wants to say so once rather
@@ -164,7 +171,7 @@ pub fn require() -> Result<()> {
     if !supported() {
         bail!("this build carries no widevine host");
     }
-    if find().is_none() {
+    if !cfg!(target_os = "android") && find().is_none() {
         bail!("no widevine module was found on this machine");
     }
     Ok(())

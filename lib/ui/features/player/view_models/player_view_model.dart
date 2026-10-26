@@ -6,6 +6,7 @@ import '../../../../src/rust/api/player.dart' as core;
 import '../sleep_timer.dart';
 import '../../../core/error_text.dart';
 import '../../../core/l10n.dart';
+import '../../accounts/view_models/accounts_view_model.dart';
 
 /// The player as every screen sees it: the latest state the Rust core sent, and the commands
 /// that change it.
@@ -13,7 +14,7 @@ class PlayerViewModel extends ChangeNotifier {
   PlayerViewModel(Stream<core.PlayerSnapshot> states) {
     _subscription = states.listen((state) {
       // The core stopped after several tracks in a row would not play: say so once.
-      if (state.stalled && !(_state?.stalled ?? false)) _error = translate('error.unplayable');
+      if (state.stalled && !(_state?.stalled ?? false)) _fail('error.unplayable', state.track?.source);
       _state = state;
       notifyListeners();
     });
@@ -56,6 +57,30 @@ class PlayerViewModel extends ChangeNotifier {
     return error;
   }
 
+  String? _signIn;
+
+  /// The service a command failed for because it is not signed in, for a toast that offers
+  /// the sign-in in place of [error]. Cleared once taken.
+  String? takeSignIn() {
+    final slug = _signIn;
+    _signIn = null;
+    return slug;
+  }
+
+  bool _offline = false;
+
+  /// Whether a command failed, or was held back, for want of the connection an Apple Music
+  /// download licenses each play with, for a toast in place of [error]. Cleared once taken.
+  bool takeOffline() {
+    final offline = _offline;
+    _offline = false;
+    return offline;
+  }
+
+  /// What keeps a track from `source` from playing, `reachable` false once a play failed for
+  /// the network. Set where the accounts are known; nothing waits in tests.
+  static PlayBlock Function(String source, {bool reachable}) blockFor = (_, {reachable = true}) => PlayBlock.none;
+
   /// Takes the audio from other apps before anything plays, answering whether another app had
   /// it, which leaves the output to open again. Set by the platform side; nothing to do in tests.
   static Future<bool> Function() claimAudio = () async => false;
@@ -66,6 +91,8 @@ class PlayerViewModel extends ChangeNotifier {
 
   Future<void> playQueue(List<core.TrackItem> tracks, int start) async {
     final wanted = tracks[start];
+    // It would only fail: ask for the sign-in, or say it needs a connection, instead.
+    if (_hold(wanted.source)) return notifyListeners();
     final found = wanted.playable ? null : await substitute(wanted);
     if (found != null) tracks = [...tracks]..[start] = found;
     return _play(() => core.playQueue(tracks: tracks, start: start));
@@ -76,7 +103,7 @@ class PlayerViewModel extends ChangeNotifier {
   Future<void> togglePlay() => playing ? _run(core.pause) : _play(core.play);
   Future<void> next() => _play(core.next);
   Future<void> previous() => _play(core.previous);
-  Future<void> jump(int index) => _play(() => core.jump(index: index));
+  Future<void> jump(int index) => _play(() => core.jump(index: index), queue.elementAtOrNull(index)?.source);
   Future<void> moveQueued(int from, int to) => _run(() => core.moveQueued(from: from, to: to));
   Future<void> shuffleUpcoming() => _run(core.shuffleUpcoming);
   Future<void> removeQueued(int index) => _run(() => core.removeQueued(index: index));
@@ -100,18 +127,38 @@ class PlayerViewModel extends ChangeNotifier {
     await core.play();
   });
 
-  Future<void> _play(Future<void> Function() command) => _run(() async {
+  /// Runs a command that loads a track, from `source` when known; else the one on screen.
+  Future<void> _play(Future<void> Function() command, [String? source]) => _run(() async {
     if (await claimAudio()) await core.reopenOutput();
     await command();
-  });
+  }, source);
 
-  Future<void> _run(Future<void> Function() command) async {
+  Future<void> _run(Future<void> Function() command, [String? source]) async {
     try {
       await command();
     } catch (error) {
-      _error = explainError(error);
+      _fail(errorKey(error), source ?? track?.source);
       notifyListeners();
     }
+  }
+
+  /// Keeps what failed for a toast: the sign-in when the track's service needs one, the missing
+  /// connection when it needs that, the error under `key` otherwise.
+  void _fail(String key, String? source) {
+    if (!_hold(source, reachable: key != 'error.network')) _error = translate(key);
+  }
+
+  /// Keeps what holds `source`'s track back for a toast, answering whether anything does.
+  bool _hold(String? source, {bool reachable = true}) {
+    switch (source == null ? PlayBlock.none : blockFor(source, reachable: reachable)) {
+      case PlayBlock.signIn:
+        _signIn = source;
+      case PlayBlock.offline:
+        _offline = true;
+      case PlayBlock.none:
+        return false;
+    }
+    return true;
   }
 
   @override

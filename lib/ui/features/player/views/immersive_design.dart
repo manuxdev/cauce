@@ -162,7 +162,7 @@ class ImmersiveDesign extends StatelessWidget {
               const SizedBox(height: 6),
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: TransportRow(player: player, look: look, skip: 52, play: 64, gap: 18),
+                child: TransportRow(player: player, look: look, skip: 52, play: 80, gap: 18),
               ),
               const SizedBox(height: 4),
               const SystemVolume(),
@@ -217,7 +217,7 @@ class ImmersiveDesign extends StatelessWidget {
               ),
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: TransportRow(player: player, look: look, skip: 44, play: 56, gap: 36, repeat: false),
+                child: TransportRow(player: player, look: look, skip: 44, play: 68, gap: 36, repeat: false),
               ),
             ],
           ),
@@ -245,25 +245,26 @@ class _Glass extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DecoratedBox(
-        // Outside only, as the glass would show a shadow under it through the blur.
         decoration: BoxDecoration(
           borderRadius: shape,
           boxShadow: const [
-            BoxShadow(color: Color(0x66000000), blurRadius: 32, offset: Offset(0, 14), blurStyle: BlurStyle.outer),
+            // The dock's shadow, so the capsule floats the way the mini player does.
+            BoxShadow(color: Color(0x99190005), blurRadius: 44, offset: Offset(0, 20), spreadRadius: -14),
           ],
         ),
+        // The sweep spans the whole capsule under the clip: inside the padding its edges showed as
+        // a hard pale box. It sits over the blur in a layer of its own, not inside it: there it
+        // made the blur redraw every frame, and the glass flickered.
         child: ClipRRect(
           borderRadius: shape,
-          child: BackdropFilter(
-            filter: ImageFilter.compose(
-              outer: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              inner: const ColorFilter.matrix(_saturate),
-            ),
-            // The sweep spans the whole capsule under the clip: inside the padding its edges
-            // showed as a hard pale box.
-            child: Stack(
-              children: [
-                FutureBuilder(
+          child: Stack(
+            children: [
+              BackdropFilter(
+                filter: ImageFilter.compose(
+                  outer: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                  inner: const ColorFilter.matrix(_saturate),
+                ),
+                child: FutureBuilder(
                   future: coverBottomLuminance(url),
                   builder: (context, brightness) => AnimatedContainer(
                     duration: const Duration(milliseconds: 400),
@@ -276,9 +277,11 @@ class _Glass extends StatelessWidget {
                     child: child,
                   ),
                 ),
-                Positioned.fill(child: _Sweep(tint: TintScope.of(context).vivid.shade(0.9, 0.02))),
-              ],
-            ),
+              ),
+              Positioned.fill(
+                child: RepaintBoundary(child: _Sweep(tint: TintScope.of(context).vivid.shade(0.9, 0.02))),
+              ),
+            ],
           ),
         ),
       ),
@@ -294,7 +297,10 @@ const _saturate = <double>[
   0, 0, 0, 1, 0,
 ];
 
-/// A soft band of light crossing the glass every 7 s while the background moves.
+/// How much of the 7 s cycle the band takes to cross.
+const _passShare = 5 / 11;
+
+/// A narrow band of light crossing the glass every 11 s while the background moves.
 class _Sweep extends StatefulWidget {
   const _Sweep({required this.tint});
 
@@ -305,7 +311,7 @@ class _Sweep extends StatefulWidget {
 }
 
 class _SweepState extends State<_Sweep> with SingleTickerProviderStateMixin {
-  late final _run = AnimationController(vsync: this, duration: const Duration(seconds: 7));
+  late final _run = AnimationController(vsync: this, duration: const Duration(seconds: 11));
 
   @override
   void didChangeDependencies() {
@@ -324,20 +330,27 @@ class _SweepState extends State<_Sweep> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (!_run.isAnimating) return const SizedBox.shrink();
-    final strength = 0.08 * appPrefs.intensity.scale;
+    final strength = 0.06 * appPrefs.intensity.scale;
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _run,
         builder: (context, _) {
-          final at = -1.6 + 3.2 * _run.value;
+          // A narrow band crosses in the first 5 s of the 11, then the glass rests: a glint, not
+          // a change of tone.
+          final pass = (_run.value / _passShare).clamp(0.0, 1.0);
+          if (pass >= 1) return const SizedBox.shrink();
+          final at = -1.8 + 3.6 * Curves.easeInOut.transform(pass);
+          // It fades in as it sets off and out as it leaves, so it never pops on or off.
+          final glow = strength * Curves.easeInOut.transform(1 - (2 * pass - 1).abs());
           return DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment(at - 0.5, -1),
-                end: Alignment(at + 0.5, 1),
+                begin: Alignment(at - 0.7, -1),
+                end: Alignment(at + 0.7, 1),
+                stops: const [0.26, 0.5, 0.74],
                 colors: [
                   widget.tint.withValues(alpha: 0),
-                  widget.tint.withValues(alpha: strength),
+                  widget.tint.withValues(alpha: glow),
                   widget.tint.withValues(alpha: 0),
                 ],
               ),

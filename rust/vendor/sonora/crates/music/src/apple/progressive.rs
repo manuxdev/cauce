@@ -440,6 +440,11 @@ impl Media {
     /// per download, after [`Self::license`]. It holds the track only weakly, so a track
     /// dropped meanwhile stops the pass and is not kept downloading.
     pub fn release_when_downloaded(&self) {
+        // Android decrypts inside the platform decoder, which needs the session for as long as
+        // the track can be opened again, so nothing is decrypted ahead and the keys stay.
+        if cfg!(all(target_os = "android", not(feature = "widevine"))) {
+            return;
+        }
         let mut weak = self.0.downgrade();
         tokio::spawn(async move {
             if !weak.finished().await {
@@ -527,6 +532,57 @@ impl Media {
     /// Read after the decoder opens, this says how much of the wait was decryption.
     pub fn spent(&self) -> (usize, Duration) {
         self.0.with(|cenc, _| cenc.spent).unwrap_or_default()
+    }
+
+    /// The track's content key and the session holding it, for a decoder that decrypts by
+    /// itself.
+    #[cfg(all(target_os = "android", not(feature = "widevine")))]
+    pub fn keys(&self) -> Option<(Cdm, Vec<u8>)> {
+        self.0
+            .with(|cenc, _| match &cenc.license {
+                License::Held(keys) => Some((keys.cdm.clone(), keys.key_id.clone())),
+                License::Pending | License::Released => None,
+            })
+            .flatten()
+    }
+
+    /// The first sample a read from `entry` reaches: the first of its fragment, or with no
+    /// entry the first of the track.
+    #[cfg(all(target_os = "android", not(feature = "widevine")))]
+    pub fn first(&self, entry: Option<Entry>) -> usize {
+        let Some(entry) = entry else {
+            return 0;
+        };
+        self.0
+            .with(|cenc, _| {
+                cenc.samples
+                    .partition_point(|sample| sample.start < entry.graft)
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sample `index` as it arrived, still encrypted, waiting for its fragment the way a read
+    /// waits for its bytes. `None` past the last sample of a download that has ended.
+    #[cfg(all(target_os = "android", not(feature = "widevine")))]
+    pub fn sample(&self, index: usize) -> io::Result<Option<(Vec<u8>, Sample)>> {
+        self.0
+            .awaiting(|cenc, spool, complete| {
+                cenc.index(spool);
+                match cenc.samples.get(index) {
+                    Some(sample) => Some(
+                        spool
+                            .bytes(sample.start..sample.end())
+                            .map(|bytes| Some((bytes, sample.clone()))),
+                    ),
+                    None => complete.then_some(Ok(None)),
+                }
+            })
+            .unwrap_or_else(|| {
+                Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "the track stopped arriving",
+                ))
+            })
     }
 
     /// How many samples the track has indexed so far, decrypted or not.

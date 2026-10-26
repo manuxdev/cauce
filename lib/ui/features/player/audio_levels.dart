@@ -19,6 +19,11 @@ class AudioLevels extends ChangeNotifier implements ValueListenable<double> {
   double right = 0;
   int _holders = 0;
   Timer? _timer;
+  final _beat = BeatDetector();
+  final _clock = Stopwatch();
+
+  /// The beat's pulse, 1 on a kick fading to 0, told from the bass.
+  double get beat => _beat.pulse;
 
   /// Both channels together.
   @override
@@ -35,6 +40,7 @@ class AudioLevels extends ChangeNotifier implements ValueListenable<double> {
         _timer?.cancel();
         _timer = null;
         left = right = 0;
+        _beat.pulse = 0;
         notifyListeners();
       }
     };
@@ -50,6 +56,11 @@ class AudioLevels extends ChangeNotifier implements ValueListenable<double> {
     if (levels.length < 2) return;
     left = levels[0].toDouble();
     right = levels[1].toDouble();
+    if (levels.length > 2) {
+      _beat.add(levels[2].toDouble(), _clock.elapsed);
+      _clock.reset();
+      _clock.start();
+    }
     notifyListeners();
   }
 }

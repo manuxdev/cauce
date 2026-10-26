@@ -18,6 +18,71 @@ SeekStyle seekStyleFor(PlayerDesign design, SeekStyle chosen, {bool lyrics = fal
   return style == SeekStyle.ring && (design != PlayerDesign.vinyl || lyrics) ? SeekStyle.line : style;
 }
 
+/// How high the ripple swells for the music's [level], 0 to 1: music averages a 0.1 to 0.3, so
+/// the level is stretched to read, from nearly flat on quiet passages to twice the rest height on
+/// loud ones, and a [beat] pulse kicks it higher still. With no level to follow it swells as at
+/// rest.
+double rippleSwell(double? level, {double beat = 0}) =>
+    level == null ? 1 : math.min((0.25 + 2.2 * level).clamp(0.0, 2.0) + beat, 2.8);
+
+/// The ripple's crests, newest first, each with the swell the music had while it formed at the
+/// playhead: a beat makes one tall crest that travels off along the bar, not every crest at once.
+/// A crest forms over one cycle of the ripple and is kept as it was once the next begins.
+class RippleCrests {
+  RippleCrests({this.most = 48});
+
+  /// How many crests are kept: as many as fit along the bar.
+  final int most;
+
+  final values = <double>[];
+  double _phase = 0;
+
+  /// Takes the ripple's [phase], 0 to 1 per cycle, and the [swell] heard now.
+  void tick(double phase, double swell) {
+    if (values.isEmpty || phase < _phase) {
+      values.insert(0, swell);
+      if (values.length > most) values.removeLast();
+    } else {
+      values[0] = math.max(values[0], swell);
+    }
+    _phase = phase;
+  }
+
+  /// The swell of the crest [age] cycles old; older than any known, the oldest; none yet, rest.
+  double at(int age) => values.isEmpty ? 1 : values[age.clamp(0, values.length - 1)];
+}
+
+/// Tells a song's beat from its bass: a jump well over the bass's recent average is a kick, which
+/// sets [pulse] to 1 to fade in about 120 ms. A quarter second must pass before the next one, so
+/// one kick's ring is not heard as several.
+class BeatDetector {
+  /// How far over its average the bass has to jump.
+  static const _jump = 1.4;
+
+  /// Bass under this is silence, whatever its jumps.
+  static const _floor = 0.05;
+  static const _gap = Duration(milliseconds: 250);
+  static const _fade = 120.0;
+
+  double _average = 0;
+  Duration _since = _gap;
+
+  /// The last beat's strength now, 1 on the kick down to 0.
+  double pulse = 0;
+
+  /// Takes the bass heard [after] the last reading.
+  void add(double bass, Duration after) {
+    _since += after;
+    pulse *= math.exp(-after.inMilliseconds / _fade);
+    if (pulse < 0.01) pulse = 0;
+    if (bass > _floor && bass > _average * _jump && _since >= _gap) {
+      pulse = 1;
+      _since = Duration.zero;
+    }
+    _average += (bass - _average) * 0.05;
+  }
+}
+
 /// The buttons [design] draws: the chosen look, or the design's own for [ButtonLook.auto].
 ButtonLook buttonLookFor(PlayerDesign design, ButtonLook chosen) => chosen != ButtonLook.auto
     ? chosen

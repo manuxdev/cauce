@@ -22,6 +22,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
+  RustStreamSink<NativeCommand> dco_decode_StreamSink_native_command_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<PlayerSnapshot> dco_decode_StreamSink_player_snapshot_Sse(dynamic raw);
 
   @protected
@@ -160,6 +163,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MediaCard dco_decode_media_card(dynamic raw);
 
   @protected
+  NativeCommand dco_decode_native_command(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -239,6 +245,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<NativeCommand> sse_decode_StreamSink_native_command_Sse(SseDeserializer deserializer);
 
   @protected
   RustStreamSink<PlayerSnapshot> sse_decode_StreamSink_player_snapshot_Sse(SseDeserializer deserializer);
@@ -379,6 +388,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MediaCard sse_decode_media_card(SseDeserializer deserializer);
 
   @protected
+  NativeCommand sse_decode_native_command(SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -458,6 +470,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_AnyhowException(AnyhowException self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_StreamSink_native_command_Sse(RustStreamSink<NativeCommand> self, SseSerializer serializer);
 
   @protected
   void sse_encode_StreamSink_player_snapshot_Sse(RustStreamSink<PlayerSnapshot> self, SseSerializer serializer);
@@ -596,6 +611,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_media_card(MediaCard self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_native_command(NativeCommand self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);

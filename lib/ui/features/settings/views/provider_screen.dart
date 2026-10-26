@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/across_providers.dart';
@@ -69,6 +70,14 @@ class ProviderScreen extends StatelessWidget {
                 ),
               ],
             ),
+            if (_plans(service.slug) case final plans when plans.isNotEmpty)
+              SettingsGroup(
+                title: context.t('plans.title'),
+                children: [
+                  for (final (label, text) in plans)
+                    SettingsRow(title: context.t(label), subtitle: context.t(text), trailing: const SizedBox.shrink()),
+                ],
+              ),
             SettingsGroup(
               footer: context.t('providers.keepsDownloadsOf', {'service': service.name}),
               children: [
@@ -89,6 +98,21 @@ class ProviderScreen extends StatelessWidget {
     );
   }
 }
+
+/// What each plan of `slug` gets in Cauce, as label and text keys, with the lines about this
+/// platform alone. Only what Cauce itself does is said; a plan's own terms are the service's.
+List<(String, String)> _plans(String slug) => switch (slug) {
+  'youtube' => [('plans.free', 'plans.youtube.free'), ('plans.paid', 'plans.youtube.paid')],
+  'deezer' => [('plans.any', 'plans.deezer')],
+  'spotify' => [('plans.free', 'plans.spotify.free'), ('plans.paid', 'plans.spotify.paid')],
+  'tidal' => [('plans.free', 'plans.tidal.free'), ('plans.paid', 'plans.tidal.paid')],
+  // Apple Music is only offered on iOS and Android, and plays a different way on each.
+  'apple' => [
+    ('plans.device', defaultTargetPlatform == TargetPlatform.iOS ? 'plans.apple.ios' : 'plans.apple.android'),
+  ],
+  'subsonic' => [('plans.server', 'plans.subsonic')],
+  _ => const [],
+};
 
 /// The order combined results take turns in, dragged by the grips.
 class ProviderOrderScreen extends StatelessWidget {

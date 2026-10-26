@@ -9,6 +9,7 @@ pub mod karaoke;
 pub mod levels;
 pub mod logging;
 pub mod lyrics_shelf;
+pub mod native;
 pub mod queue;
 pub mod scrobbling;
 pub mod session;
@@ -184,6 +185,10 @@ impl Core {
             )),
             Arc::new(music::tidal::TidalProvider::new()),
             Arc::new(music::subsonic::SubsonicProvider::new()),
+            // Apple Music is mobile only: on iOS its songs play through the system's player, on
+            // Android its license comes from the system's MediaDrm.
+            #[cfg(any(target_os = "ios", target_os = "android"))]
+            Arc::new(music::apple::AppleProvider::new()),
         ];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
@@ -727,17 +732,18 @@ impl Core {
         self.inner.with_player(|player| player.pause());
     }
 
-    /// How loud the left and right channels are now, 0 to 1, or silence with nothing playing.
-    /// The levels are the track's own, before the listener's volume, so a song's wave does not
-    /// change with how loud it was heard.
-    pub fn levels(&self) -> [f32; 2] {
-        let mut levels = [0.0; 2];
+    /// How loud the left and right channels and the bass are now, 0 to 1, or silence with nothing
+    /// playing. The levels are the track's own, before the listener's volume, so a song's wave
+    /// does not change with how loud it was heard.
+    pub fn levels(&self) -> [f32; 3] {
+        let mut levels = [0.0; 3];
         self.inner.with_player(|player| {
             if let Some(spectrum) = player.spectrum() {
                 spectrum.set_absolute(true);
                 levels = [
                     levels::channel_level(&spectrum.left()),
                     levels::channel_level(&spectrum.right()),
+                    levels::bass(&spectrum.bands()),
                 ];
             }
         });
@@ -854,6 +860,12 @@ impl Core {
         // An account that only browses, such as a free Spotify one, cannot download.
         if !self.inner.streams(source) {
             anyhow::bail!("this account cannot download: a free Spotify account only browses");
+        }
+        if lock(&self.inner.sessions)
+            .get(source)
+            .is_some_and(|connected| !connected.capabilities.downloads)
+        {
+            anyhow::bail!("{source} cannot download on this device");
         }
         {
             let mut downloads = lock(&self.inner.downloads);
@@ -1079,6 +1091,21 @@ impl Inner {
         playback: Arc<dyn PlaybackFactory>,
         capabilities: Capabilities,
     ) {
+        // On iOS Apple Music plays through the system's queue player, since its Widevine engine
+        // has no module there. That player picks the stream itself and keeps nothing.
+        #[cfg(target_os = "ios")]
+        let (playback, capabilities) = match slug {
+            "apple" => (
+                Arc::new(native::Factory) as Arc<dyn PlaybackFactory>,
+                Capabilities {
+                    keeps: false,
+                    downloads: false,
+                    qualities: &[],
+                    ..capabilities
+                },
+            ),
+            _ => (playback, capabilities),
+        };
         lock(&self.sessions).insert(
             slug.to_owned(),
             Connected {

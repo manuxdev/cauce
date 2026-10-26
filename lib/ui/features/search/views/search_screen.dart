@@ -612,10 +612,11 @@ class _SearchScreenState extends State<SearchScreen> {
         padding: const EdgeInsets.only(bottom: bottomChromeInset),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
-          // Each landing of results comes in group by group, 30 ms apart.
+          // Each landing of results comes in group by group, 30 ms apart. Keyed by the list itself,
+          // so a rebuild with the same results does not play it again.
           if (artists.isNotEmpty)
             Arrive(
-              key: ObjectKey((_tracks, 'artists')),
+              key: ValueKey(('artists', identityHashCode(_tracks))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -647,7 +648,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           if (_albums.isNotEmpty)
             Arrive(
-              key: ObjectKey((_albums, 'albums')),
+              key: ValueKey(('albums', identityHashCode(_albums))),
               delay: const Duration(milliseconds: 30),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -672,7 +673,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           if (_tracks.isNotEmpty)
             Arrive(
-              key: ObjectKey((_tracks, 'songs')),
+              key: ValueKey(('songs', identityHashCode(_tracks))),
               delay: const Duration(milliseconds: 60),
               child: Column(
                 children: [

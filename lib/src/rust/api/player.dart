@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
+// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `native_command`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
 
 /// Starts the core once. Await it before any other call: everything else needs the core.
@@ -200,6 +200,14 @@ Future<void> setStopAfterCurrent({required bool stop}) =>
     RustLib.instance.api.crateApiPlayerSetStopAfterCurrent(stop: stop);
 
 Future<void> pause() => RustLib.instance.api.crateApiPlayerPause();
+
+/// Every command for the system's player from now on.
+Stream<NativeCommand> nativeCommands() => RustLib.instance.api.crateApiPlayerNativeCommands();
+
+/// What the system's player did with track `id`: `loading`, `playing`, `paused`, `position`,
+/// `seeked`, `length` (with `duration_ms`), `ended` or `unavailable`.
+void nativeEvent({required String kind, required String id, required int atMs, required int durationMs}) =>
+    RustLib.instance.api.crateApiPlayerNativeEvent(kind: kind, id: id, atMs: atMs, durationMs: durationMs);
 
 /// How loud the left and right channels are now, each 0 to 1; read about 30 times a second
 /// while a design that draws them is on screen.
@@ -451,6 +459,29 @@ class MediaCard {
           subtitle == other.subtitle &&
           cover == other.cover &&
           track == other.track;
+}
+
+/// A command for the system's player, which plays Apple Music on iOS. `kind` is `load`, `cue`
+/// (load and stay paused), `play`, `pause`, `seek` or `stop`; `id` and `at_ms` are empty and zero
+/// where the kind needs neither.
+class NativeCommand {
+  final String kind;
+  final String id;
+  final int atMs;
+
+  const NativeCommand({required this.kind, required this.id, required this.atMs});
+
+  @override
+  int get hashCode => kind.hashCode ^ id.hashCode ^ atMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NativeCommand &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          id == other.id &&
+          atMs == other.atMs;
 }
 
 /// The playback preferences. `bands` holds the ten graphic equalizer gains in dB.

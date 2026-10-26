@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import '../../../core/app_prefs.dart';
 import '../../../core/artwork.dart';
 import '../../../core/motion.dart';
+import '../../../core/tint_scope.dart';
 
 /// How a design's piece goes from one song to the next.
 enum SwapStyle {
@@ -455,6 +456,23 @@ class FullCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = artworkProvider(url);
     if (provider == null) return const ColoredBox(color: Color(0xFF2A2026));
-    return Image(image: provider, fit: BoxFit.cover, gaplessPlayback: true);
+    // While the large cover loads the cover's own colour fills the screen, and the image fades
+    // in over it, so nothing behind the player shows through.
+    return ColoredBox(
+      color: TintScope.of(context).vivid.player,
+      child: Image(
+        image: provider,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, synchronous) => synchronous
+            ? child
+            : AnimatedOpacity(
+                opacity: frame == null ? 0 : 1,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                child: child,
+              ),
+      ),
+    );
   }
 }

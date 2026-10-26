@@ -880,6 +880,46 @@ pub fn pause() -> Result<()> {
     Ok(())
 }
 
+/// A command for the system's player, which plays Apple Music on iOS. `kind` is `load`, `cue`
+/// (load and stay paused), `play`, `pause`, `seek` or `stop`; `id` and `at_ms` are empty and zero
+/// where the kind needs neither.
+pub struct NativeCommand {
+    pub kind: String,
+    pub id: String,
+    pub at_ms: u32,
+}
+
+/// Every command for the system's player from now on.
+pub fn native_commands(commands: StreamSink<NativeCommand>) {
+    cauce_core::native::on_command(move |command| {
+        commands.add(native_command(command)).ok();
+    });
+}
+
+fn native_command(command: cauce_core::native::Command) -> NativeCommand {
+    use cauce_core::native::Command;
+    let millis = |at: Duration| at.as_millis().min(u32::MAX as u128) as u32;
+    let (kind, id, at_ms) = match command {
+        Command::Load { id, at, play } => (if play { "load" } else { "cue" }, id, millis(at)),
+        Command::Play => ("play", String::new(), 0),
+        Command::Pause => ("pause", String::new(), 0),
+        Command::Seek(at) => ("seek", String::new(), millis(at)),
+        Command::Stop => ("stop", String::new(), 0),
+    };
+    NativeCommand {
+        kind: kind.to_owned(),
+        id,
+        at_ms,
+    }
+}
+
+/// What the system's player did with track `id`: `loading`, `playing`, `paused`, `position`,
+/// `seeked`, `length` (with `duration_ms`), `ended` or `unavailable`.
+#[flutter_rust_bridge::frb(sync)]
+pub fn native_event(kind: String, id: String, at_ms: u32, duration_ms: u32) {
+    cauce_core::native::event(&kind, id, at_ms.into(), duration_ms.into());
+}
+
 /// How loud the left and right channels are now, each 0 to 1; read about 30 times a second
 /// while a design that draws them is on screen.
 #[flutter_rust_bridge::frb(sync)]

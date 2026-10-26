@@ -13,6 +13,7 @@ import UserNotifications
 @objc class AppDelegate: FlutterAppDelegate {
   private var nowPlaying: NowPlaying?
   private var mediaLibrary: MediaLibrary?
+  private var applePlayer: ApplePlayer?
   private var appIcon: FlutterMethodChannel?
   private var notifications: FlutterMethodChannel?
   private let browser = Browser()
@@ -79,6 +80,9 @@ import UserNotifications
     }
     if let registrar = registrar(forPlugin: "CauceBrowser") {
       browser.attach(registrar.messenger())
+    }
+    if let registrar = registrar(forPlugin: "CauceApplePlayer") {
+      applePlayer = ApplePlayer(messenger: registrar.messenger())
     }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -249,6 +253,8 @@ final class NowPlaying {
         result(nil)
       case "claim":
         self?.unpluggedAt = nil
+        // The system's player keeps an audio session of its own; taking ours would cut it off.
+        if ApplePlayer.engaged { return result(false) }
         // Asked before every play: takes the audio, and answers whether the output has to be
         // opened again because another app had it.
         do {
@@ -362,7 +368,8 @@ final class NowPlaying {
     notifications.addObserver(
       forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
     ) { [weak self] notification in
-      guard let info = notification.userInfo,
+      // The system's player handles its own interruptions, ours included.
+      guard !ApplePlayer.engaged, let info = notification.userInfo,
         let raw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
         let type = AVAudioSession.InterruptionType(rawValue: raw)
       else { return }
@@ -521,7 +528,7 @@ final class MediaLibrary {
       guard let self else { return }
       switch call.method {
       case "songs":
-        self.authorized { granted in
+        mediaLibraryAuthorized { granted in
           guard granted else { return result([]) }
           DispatchQueue.global(qos: .userInitiated).async {
             let songs = self.songs()
@@ -545,17 +552,6 @@ final class MediaLibrary {
       default:
         result(FlutterMethodNotImplemented)
       }
-    }
-  }
-
-  private func authorized(_ done: @escaping (Bool) -> Void) {
-    switch MPMediaLibrary.authorizationStatus() {
-    case .authorized: done(true)
-    case .notDetermined:
-      MPMediaLibrary.requestAuthorization { status in
-        DispatchQueue.main.async { done(status == .authorized) }
-      }
-    default: done(false)
     }
   }
 
@@ -684,5 +680,198 @@ final class Folders: NSObject, UIDocumentPickerDelegate {
     }
     bookmarks = saved
     return folders
+  }
+}
+
+/// Apple Music through the system's queue player, driven by the Rust core over
+/// `cauce/apple_player`. Tracks are catalog store ids; what the player does goes back as calls
+/// named after the event, about the id loaded last.
+final class ApplePlayer {
+  /// Whether an Apple Music track is loaded, so the app's own audio session stays out of its way.
+  static private(set) var engaged = false
+
+  private let channel: FlutterMethodChannel
+  private let player = MPMusicPlayerController.applicationQueuePlayer
+  private var id = ""
+  private var duration: TimeInterval = 0
+  /// Where the last poll found playback; the player reads zero again once a track ends.
+  private var position: TimeInterval = 0
+  /// Where the track starts once prepared, moved by a seek while it prepares.
+  private var startAt: TimeInterval = 0
+  private var preparing = false
+  /// The item the queue player prepared for the track.
+  private var item: MPMediaEntityPersistentID?
+  /// The track has ended or failed and been reported, so nothing more is said about it.
+  private var done = true
+  private var ticker: Timer?
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "cauce/apple_player", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else { return result(nil) }
+      let arguments = call.arguments as? [String: Any] ?? [:]
+      let at = TimeInterval(arguments["at"] as? Int ?? 0) / 1000
+      switch call.method {
+      case "load", "cue": self.load(arguments["id"] as? String ?? "", at: at, play: call.method == "load")
+      case "play": self.player.play()
+      case "pause": self.player.pause()
+      case "seek": self.seek(at)
+      case "stop": self.stop()
+      default: return result(FlutterMethodNotImplemented)
+      }
+      result(nil)
+    }
+    player.beginGeneratingPlaybackNotifications()
+    let notifications = NotificationCenter.default
+    notifications.addObserver(
+      forName: .MPMusicPlayerControllerPlaybackStateDidChange, object: player, queue: .main
+    ) { [weak self] _ in self?.stateChanged() }
+    notifications.addObserver(
+      forName: .MPMusicPlayerControllerNowPlayingItemDidChange, object: player, queue: .main
+    ) { [weak self] _ in self?.itemChanged() }
+  }
+
+  private func load(_ id: String, at: TimeInterval, play: Bool) {
+    self.id = id
+    duration = 0
+    item = nil
+    position = at
+    startAt = at
+    preparing = true
+    done = false
+    ApplePlayer.engaged = true
+    stopTicker()
+    send("loading", at: at)
+    mediaLibraryAuthorized { [weak self] granted in
+      guard let self, self.id == id, !self.done else { return }
+      guard granted else {
+        NSLog("apple player: the media library is not authorized")
+        return self.fail()
+      }
+      self.player.setQueue(with: [id])
+      self.player.prepareToPlay { error in
+        DispatchQueue.main.async {
+          // Another load or a stop came first.
+          guard self.id == id, !self.done else { return }
+          if let error = error as NSError? {
+            NSLog("apple player: cannot prepare a track (\(error.domain) \(error.code))")
+            return self.fail()
+          }
+          self.preparing = false
+          self.item = self.player.nowPlayingItem?.persistentID
+          self.readLength()
+          if self.startAt > 0 { self.player.currentPlaybackTime = self.startAt }
+          self.position = self.startAt
+          if play {
+            self.player.play()
+            self.send("playing", at: self.startAt)
+            self.startTicker()
+          } else {
+            self.send("paused", at: self.startAt)
+          }
+        }
+      }
+    }
+  }
+
+  private func seek(_ at: TimeInterval) {
+    guard !done else { return }
+    startAt = at
+    guard !preparing else { return }
+    player.currentPlaybackTime = at
+    position = at
+    send("seeked", at: at)
+  }
+
+  private func stop() {
+    id = ""
+    done = true
+    preparing = false
+    ApplePlayer.engaged = false
+    stopTicker()
+    player.stop()
+  }
+
+  private func stateChanged() {
+    guard !preparing, !done else { return }
+    switch player.playbackState {
+    case .playing:
+      startTicker()
+      send("playing", at: now)
+    case .paused, .stopped, .interrupted:
+      // ponytail: a pause within the last 1.5 s counts as the end; the player says no more.
+      if duration > 0, position >= duration - 1.5 { return finish() }
+      stopTicker()
+      send("paused", at: now)
+    default:
+      break
+    }
+  }
+
+  /// The queue holds one track, so any other item, or none, means it has played out. The item is
+  /// compared with the one prepared, since its store id can differ from the one asked for.
+  private func itemChanged() {
+    guard !preparing, !done else { return }
+    guard let current = player.nowPlayingItem?.persistentID else { return finish() }
+    guard let item else {
+      item = current
+      return
+    }
+    if current != item { finish() }
+  }
+
+  private func startTicker() {
+    guard ticker == nil else { return }
+    ticker = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+      guard let self, !self.done else { return }
+      if self.duration == 0 { self.readLength() }
+      self.position = self.now
+      self.send("position", at: self.position)
+    }
+  }
+
+  private func stopTicker() {
+    ticker?.invalidate()
+    ticker = nil
+  }
+
+  private func readLength() {
+    guard let length = player.nowPlayingItem?.playbackDuration, length > 0 else { return }
+    duration = length
+    send("length", at: 0, duration: length)
+  }
+
+  private func finish() {
+    done = true
+    stopTicker()
+    send("ended", at: position)
+  }
+
+  private func fail() {
+    done = true
+    preparing = false
+    stopTicker()
+    send("unavailable", at: 0)
+  }
+
+  private var now: TimeInterval {
+    let time = player.currentPlaybackTime
+    return time.isFinite ? max(0, time) : position
+  }
+
+  private func send(_ event: String, at: TimeInterval, duration: TimeInterval = 0) {
+    channel.invokeMethod(event, arguments: ["id": id, "at": Int(at * 1000), "duration": Int(duration * 1000)])
+  }
+}
+
+/// Whether the app may use the media library, asking the first time. Answers on the main queue.
+func mediaLibraryAuthorized(_ done: @escaping (Bool) -> Void) {
+  switch MPMediaLibrary.authorizationStatus() {
+  case .authorized: done(true)
+  case .notDetermined:
+    MPMediaLibrary.requestAuthorization { status in
+      DispatchQueue.main.async { done(status == .authorized) }
+    }
+  default: done(false)
   }
 }

@@ -18,6 +18,75 @@ void main() {
     expect(seekStyleFor(PlayerDesign.vinyl, SeekStyle.ring), SeekStyle.ring);
   });
 
+  test('the ripple swells from nearly flat on quiet music to twice its rest on loud', () {
+    expect(rippleSwell(null), 1);
+    expect(rippleSwell(0), closeTo(0.25, 1e-9));
+    expect(rippleSwell(0.1), lessThan(0.5));
+    expect(rippleSwell(0.3), greaterThan(rippleSwell(0.1) * 1.8));
+    expect(rippleSwell(1), 2);
+  });
+
+  test('a jump in the bass over its recent average is a beat, and its pulse fades in a fraction of a second', () {
+    final beat = BeatDetector();
+    const frame = Duration(milliseconds: 33);
+    // A steady bass is no beat, however loud.
+    for (var i = 0; i < 60; i++) {
+      beat.add(0.3, frame);
+    }
+    expect(beat.pulse, 0);
+    // The kick: well over the average.
+    beat.add(0.7, frame);
+    expect(beat.pulse, 1);
+    // Gone within about half a second.
+    for (var i = 0; i < 15; i++) {
+      beat.add(0.3, frame);
+    }
+    expect(beat.pulse, lessThan(0.05));
+  });
+
+  test('silence and beats closer than a quarter second apart are not new beats', () {
+    final beat = BeatDetector();
+    const frame = Duration(milliseconds: 33);
+    for (var i = 0; i < 60; i++) {
+      beat.add(0.01, frame);
+    }
+    beat.add(0.03, frame);
+    expect(beat.pulse, 0, reason: 'too quiet to be a beat');
+    for (var i = 0; i < 60; i++) {
+      beat.add(0.3, frame);
+    }
+    beat.add(0.7, frame);
+    beat.add(0.3, frame);
+    final after = beat.pulse;
+    beat.add(0.7, frame);
+    expect(beat.pulse, lessThan(1), reason: 'a second kick 66 ms later is the same beat');
+    expect(beat.pulse, lessThanOrEqualTo(after));
+  });
+
+  test('the ripple swells further on a beat', () {
+    expect(rippleSwell(0.2, beat: 1), greaterThan(rippleSwell(0.2) + 0.9));
+    expect(rippleSwell(0.2, beat: 0), rippleSwell(0.2));
+  });
+
+  test('each ripple crest keeps the swell it was born with, its loudest moment included', () {
+    final crests = RippleCrests(most: 3);
+    crests.tick(0.1, 0.5);
+    crests.tick(0.5, 1.8); // a beat while the newest crest forms
+    crests.tick(0.9, 0.6);
+    expect(crests.values, [1.8]);
+    crests.tick(0.05, 0.4); // the phase wraps: a new crest is born, the last one is kept as it was
+    expect(crests.values, [0.4, 1.8]);
+    crests.tick(0.08, 0.3);
+    expect(crests.values, [0.4, 1.8], reason: 'a lower swell does not shrink the crest forming');
+    crests.tick(0.6, 0.2);
+    crests.tick(0.1, 0.9);
+    expect(crests.values, [0.9, 0.4, 1.8]);
+    crests.tick(0.05, 0.5);
+    expect(crests.values, [0.5, 0.9, 0.4], reason: 'only as many as fit along the bar are kept');
+    expect(crests.at(0), crests.values.first);
+    expect(crests.at(10), crests.values.last, reason: 'crests not yet known take the oldest one');
+  });
+
   test('auto takes each design\'s own buttons', () {
     expect(buttonLookFor(PlayerDesign.classic, ButtonLook.auto), ButtonLook.circle);
     expect(buttonLookFor(PlayerDesign.vinyl, ButtonLook.auto), ButtonLook.outline);

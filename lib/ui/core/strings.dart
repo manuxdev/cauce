@@ -33,11 +33,15 @@ const english = <String, String>{
 
   'toast.retry': 'Retry',
   'toast.copied': 'Link copied',
+  'toast.exit': 'Press back again to exit',
   'playlist.addFailed': 'Could not add to {name}',
   'playlist.createFailed': 'Could not create the playlist',
   'connect.failed': 'Could not sign in',
   'signIn.returned': 'Connected',
   'signIn.returned.detail': 'You can go back to Cauce. This page closes by itself.',
+  'signIn.toPlay': 'Sign in to {service} to play this',
+  'signIn.toPlay.detail': '{service} downloads stay locked: each play needs your account and a connection.',
+  'signIn.toLike': 'Sign in to {service} to like this song',
   'error.network': 'Can’t connect. Check your connection and try again.',
   'error.session': 'Your session with the service ended. Sign in again.',
   'error.premium': 'This needs a Premium account.',
@@ -202,6 +206,27 @@ const english = <String, String>{
   'providers.keepsDownloads': 'Signing out keeps that provider\'s downloads.',
   'providers.signedInAs': 'Signed in as {account}',
   'providers.keepsDownloadsOf': 'Your {service} downloads are kept.',
+  'plans.title': 'What Cauce can do',
+  'plans.free': 'Free',
+  'plans.paid': 'Paid',
+  'plans.any': 'Any plan',
+  'plans.server': 'Your server',
+  'plans.device': 'On this device',
+  'plans.youtube.free': 'Plays and downloads in Cauce, at up to 128 kbps AAC.',
+  'plans.youtube.paid': 'Premium: the same, at up to 256 kbps AAC.',
+  'plans.deezer': 'Plays and downloads in Cauce, in the best format your plan covers: FLAC, MP3 320 or MP3 128 kbps.',
+  'plans.spotify.free':
+      'Kept to browse your library, playlists and likes. Its songs play from another connected service, and it can’t download.',
+  'plans.spotify.paid': 'Premium: plays and downloads in Cauce, at up to 320 kbps Ogg Vorbis.',
+  'plans.tidal.free':
+      'Without a subscription Tidal only plays previews, so its songs play from another connected service.',
+  'plans.tidal.paid':
+      'Plays and downloads in Cauce at the quality you pick, up to 24-bit/192 kHz FLAC where your plan and the album reach it.',
+  'plans.apple.ios':
+      'Plays through the iPhone’s Music player, with access to your media library. No downloads or quality choice, and no equalizer, volume leveling, spectrum or level-reactive effects.',
+  'plans.apple.android':
+      'Plays through Cauce’s own engine, with the equalizer and every effect, at 256 or 64 kbps AAC. Downloads stay encrypted: each play needs Apple Music signed in and a connection.',
+  'plans.subsonic': 'No plans: Cauce plays and downloads what your server holds.',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
 
@@ -344,7 +369,9 @@ const english = <String, String>{
   'design.tape': 'Tape',
   'design.immersive': 'Immersive',
   'design.bar': 'Progress bar',
-  'design.bar.footer': 'Used in Now Playing and in the lyrics. The mini player keeps its thin line.',
+  'design.bar.footer': 'Used in Now Playing and in the lyrics.',
+  'design.bar.mini': 'In the mini player too',
+  'design.bar.mini.detail': 'Its line takes the same style. The ring and the tape stay a line.',
   'seek.auto': 'Automatic',
   'seek.auto.detail': 'The design\'s own · {bar}',
   'seek.line': 'Line',
@@ -476,6 +503,9 @@ const english = <String, String>{
   'downloads.inProgress': 'In progress',
   'downloads.done': 'Downloaded',
   'downloads.delete': 'Delete',
+  'downloads.signInToPlay': 'Sign in to {service} to play',
+  'downloads.connectionToPlay': 'Needs a connection to play',
+  'downloads.needsConnection': 'Apple Music downloads need a connection to play',
 
   // Web sign-in
   'signIn.private': 'You sign in with the provider itself. Cauce never sees your password.',
@@ -520,11 +550,16 @@ const spanish = <String, String>{
 
   'toast.retry': 'Reintentar',
   'toast.copied': 'Enlace copiado',
+  'toast.exit': 'Vuelve atrás otra vez para salir',
   'playlist.addFailed': 'No se pudo añadir a {name}',
   'playlist.createFailed': 'No se pudo crear la playlist',
   'connect.failed': 'No se pudo iniciar sesión',
   'signIn.returned': 'Conectado',
   'signIn.returned.detail': 'Ya puedes volver a Cauce. Esta página se cierra sola.',
+  'signIn.toPlay': 'Inicia sesión en {service} para reproducir esto',
+  'signIn.toPlay.detail':
+      'Las descargas de {service} quedan bloqueadas: cada reproducción necesita tu cuenta y conexión.',
+  'signIn.toLike': 'Inicia sesión en {service} para darle me gusta a esta canción',
   'error.network': 'No hay conexión. Revisa tu conexión e inténtalo de nuevo.',
   'error.session': 'Tu sesión con el servicio terminó. Vuelve a iniciar sesión.',
   'error.premium': 'Esto necesita una cuenta Premium.',
@@ -692,6 +727,28 @@ const spanish = <String, String>{
   'providers.keepsDownloads': 'Al cerrar sesión se conservan las descargas de ese proveedor.',
   'providers.signedInAs': 'Conectado como {account}',
   'providers.keepsDownloadsOf': 'Tus descargas de {service} se conservan.',
+  'plans.title': 'Lo que Cauce puede hacer',
+  'plans.free': 'Gratis',
+  'plans.paid': 'De pago',
+  'plans.any': 'Cualquier plan',
+  'plans.server': 'Tu servidor',
+  'plans.device': 'En este dispositivo',
+  'plans.youtube.free': 'Reproduce y descarga en Cauce, hasta AAC a 128 kbps.',
+  'plans.youtube.paid': 'Premium: lo mismo, hasta AAC a 256 kbps.',
+  'plans.deezer':
+      'Reproduce y descarga en Cauce, en el mejor formato que cubra tu plan: FLAC, MP3 a 320 o MP3 a 128 kbps.',
+  'plans.spotify.free':
+      'Se conserva para explorar tu biblioteca, playlists y me gusta. Sus canciones suenan desde otro servicio conectado y no puede descargar.',
+  'plans.spotify.paid': 'Premium: reproduce y descarga en Cauce, hasta Ogg Vorbis a 320 kbps.',
+  'plans.tidal.free':
+      'Sin suscripción, Tidal solo reproduce avances, así que sus canciones suenan desde otro servicio conectado.',
+  'plans.tidal.paid':
+      'Reproduce y descarga en Cauce en la calidad que elijas, hasta FLAC de 24 bits/192 kHz donde lleguen tu plan y el álbum.',
+  'plans.apple.ios':
+      'Suena a través del reproductor de Música del iPhone, con acceso a tu biblioteca. Sin descargas ni elección de calidad, y sin ecualizador, nivelación de volumen, espectro ni efectos que siguen los niveles.',
+  'plans.apple.android':
+      'Suena con el motor propio de Cauce, con el ecualizador y todos los efectos, en AAC a 256 o 64 kbps. Las descargas siguen cifradas: cada reproducción necesita Apple Music con sesión iniciada y conexión.',
+  'plans.subsonic': 'Sin planes: Cauce reproduce y descarga lo que tenga tu servidor.',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',
 
@@ -828,7 +885,9 @@ const spanish = <String, String>{
   'design.tape': 'Cinta',
   'design.immersive': 'Inmersivo',
   'design.bar': 'Barra de progreso',
-  'design.bar.footer': 'Se usa en Reproduciendo y en la letra. El mini reproductor mantiene su línea fina.',
+  'design.bar.footer': 'Se usa en Reproduciendo y en la letra.',
+  'design.bar.mini': 'También en el mini reproductor',
+  'design.bar.mini.detail': 'Su línea toma el mismo estilo. El anillo y la cinta siguen siendo una línea.',
   'seek.auto': 'Automática',
   'seek.auto.detail': 'La del diseño · {bar}',
   'seek.line': 'Línea',
@@ -956,6 +1015,9 @@ const spanish = <String, String>{
   'downloads.inProgress': 'En curso',
   'downloads.done': 'Descargadas',
   'downloads.delete': 'Eliminar',
+  'downloads.signInToPlay': 'Inicia sesión en {service} para reproducir',
+  'downloads.connectionToPlay': 'Necesita conexión para reproducirse',
+  'downloads.needsConnection': 'Las descargas de Apple Music necesitan conexión para reproducirse',
 
   'signIn.private': 'Iniciás sesión directamente con el proveedor. Cauce nunca ve tu contraseña.',
   'signIn.title': 'Iniciá sesión en {service}',

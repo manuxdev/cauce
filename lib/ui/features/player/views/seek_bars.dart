@@ -81,6 +81,12 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
   String get _key => '${_player.track?.source}:${_player.track?.id}';
 
   /// What the ripple follows: the given level, or the music's when it moves with the audio.
+  /// Each crest's swell, kept as it formed at the playhead.
+  final _crests = RippleCrests();
+
+  /// How the music swells the ripple now, its beat included.
+  double get _heard => rippleSwell(_level?.value, beat: identical(_level, audioLevels) ? audioLevels.beat : 0);
+
   ValueListenable<double>? get _level =>
       widget.level ?? (widget.style == SeekStyle.ripple && appPrefs.reactive ? audioLevels : null);
   double get _total => _player.duration.inMilliseconds.toDouble();
@@ -207,7 +213,8 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                           finger: _held != null ? _x : null,
                           wave: widget.wave ?? waveforms.of(_key) ?? placeholderWave(_key, waveBars),
                           ripple: _run.value,
-                          swell: _swell.value * (0.5 + (_level?.value ?? 0.5)) * appPrefs.intensity.scale,
+                          crests: style == SeekStyle.ripple ? (_crests..tick(_run.value, _heard)) : null,
+                          swell: _swell.value * appPrefs.intensity.scale,
                           height: _height(style, widget.compact),
                           label: formatDuration(at),
                           ink: TintScope.of(context).vivid.ink,
@@ -257,7 +264,7 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
 /// How tall each bar is drawn, inside its 44-point band.
 double _height(SeekStyle style, bool compact) => switch (style) {
   SeekStyle.wave => compact ? 26 : 38,
-  SeekStyle.ripple => 20,
+  SeekStyle.ripple => 30,
   SeekStyle.capsule => 16,
   SeekStyle.dots => 8,
   SeekStyle.tape => compact ? 40 : 52,
@@ -341,6 +348,7 @@ class SeekPainter extends CustomPainter {
     required this.seconds,
     this.grow = 0,
     this.finger,
+    this.crests,
   });
 
   final SeekStyle style;
@@ -357,6 +365,9 @@ class SeekPainter extends CustomPainter {
   final double ripple;
   final double swell;
   final double height;
+
+  /// Each ripple crest's own swell, newest at the playhead; without them all swell alike.
+  final RippleCrests? crests;
 
   /// The time at [fraction], for the capsule.
   final String label;
@@ -445,12 +456,18 @@ class SeekPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      // Round joins: the default mitre left a thin spike glinting on each sharp crest.
+      ..strokeJoin = StrokeJoin.round;
     canvas.drawLine(Offset(x, mid), Offset(size.width, mid), paint..color = _rest);
     final path = Path()..moveTo(0, mid);
-    final amplitude = 3.5 * swell * (1 - grow);
+    final amplitude = 5.5 * swell * (1 - grow);
+    // The crests are born at the playhead and travel back along the played part, each as tall as
+    // the music was when it formed. A crest starts and ends on the line, so their heights meet.
     for (var at = 0.0; at <= x; at += 1) {
-      path.lineTo(at, mid + amplitude * math.sin((at / 12 - ripple) * 2 * math.pi));
+      final cycle = (x - at) / 12 - ripple;
+      final crest = crests?.at(cycle.floor() + 1) ?? 1;
+      path.lineTo(at, mid + amplitude * crest * math.sin(cycle * 2 * math.pi));
     }
     canvas.drawPath(path, paint..color = Colors.white);
     final knob = RRect.fromLTRBR(x - 3, mid - 10, x + 3, mid + 10, const Radius.circular(3));

@@ -89,6 +89,9 @@ class AppPrefs extends ChangeNotifier {
 
   PlayerDesign playerDesign = PlayerDesign.classic;
   SeekStyle seekStyle = SeekStyle.auto;
+
+  /// The mini player draws its line in the full player's bar style too.
+  bool miniSeekStyle = false;
   ButtonLook buttonLook = ButtonLook.auto;
 
   /// The vinyl turns while it plays.
@@ -148,6 +151,7 @@ class AppPrefs extends ChangeNotifier {
     providerTag = json['providerTag'] as bool? ?? true;
     playerDesign = PlayerDesign.values.asNameMap()[json['playerDesign']] ?? PlayerDesign.classic;
     seekStyle = SeekStyle.values.asNameMap()[json['seekStyle']] ?? SeekStyle.auto;
+    miniSeekStyle = json['miniSeekStyle'] as bool? ?? false;
     buttonLook = ButtonLook.values.asNameMap()[json['buttonLook']] ?? ButtonLook.auto;
     spinVinyl = json['spinVinyl'] as bool? ?? true;
     reactive = json['reactive'] as bool? ?? true;
@@ -182,6 +186,7 @@ class AppPrefs extends ChangeNotifier {
     'providerTag': providerTag,
     'playerDesign': playerDesign.name,
     'seekStyle': seekStyle.name,
+    'miniSeekStyle': miniSeekStyle,
     'buttonLook': buttonLook.name,
     'spinVinyl': spinVinyl,
     'reactive': reactive,
@@ -201,6 +206,7 @@ class AppPrefs extends ChangeNotifier {
   void resetPlayerDesign() {
     playerDesign = PlayerDesign.classic;
     seekStyle = SeekStyle.auto;
+    miniSeekStyle = false;
     buttonLook = ButtonLook.auto;
     spinVinyl = true;
     movingBackground = true;

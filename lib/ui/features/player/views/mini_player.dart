@@ -1,12 +1,18 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../../core/app_prefs.dart';
 import '../../../core/artwork.dart';
 import '../../../core/icons.dart';
 import '../../../core/motion.dart';
 import '../../../core/theme.dart';
 import '../../../core/tint_scope.dart';
+import '../audio_levels.dart';
+import '../player_design.dart';
 import '../view_models/player_view_model.dart';
 import 'now_playing_screen.dart';
+import 'seek_bars.dart';
 
 /// The top of the dock while something is queued: cover, names, play and next, and a progress
 /// line that can be dragged through the track. A tap opens the full player.
@@ -19,7 +25,7 @@ class MiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final tint = TintScope.of(context);
     return ListenableBuilder(
-      listenable: player,
+      listenable: Listenable.merge([player, appPrefs]),
       builder: (context, _) {
         final track = player.track;
         if (track == null) return const SizedBox.shrink();
@@ -213,6 +219,39 @@ class _ScrubBarState extends State<_ScrubBar> {
     );
   }
 
+  /// The full player's bar drawn small, when the listener asked for it; the ring and the tape
+  /// have no line shape, so they keep the plain one.
+  Widget? _styled(BuildContext context, double value) {
+    if (!appPrefs.miniSeekStyle) return null;
+    final style = seekStyleFor(appPrefs.playerDesign, appPrefs.seekStyle);
+    if (style == SeekStyle.line || style == SeekStyle.ring || style == SeekStyle.tape) return null;
+    if (style == SeekStyle.ripple) {
+      return _MiniRipple(fraction: value, playing: widget.player.playing && _held == null);
+    }
+    final track = widget.player.track;
+    final key = '${track?.source}:${track?.id}';
+    return SizedBox(
+      height: 12,
+      child: ListenableBuilder(
+        listenable: waveforms,
+        builder: (context, _) => CustomPaint(
+          painter: SeekPainter(
+            style: style,
+            fraction: value,
+            wave: waveforms.of(key) ?? placeholderWave(key, waveBars),
+            ripple: 0,
+            swell: 1,
+            height: style == SeekStyle.dots ? 6 : 10,
+            label: '',
+            ink: TintScope.of(context).vivid.ink,
+            needle: CauceColors.dark.accent,
+            seconds: widget.player.duration.inMilliseconds / 1000,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final held = _held != null;
@@ -242,23 +281,25 @@ class _ScrubBarState extends State<_ScrubBar> {
                   Positioned(
                     left: _margin,
                     right: _margin,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      curve: Curves.easeOut,
-                      height: held ? 6 : 3,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: value,
-                        heightFactor: 1,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3)),
+                    child:
+                        _styled(context, value) ??
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          curve: Curves.easeOut,
+                          height: held ? 6 : 3,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: value,
+                            heightFactor: 1,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3)),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
                   ),
                   if (held)
                     Positioned(
@@ -281,4 +322,111 @@ class _ScrubBarState extends State<_ScrubBar> {
       },
     );
   }
+}
+
+/// The ripple drawn for the mini player's thin line: a fine wave over the part played that runs
+/// while it plays and swells with the music and its beat, without the full bar's knob.
+class _MiniRipple extends StatefulWidget {
+  const _MiniRipple({required this.fraction, required this.playing});
+
+  final double fraction;
+  final bool playing;
+
+  @override
+  State<_MiniRipple> createState() => _MiniRippleState();
+}
+
+class _MiniRippleState extends State<_MiniRipple> with SingleTickerProviderStateMixin {
+  late final _run = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  final _crests = RippleCrests();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _follow();
+  }
+
+  @override
+  void didUpdateWidget(_MiniRipple old) {
+    super.didUpdateWidget(old);
+    _follow();
+  }
+
+  void _follow() {
+    final on = widget.playing && !MediaQuery.disableAnimationsOf(context);
+    if (on && !_run.isAnimating) _run.repeat();
+    if (!on) _run.stop();
+  }
+
+  @override
+  void dispose() {
+    _run.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reactive = appPrefs.reactive;
+    final ripple = SizedBox(
+      // The whole touch strip, so the taller crests have room.
+      height: 14,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_run, if (reactive) audioLevels]),
+        builder: (context, _) => CustomPaint(
+          painter: _MiniRipplePainter(
+            fraction: widget.fraction,
+            phase: _run.value,
+            crests: _crests
+              ..tick(
+                _run.value,
+                rippleSwell(reactive ? audioLevels.value : null, beat: reactive ? audioLevels.beat : 0),
+              ),
+            // Under half the full bar's swing, so the wave stays inside the line's strip.
+            amplitude: widget.playing ? 2.6 * appPrefs.intensity.scale : 0,
+          ),
+        ),
+      ),
+    );
+    return reactive ? LevelsHold(child: ripple) : ripple;
+  }
+}
+
+class _MiniRipplePainter extends CustomPainter {
+  _MiniRipplePainter({required this.fraction, required this.phase, required this.crests, required this.amplitude});
+
+  final double fraction;
+  final double phase;
+  final RippleCrests crests;
+  final double amplitude;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final mid = size.height / 2;
+    final x = size.width * fraction;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      // Round joins: the default mitre left a thin spike glinting on each sharp crest.
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawLine(Offset(x, mid), Offset(size.width, mid), paint..color = Colors.white.withValues(alpha: 0.2));
+    final path = Path()..moveTo(0, mid);
+    // As on the full bar: born at the playhead, each crest as tall as the music when it formed,
+    // and never past the strip.
+    for (var at = 0.0; at <= x; at += 1) {
+      final cycle = (x - at) / 10 - phase;
+      final swing = math.min(amplitude * crests.at(cycle.floor() + 1), mid - 1);
+      path.lineTo(at, mid + swing * math.sin(cycle * 2 * math.pi));
+    }
+    canvas.drawPath(path, paint..color = Colors.white);
+    // Where the song is, as the full bar marks it.
+    canvas.drawRRect(
+      RRect.fromLTRBR(x - 1.5, 0, x + 1.5, size.height, const Radius.circular(1.5)),
+      Paint()..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MiniRipplePainter old) =>
+      old.fraction != fraction || old.phase != phase || old.amplitude != amplitude;
 }

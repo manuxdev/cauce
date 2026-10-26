@@ -30,3 +30,8 @@ windows-sys = { workspace = true, features = [
   "Win32_System_Console",
   "Win32_System_Threading",
 ] }
+
+# Android has a CDM of its own, `android.media.MediaDrm`, reached over JNI from the app's VM.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22", default-features = false }
+ndk-context = "0.1"

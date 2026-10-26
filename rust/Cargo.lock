@@ -383,6 +383,7 @@ name = "cauce_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64",
  "fastrand",
  "log",
@@ -4810,8 +4811,10 @@ dependencies = [
  "cc",
  "dirs",
  "flate2",
+ "jni",
  "libc",
  "log",
+ "ndk-context",
  "reqwest 0.13.4",
  "serde_json",
  "sha2",

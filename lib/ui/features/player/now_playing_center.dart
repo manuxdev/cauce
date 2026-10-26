@@ -26,6 +26,8 @@ class NowPlayingCenter {
     PlayerViewModel.claimAudio = () async => await _channel.invokeMethod<bool>('claim') ?? false;
     _player.addListener(_sync);
     _channel.invokeMethod('output');
+    // iOS says by itself; Android only once the network changes.
+    if (defaultTargetPlatform == TargetPlatform.android) _channel.invokeMethod('online');
   }
 
   /// Sets the phone's own volume, 0 to 1.
@@ -46,9 +48,13 @@ class NowPlayingCenter {
   Duration _sentPosition = Duration.zero;
   DateTime _sentAt = DateTime.now();
 
+  /// Whether the system plays this source rather than the core: Apple Music on iOS only.
+  static bool _systemPlayed(String? source) => source == 'apple' && defaultTargetPlatform == TargetPlatform.iOS;
+
   void _sync() {
     final track = _player.track;
-    if (track == null) {
+    // On iOS the system's queue player shows Apple Music on the lock screen itself.
+    if (track == null || _systemPlayed(track.source)) {
       if (_track != null) _channel.invokeMethod('clear');
       _track = null;
       return;
@@ -87,7 +93,8 @@ class NowPlayingCenter {
       case 'next':
         await _player.next();
       case 'reroute':
-        await _player.reroute();
+        // The system's queue player follows a new route by itself.
+        if (!_systemPlayed(_player.track?.source)) await _player.reroute();
       case 'previous':
         await _player.previous();
       case 'online':

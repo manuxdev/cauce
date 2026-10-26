@@ -34,7 +34,27 @@ class FavoritesViewModel extends ChangeNotifier {
   /// Runs for every track the user likes, as auto-downloading likes does.
   void Function(core.TrackItem track)? onLiked;
 
+  /// Whether liking a track from `source` waits on signing in to its service. Set where the
+  /// accounts are known; nothing waits in tests.
+  bool Function(String source) signInFirst = (_) => false;
+
+  String? _signIn;
+
+  /// The service a like asked to be signed in to, for a toast that offers the sign-in.
+  /// Cleared once taken.
+  String? takeSignIn() {
+    final slug = _signIn;
+    _signIn = null;
+    return slug;
+  }
+
   Future<void> toggle(core.TrackItem track) async {
+    // The heart stays as it is: the service would refuse it.
+    if (signInFirst(track.source)) {
+      _signIn = track.source;
+      notifyListeners();
+      return;
+    }
     final wasSaved = saved(track);
     final list = [...tracks(track.source)];
     wasSaved ? list.removeWhere((saved) => saved.id == track.id) : list.insert(0, track);

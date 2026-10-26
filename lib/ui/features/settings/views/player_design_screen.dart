@@ -93,6 +93,12 @@ class PlayerDesignScreen extends StatelessWidget {
                     preview: bar,
                     enabled: bar != SeekStyle.ring || design == PlayerDesign.vinyl,
                   ),
+                SettingsSwitch(
+                  title: context.t('design.bar.mini'),
+                  subtitle: context.t('design.bar.mini.detail'),
+                  value: appPrefs.miniSeekStyle,
+                  onChanged: (on) => appPrefs.update((prefs) => prefs.miniSeekStyle = on),
+                ),
               ],
             ),
             Overline(context.t('design.buttons'), padding: const EdgeInsets.fromLTRB(16, 4, 16, 8)),
@@ -315,10 +321,17 @@ class _Hero extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
+          // Drawn at the card's size and scaled down, so the thumbnail lays out as it does there.
           child: SizedBox(
             width: 84,
             height: 150,
-            child: _Thumb(design: design, bar: bar),
+            child: FittedBox(
+              child: SizedBox(
+                width: 100,
+                height: 178,
+                child: _Thumb(design: design, bar: bar),
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 18),

@@ -575,7 +575,256 @@ mod host {
     }
 }
 
-#[cfg(not(feature = "cdm"))]
+/// Android's own Widevine, `android.media.MediaDrm`, driven over JNI through the VM the app
+/// handed `ndk-context` at start. One `MediaDrm` serves the process and every [`Cdm`] is a
+/// session on it, closed when its last clone goes. Samples are decrypted by the platform decoder
+/// against that session, see [`crate::Decoder`].
+#[cfg(all(target_os = "android", not(feature = "cdm")))]
+mod host {
+    use std::sync::{Arc, Mutex, PoisonError};
+
+    use anyhow::{Result, anyhow, bail};
+    use jni::errors::Error;
+    use jni::objects::{JByteArray, JObject, JString, JValue};
+    use jni::refs::Global;
+    use jni::{Env, JavaVM, jni_sig, jni_str};
+
+    /// The Widevine system id as the two halves `java.util.UUID` takes.
+    const UUID_MSB: i64 = 0xedef_8ba9_79d6_4ace_u64 as i64;
+    const UUID_LSB: i64 = 0xa3c8_27dc_d51d_21ed_u64 as i64;
+    /// `MediaDrm.KEY_TYPE_STREAMING`.
+    const KEY_TYPE_STREAMING: i32 = 1;
+
+    // ponytail: the MediaDrm is kept for the life of the process, release it when idle if its
+    // memory ever matters.
+    static DRM: Mutex<Option<Arc<Global<JObject<'static>>>>> = Mutex::new(None);
+
+    /// A session on the process's `MediaDrm`.
+    #[derive(Clone)]
+    pub struct Cdm(Arc<Session>);
+
+    struct Session {
+        drm: Arc<Global<JObject<'static>>>,
+        id: Global<JByteArray<'static>>,
+    }
+
+    impl Cdm {
+        pub fn open() -> Result<Self> {
+            let drm = drm()?;
+            let id = match with(|env| session(env, &drm)) {
+                Err(error) if error.to_string().contains("NotProvisionedException") => {
+                    provision(&drm)?;
+                    with(|env| session(env, &drm))?
+                }
+                opened => opened?,
+            };
+            Ok(Self(Arc::new(Session { drm, id })))
+        }
+
+        pub fn challenge(&self, init: &[u8]) -> Result<Vec<u8>> {
+            let challenge = with(|env| {
+                let init = env.byte_array_from_slice(init)?;
+                let mime = env.new_string("audio/mp4")?;
+                let request = env
+                    .call_method(
+                        self.0.drm.as_obj(),
+                        jni_str!("getKeyRequest"),
+                        jni_sig!(
+                            "([B[BLjava/lang/String;ILjava/util/HashMap;)Landroid/media/MediaDrm$KeyRequest;"
+                        ),
+                        &[
+                            JValue::Object(self.0.id.as_obj()),
+                            JValue::Object(&init),
+                            JValue::Object(&mime),
+                            JValue::Int(KEY_TYPE_STREAMING),
+                            JValue::Object(&JObject::null()),
+                        ],
+                    )?
+                    .l()?;
+                bytes(env, &request, jni_str!("getData"))
+            })?;
+            log::info!("widevine: android challenge of {} bytes", challenge.len());
+            Ok(challenge)
+        }
+
+        pub fn accept(&self, license: &[u8]) -> Result<()> {
+            let accepted = with(|env| {
+                let license = env.byte_array_from_slice(license)?;
+                env.call_method(
+                    self.0.drm.as_obj(),
+                    jni_str!("provideKeyResponse"),
+                    jni_sig!("([B[B)[B"),
+                    &[JValue::Object(self.0.id.as_obj()), JValue::Object(&license)],
+                )?;
+                Ok(())
+            });
+            match &accepted {
+                Ok(()) => log::info!("widevine: android license accepted"),
+                Err(error) => log::info!("widevine: android license refused: {error:#}"),
+            }
+            accepted
+        }
+
+        /// Android hands no cleartext back: a sample is decrypted inside the platform decoder,
+        /// see [`crate::Decoder`]. Kept so a stray caller fails rather than plays ciphertext.
+        pub fn decrypt(
+            &self,
+            _sample: &mut [u8],
+            _key_id: &[u8],
+            _iv: &[u8; 16],
+            _subs: &[(u32, u32)],
+        ) -> Result<()> {
+            bail!("android decrypts inside the platform decoder, not through the cdm")
+        }
+
+        /// The session's id, which a `MediaCrypto` is opened against to decrypt with its keys.
+        pub(crate) fn session(&self) -> Result<Vec<u8>> {
+            with(|env| env.convert_byte_array(&*self.0.id))
+        }
+    }
+
+    impl Drop for Session {
+        fn drop(&mut self) {
+            let closed = with(|env| {
+                env.call_method(
+                    self.drm.as_obj(),
+                    jni_str!("closeSession"),
+                    jni_sig!("([B)V"),
+                    &[JValue::Object(self.id.as_obj())],
+                )?
+                .v()
+            });
+            if let Err(error) = closed {
+                log::warn!("widevine: cannot close the android session: {error:#}");
+            }
+        }
+    }
+
+    /// Runs `call` on this thread attached to the app's VM, with a thrown exception turned into
+    /// its class and message.
+    fn with<T>(call: impl FnOnce(&mut Env) -> jni::errors::Result<T>) -> Result<T> {
+        // SAFETY: the bridge hands ndk-context the app's live VM once, before Rust runs anything.
+        let vm = unsafe { JavaVM::from_raw(ndk_context::android_context().vm().cast()) };
+        vm.attach_current_thread(call).map_err(|error| match error {
+            Error::CaughtJavaException { name, msg, .. } => anyhow!("{name}: {msg}"),
+            other => anyhow!(other),
+        })
+    }
+
+    /// The process's `MediaDrm`, made on first use.
+    fn drm() -> Result<Arc<Global<JObject<'static>>>> {
+        let mut slot = DRM.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(drm) = &*slot {
+            return Ok(drm.clone());
+        }
+        let drm = Arc::new(with(|env| {
+            let uuid = env.new_object(
+                jni_str!("java/util/UUID"),
+                jni_sig!("(JJ)V"),
+                &[JValue::Long(UUID_MSB), JValue::Long(UUID_LSB)],
+            )?;
+            let drm = env.new_object(
+                jni_str!("android/media/MediaDrm"),
+                jni_sig!("(Ljava/util/UUID;)V"),
+                &[JValue::Object(&uuid)],
+            )?;
+            let property = env.new_string("securityLevel")?;
+            let level = env
+                .call_method(
+                    &drm,
+                    jni_str!("getPropertyString"),
+                    jni_sig!("(Ljava/lang/String;)Ljava/lang/String;"),
+                    &[JValue::Object(&property)],
+                )?
+                .l()?;
+            let level = env.cast_local::<JString>(level)?.try_to_string(env)?;
+            log::info!("widevine: android mediadrm security level {level}");
+            env.new_global_ref(drm)
+        })?);
+        *slot = Some(drm.clone());
+        Ok(drm)
+    }
+
+    fn session(
+        env: &mut Env,
+        drm: &Global<JObject<'static>>,
+    ) -> jni::errors::Result<Global<JByteArray<'static>>> {
+        let id = env
+            .call_method(drm.as_obj(), jni_str!("openSession"), jni_sig!("()[B"), &[])?
+            .l()?;
+        let id = env.cast_local::<JByteArray>(id)?;
+        env.new_global_ref(id)
+    }
+
+    /// The `byte[]` a no-argument getter of `object` returns.
+    fn bytes(
+        env: &mut Env,
+        object: &JObject,
+        getter: &jni::strings::JNIStr,
+    ) -> jni::errors::Result<Vec<u8>> {
+        let array = env
+            .call_method(object, getter, jni_sig!("()[B"), &[])?
+            .l()?;
+        let array = env.cast_local::<JByteArray>(array)?;
+        env.convert_byte_array(&array)
+    }
+
+    /// Fetches this device's Widevine certificate from Google's provisioning server, which a
+    /// device that never played protected media has to do before it can open a session.
+    fn provision(drm: &Global<JObject<'static>>) -> Result<()> {
+        log::info!("widevine: provisioning this android device");
+        let (url, data) = with(|env| {
+            let request = env
+                .call_method(
+                    drm.as_obj(),
+                    jni_str!("getProvisionRequest"),
+                    jni_sig!("()Landroid/media/MediaDrm$ProvisionRequest;"),
+                    &[],
+                )?
+                .l()?;
+            let data = bytes(env, &request, jni_str!("getData"))?;
+            let url = env
+                .call_method(
+                    &request,
+                    jni_str!("getDefaultUrl"),
+                    jni_sig!("()Ljava/lang/String;"),
+                    &[],
+                )?
+                .l()?;
+            let url = env.cast_local::<JString>(url)?.try_to_string(env)?;
+            Ok((url, data))
+        })?;
+        // The request rides in the query, the way every Android player sends it. The empty body
+        // still has to say so: Google answers 411 to a POST without a length.
+        let url = format!("{url}&signedRequest={}", String::from_utf8_lossy(&data));
+        let response = reqwest::blocking::Client::new()
+            .post(url)
+            .body(Vec::new())
+            .send()
+            .and_then(reqwest::blocking::Response::error_for_status)
+            .map_err(|error| {
+                anyhow!(
+                    "the widevine provisioning request failed: {}",
+                    error.without_url()
+                )
+            })?
+            .bytes()?;
+        with(|env| {
+            let response = env.byte_array_from_slice(&response)?;
+            env.call_method(
+                drm.as_obj(),
+                jni_str!("provideProvisionResponse"),
+                jni_sig!("([B)V"),
+                &[JValue::Object(&response)],
+            )?
+            .v()
+        })?;
+        log::info!("widevine: android device provisioned");
+        Ok(())
+    }
+}
+
+#[cfg(not(any(feature = "cdm", target_os = "android")))]
 mod host {
     use anyhow::{Result, bail};
 

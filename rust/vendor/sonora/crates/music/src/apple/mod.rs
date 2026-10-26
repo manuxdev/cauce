@@ -13,6 +13,8 @@
 
 mod auth;
 mod client;
+#[cfg(all(target_os = "android", not(feature = "widevine")))]
+mod decoded;
 mod links;
 mod playback;
 mod progressive;

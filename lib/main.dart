@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -22,6 +23,7 @@ import 'ui/core/tab_navigators.dart';
 import 'ui/core/theme.dart';
 import 'ui/core/tint_scope.dart';
 import 'ui/core/toast.dart';
+import 'ui/features/accounts/sign_in.dart';
 import 'ui/features/accounts/view_models/accounts_view_model.dart';
 import 'ui/features/downloads/downloads_view_model.dart';
 import 'ui/features/home/views/home_screen.dart';
@@ -58,6 +60,7 @@ Future<void> main() async {
     return;
   }
   NowPlayingCenter(player);
+  if (defaultTargetPlatform == TargetPlatform.iOS) _attachApplePlayer();
   waveforms.attach(player);
   final scrobbles = ScrobbleTracker<core.TrackItem>(
     nowPlaying: (track) => core.scrobbleNowPlaying(track: track).ignore(),
@@ -100,6 +103,8 @@ Future<void> main() async {
     if (accounts.unreachable) accounts.restoreAll();
   });
   accounts.restoreAll();
+  PlayerViewModel.blockFor = (source, {reachable = true}) => accounts.playBlockFor(source, reachable: reachable);
+  favorites.signInFirst = accounts.needsSignInFor;
   PlayerViewModel.substitute = (track) async {
     if (!appPrefs.substitute) return null;
     final others = ordered([
@@ -274,6 +279,7 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   late int _tab = tabNavigators.selected = appPrefs.initialTab;
   late final PlayerViewModel _player = AppScope.of(context).player;
+  late final FavoritesViewModel _favorites = AppScope.of(context).favorites;
 
   @override
   void initState() {
@@ -281,6 +287,7 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _player.addListener(_showError);
       _player.addListener(_unfoldOnPlay);
+      _favorites.addListener(_askToLike);
     });
   }
 
@@ -288,6 +295,7 @@ class _ShellState extends State<Shell> {
   void dispose() {
     _player.removeListener(_showError);
     _player.removeListener(_unfoldOnPlay);
+    _favorites.removeListener(_askToLike);
     super.dispose();
   }
 
@@ -302,9 +310,35 @@ class _ShellState extends State<Shell> {
   }
 
   void _showError() {
+    if (_player.takeSignIn() case final slug? when mounted) {
+      return _askSignIn(slug, 'signIn.toPlay', detail: 'signIn.toPlay.detail');
+    }
+    if (_player.takeOffline() && mounted) {
+      return showToast(
+        Toast(title: context.t('downloads.needsConnection'), glyph: CauceGlyph.offline, tone: ToastTone.info),
+      );
+    }
     final error = _player.takeError();
     if (error == null || !mounted) return;
     showToast(Toast(title: error, tone: ToastTone.error));
+  }
+
+  void _askToLike() {
+    if (_favorites.takeSignIn() case final slug? when mounted) _askSignIn(slug, 'signIn.toLike');
+  }
+
+  /// Says what `slug`'s sign-in is needed for, under `key`, with the sign-in a tap away.
+  void _askSignIn(String slug, String key, {String? detail}) {
+    final service = streamingServices.firstWhere((service) => service.slug == slug);
+    showToast(
+      Toast(
+        title: context.t(key, {'service': service.name}),
+        detail: detail == null ? null : context.t(detail, {'service': service.name}),
+        tone: ToastTone.error,
+        action: context.t('providers.signIn'),
+        onAction: () => signIn(context, service, AppScope.of(context).accounts),
+      ),
+    );
   }
 
   void _openAccounts() => _select(_settingsTab);
@@ -332,59 +366,83 @@ class _ShellState extends State<Shell> {
     onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => page),
   );
 
+  /// When back last reached the tab's first page, so a second press soon after leaves the app.
+  DateTime? _backAt;
+
+  /// Back closes the page open in the tab first; on its first page it asks for a second press.
+  void _back(bool didPop, Object? _) {
+    if (didPop) return;
+    final navigator = tabNavigators.keys[_tab].currentState;
+    if (navigator != null && navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    final now = DateTime.now();
+    if (_backAt != null && now.difference(_backAt!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _backAt = now;
+    showToast(Toast(title: context.t('toast.exit'), tone: ToastTone.info));
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = AppScope.of(context);
-    return BehindSheet(
-      child: Scaffold(
-        extendBody: true,
-        body: IndexedStack(
-          index: _tab,
-          children: [
-            _tabPage(0, HomeScreen(accounts: scope.accounts, player: scope.player, onAccounts: _openAccounts)),
-            _tabPage(1, SearchScreen(accounts: scope.accounts, player: scope.player, onAccounts: _openAccounts)),
-            _tabPage(
-              2,
-              LibraryScreen(
-                accounts: scope.accounts,
-                favorites: scope.favorites,
-                player: scope.player,
-                onHome: () => _select(0),
-                onAccounts: _openAccounts,
-              ),
-            ),
-            _tabPage(_settingsTab, SettingsScreen(accounts: scope.accounts, playback: scope.playbackSettings)),
-          ],
-        ),
-        // The dock fades out in the first part of the full player opening, so it never shows
-        // through the panel as it rises.
-        bottomNavigationBar: ValueListenableBuilder(
-          valueListenable: playerReveal,
-          builder: (context, reveal, dock) => IgnorePointer(
-            ignoring: reveal > 0,
-            child: Opacity(opacity: (1 - reveal / panelFade).clamp(0.0, 1.0), child: dock),
-          ),
-          child: SafeArea(
-            minimum: const EdgeInsets.only(bottom: 4),
-            child: _Measured(
-              extent: dockExtent,
-              child: Dock(
-                top: ValueListenableBuilder(
-                  valueListenable: dockCompact,
-                  builder: (context, compact, player) => AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: CauceCurves.exit,
-                    child: AnimatedOpacity(
-                      opacity: compact ? 0 : 1,
-                      duration: const Duration(milliseconds: 160),
-                      child: compact ? const SizedBox(width: double.infinity) : player,
-                    ),
-                  ),
-                  child: MiniPlayer(player: scope.player),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _back,
+      child: BehindSheet(
+        child: Scaffold(
+          extendBody: true,
+          body: IndexedStack(
+            index: _tab,
+            children: [
+              _tabPage(0, HomeScreen(accounts: scope.accounts, player: scope.player, onAccounts: _openAccounts)),
+              _tabPage(1, SearchScreen(accounts: scope.accounts, player: scope.player, onAccounts: _openAccounts)),
+              _tabPage(
+                2,
+                LibraryScreen(
+                  accounts: scope.accounts,
+                  favorites: scope.favorites,
+                  player: scope.player,
+                  onHome: () => _select(0),
+                  onAccounts: _openAccounts,
                 ),
-                items: _tabs(context),
-                selected: _tab,
-                onSelected: _select,
+              ),
+              _tabPage(_settingsTab, SettingsScreen(accounts: scope.accounts, playback: scope.playbackSettings)),
+            ],
+          ),
+          // The dock fades out in the first part of the full player opening, so it never shows
+          // through the panel as it rises.
+          bottomNavigationBar: ValueListenableBuilder(
+            valueListenable: playerReveal,
+            builder: (context, reveal, dock) => IgnorePointer(
+              ignoring: reveal > 0,
+              child: Opacity(opacity: (1 - reveal / panelFade).clamp(0.0, 1.0), child: dock),
+            ),
+            child: SafeArea(
+              minimum: const EdgeInsets.only(bottom: 4),
+              child: _Measured(
+                extent: dockExtent,
+                child: Dock(
+                  top: ValueListenableBuilder(
+                    valueListenable: dockCompact,
+                    builder: (context, compact, player) => AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: CauceCurves.exit,
+                      child: AnimatedOpacity(
+                        opacity: compact ? 0 : 1,
+                        duration: const Duration(milliseconds: 160),
+                        child: compact ? const SizedBox(width: double.infinity) : player,
+                      ),
+                    ),
+                    child: MiniPlayer(player: scope.player),
+                  ),
+                  items: _tabs(context),
+                  selected: _tab,
+                  onSelected: _select,
+                ),
               ),
             ),
           ),
@@ -425,4 +483,20 @@ class _MeasuredState extends State<_Measured> {
       child: SizeChangedLayoutNotifier(child: widget.child),
     );
   }
+}
+
+/// Apple Music plays through the system's queue player on iOS: the core's commands for it go to
+/// the platform side, and what it does comes back to the core.
+void _attachApplePlayer() {
+  const channel = MethodChannel('cauce/apple_player');
+  channel.setMethodCallHandler((call) async {
+    final arguments = call.arguments as Map;
+    core.nativeEvent(
+      kind: call.method,
+      id: arguments['id'] as String? ?? '',
+      atMs: arguments['at'] as int? ?? 0,
+      durationMs: arguments['duration'] as int? ?? 0,
+    );
+  });
+  core.nativeCommands().listen((command) => channel.invokeMethod(command.kind, {'id': command.id, 'at': command.atMs}));
 }

@@ -20,6 +20,8 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaRouter2
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -45,6 +47,7 @@ class NowPlaying(private val activity: Activity, messenger: BinaryMessenger) {
     private val context: Context = activity.applicationContext
     private val channel = MethodChannel(messenger, "cauce/now_playing")
     private val audio = context.getSystemService(AudioManager::class.java)
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val main = Handler(Looper.getMainLooper())
     private val session = MediaSessionCompat(context, "Cauce")
     private var metadata: MediaMetadataCompat? = null
@@ -115,6 +118,11 @@ class NowPlaying(private val activity: Activity, messenger: BinaryMessenger) {
                     pickOutput()
                     result.success(null)
                 }
+                // Asked once Dart listens, as no callback comes while there is no network.
+                "online" -> {
+                    sendOnline()
+                    result.success(null)
+                }
                 else -> result.success(null)
             }
         }
@@ -132,6 +140,13 @@ class NowPlaying(private val activity: Activity, messenger: BinaryMessenger) {
             true,
             object : ContentObserver(main) {
                 override fun onChange(selfChange: Boolean) = sendVolume()
+            },
+        )
+        // Whether the phone reaches the network, as the iOS app's path monitor says.
+        connectivity.registerDefaultNetworkCallback(
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = send("online", true)
+                override fun onLost(network: Network) = sendOnline()
             },
         )
         audio.registerAudioDeviceCallback(
@@ -238,6 +253,8 @@ class NowPlaying(private val activity: Activity, messenger: BinaryMessenger) {
         runCatching { activity.startActivity(panel) }
             .onFailure { activity.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
     }
+
+    private fun sendOnline() = send("online", connectivity.activeNetwork != null)
 
     private fun sendVolume() {
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)

@@ -17,12 +17,18 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rodio::Source as _;
 
+#[cfg(not(all(target_os = "android", not(feature = "widevine"))))]
 use crate::aac::Aac;
 use crate::apple::client::AppleClient;
-use crate::apple::progressive::{Cenc, Media};
+#[cfg(all(target_os = "android", not(feature = "widevine")))]
+use crate::apple::decoded::Decoded;
+#[cfg(not(all(target_os = "android", not(feature = "widevine"))))]
+use crate::apple::progressive::Cenc;
+use crate::apple::progressive::{Entry, Media};
 use crate::apple::stream;
 use crate::audio::Trimmed;
 use crate::engine::{self, Fetch, Loudness};
+#[cfg(not(all(target_os = "android", not(feature = "widevine"))))]
 use crate::stream::Reader;
 use crate::trim;
 use crate::vault::Shelf;
@@ -40,6 +46,10 @@ const PRIMING: u32 = 2112;
 /// at twice the rate plus the 962 frames the SBR filterbank delays by, and it lines the 64 kbps
 /// stream up with the 256 kbps one to the frame.
 const EXTENDED_PRIMING: u32 = 5186;
+/// The same on Android, whose AAC decoder already drops the SBR filterbank's 962 frames of its
+/// own delay, which leaves the core's 2112 at twice the rate.
+#[cfg(all(target_os = "android", not(feature = "widevine")))]
+const ANDROID_EXTENDED_PRIMING: u32 = EXTENDED_PRIMING - 962;
 
 /// A track resolved, licensed and arriving, with how long and how loud the catalog says it is.
 #[derive(Clone)]
@@ -85,7 +95,13 @@ struct Apple {
 #[async_trait]
 impl Fetch for Apple {
     type Loaded = Loaded;
+    #[cfg(not(all(target_os = "android", not(feature = "widevine"))))]
     type Source = Trimmed<rodio::Decoder<Reader<Cenc>>>;
+    /// Android decrypts inside its own decoder, so the track is decoded there rather than by
+    /// symphonia. ponytail: no gapless preroll beyond what the engine already does for every
+    /// source; a join may click by the decoder's own start-up if that ever shows.
+    #[cfg(all(target_os = "android", not(feature = "widevine")))]
+    type Source = Trimmed<Decoded>;
 
     fn name(&self) -> &'static str {
         "apple"
@@ -172,6 +188,7 @@ impl Fetch for Apple {
     /// reader hands it the init segment followed by the fragment that covers the position, and
     /// the remainder inside that fragment is trimmed off the front. Nothing before the target
     /// is read at all.
+    #[cfg(not(all(target_os = "android", not(feature = "widevine"))))]
     fn open(&self, id: &str, loaded: &Loaded, at: Duration) -> Option<Self::Source> {
         let media = &loaded.media;
         let opening = Instant::now();
@@ -193,24 +210,11 @@ impl Fetch for Apple {
             }
         };
 
-        // The edit list decides what is actually heard, and Apple's encode carries none, so the
-        // priming is the encoder's own figure and the tail is the catalog length.
-        let edit = media.header().as_deref().and_then(trim::from_mp4);
         let frames = match loaded.extended {
             true => EXTENDED_PRIMING,
             false => PRIMING,
         };
-        let priming =
-            Duration::from_secs_f64(f64::from(frames) / f64::from(decoder.sample_rate().get()));
-        // Spliced, the priming is behind us and the length no longer lines up with what is
-        // left, so the only thing to drop is the part of the first fragment before the position.
-        let (skip, take) = match entry {
-            Some(entry) => (entry.into, None),
-            None => (
-                edit.map(|edit| edit.skip).unwrap_or(priming),
-                edit.and_then(|edit| edit.take).or(loaded.duration),
-            ),
-        };
+        let (skip, take) = bounds(loaded, entry, frames, decoder.sample_rate().get());
 
         // What the open cost, and how much of that was the CDM. A slow start shows up here
         // first.
@@ -222,5 +226,55 @@ impl Fetch for Apple {
             decrypting.as_secs_f32()
         );
         Some(Trimmed::new(decoder, skip, take))
+    }
+
+    /// Builds a decoder over a licensed track and places it at `at`, the way the desktop one
+    /// is, with Android's AAC decoder doing the decryption. A seek splices exactly the same.
+    #[cfg(all(target_os = "android", not(feature = "widevine")))]
+    fn open(&self, id: &str, loaded: &Loaded, at: Duration) -> Option<Self::Source> {
+        let media = &loaded.media;
+        let opening = Instant::now();
+        let entry = (!at.is_zero()).then(|| media.entry(at)).flatten();
+        let decoded = match Decoded::open(media, entry) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                log::warn!("playback: cannot decode the apple track {id}: {error:#}");
+                return None;
+            }
+        };
+        let frames = match loaded.extended {
+            true => ANDROID_EXTENDED_PRIMING,
+            false => PRIMING,
+        };
+        let (skip, take) = bounds(loaded, entry, frames, decoded.sample_rate().get());
+        log::info!(
+            "apple: android decoder started in {:.2}s, {} samples indexed",
+            opening.elapsed().as_secs_f32(),
+            media.samples()
+        );
+        Some(Trimmed::new(decoded, skip, take))
+    }
+}
+
+/// What to drop from the front of a decoder that starts at `entry` and how much to play after
+/// that, for an encode that primes for `frames` at `rate`.
+fn bounds(
+    loaded: &Loaded,
+    entry: Option<Entry>,
+    frames: u32,
+    rate: u32,
+) -> (Duration, Option<Duration>) {
+    // The edit list decides what is actually heard, and Apple's encode carries none, so the
+    // priming is the encoder's own figure and the tail is the catalog length.
+    let edit = loaded.media.header().as_deref().and_then(trim::from_mp4);
+    let priming = Duration::from_secs_f64(f64::from(frames) / f64::from(rate));
+    // Spliced, the priming is behind us and the length no longer lines up with what is
+    // left, so the only thing to drop is the part of the first fragment before the position.
+    match entry {
+        Some(entry) => (entry.into, None),
+        None => (
+            edit.map(|edit| edit.skip).unwrap_or(priming),
+            edit.and_then(|edit| edit.take).or(loaded.duration),
+        ),
     }
 }

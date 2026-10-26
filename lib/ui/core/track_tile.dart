@@ -24,6 +24,7 @@ class TrackTile extends StatelessWidget {
     this.showAlbum = true,
     this.trailing,
     this.mixed = false,
+    this.note,
   });
 
   final TrackItem track;
@@ -40,16 +41,20 @@ class TrackTile extends StatelessWidget {
   /// In a list mixing providers, where each row can say which one it comes from.
   final bool mixed;
 
+  /// Why the track cannot play now, said in place of the artists on a dimmed row. A tap
+  /// still calls [onTap], which can mend it.
+  final String? note;
+
   @override
   Widget build(BuildContext context) {
-    final subtitle = [track.artists, if (showAlbum) track.album].where((part) => part.isNotEmpty).join(' · ');
+    final subtitle = note ?? [track.artists, if (showAlbum) track.album].where((part) => part.isNotEmpty).join(' · ');
     final (height, artwork, pad) = switch (appPrefs.density) {
       ListDensity.compact => (52.0, 40.0, 4.0),
       ListDensity.normal => (62.0, 48.0, 7.0),
       ListDensity.comfortable => (72.0, 54.0, 10.0),
     };
     return Opacity(
-      opacity: track.playable ? 1 : 0.4,
+      opacity: track.playable && note == null ? 1 : 0.4,
       child: InkWell(
         // One the provider cannot play may still be found in another.
         onTap: track.playable || appPrefs.substitute ? onTap : null,
