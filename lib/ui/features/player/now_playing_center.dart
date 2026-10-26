@@ -31,6 +31,9 @@ class NowPlayingCenter {
   /// Sets the phone's own volume, 0 to 1.
   static Future<void> setVolume(double volume) => _channel.invokeMethod('volume', volume);
 
+  /// Opens Android's output switcher; iOS embeds its own picker instead.
+  static Future<void> pickOutput() => _channel.invokeMethod('pickOutput');
+
   static const _channel = MethodChannel('cauce/now_playing');
 
   final PlayerViewModel _player;

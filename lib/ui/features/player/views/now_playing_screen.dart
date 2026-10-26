@@ -371,11 +371,8 @@ class _Extras extends StatelessWidget {
           onPressed: onLyrics,
         ),
         const SizedBox(width: 28),
-        // The output list Music opens: the iPhone, AirPlay and Bluetooth devices.
-        SizedBox.square(
-          dimension: 48,
-          child: UiKitView(viewType: 'cauce/route_picker', gestureRecognizers: nativeTouches),
-        ),
+        // The phone's output list: the phone, AirPlay or cast, and Bluetooth devices.
+        const SizedBox.square(dimension: 48, child: RoutePicker()),
         const SizedBox(width: 28),
         IconButton(
           iconSize: 28,

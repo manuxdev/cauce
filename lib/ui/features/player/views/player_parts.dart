@@ -206,7 +206,8 @@ class SystemVolume extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The system's own slider: it is the phone's volume, so it follows the volume buttons.
+    // The phone's volume, so it follows the volume buttons: iOS's own slider, a Flutter one on
+    // Android, which has no slider to embed.
     return Row(
       children: [
         const CauceIcon(CauceGlyph.volumeLow, size: 18, color: Color(0x99FFFFFF)),
@@ -214,7 +215,28 @@ class SystemVolume extends StatelessWidget {
         Expanded(
           child: SizedBox(
             height: 34,
-            child: UiKitView(viewType: 'cauce/volume', gestureRecognizers: nativeTouches),
+            child: defaultTargetPlatform == TargetPlatform.iOS
+                ? UiKitView(viewType: 'cauce/volume', gestureRecognizers: nativeTouches)
+                : ValueListenableBuilder(
+                    valueListenable: outputVolume,
+                    builder: (context, volume, _) => SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 3,
+                        activeTrackColor: Colors.white,
+                        inactiveTrackColor: const Color(0x40FFFFFF),
+                        thumbColor: Colors.white,
+                        overlayShape: SliderComponentShape.noOverlay,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      ),
+                      child: Slider(
+                        value: volume ?? 0,
+                        onChanged: (value) {
+                          outputVolume.value = value;
+                          NowPlayingCenter.setVolume(value);
+                        },
+                      ),
+                    ),
+                  ),
           ),
         ),
         const SizedBox(width: 10),
@@ -226,6 +248,32 @@ class SystemVolume extends StatelessWidget {
 
 /// Native controls take their touches before the swipe-to-close drag can.
 final nativeTouches = {Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new)};
+
+/// An invisible layer that opens the output picker over what lies under it: AirPlay's on iOS,
+/// the system output switcher on Android.
+class ClearRoutePicker extends StatelessWidget {
+  const ClearRoutePicker({super.key});
+
+  @override
+  Widget build(BuildContext context) => defaultTargetPlatform == TargetPlatform.iOS
+      ? UiKitView(viewType: 'cauce/route_picker_clear', gestureRecognizers: nativeTouches)
+      : GestureDetector(behavior: HitTestBehavior.opaque, onTap: NowPlayingCenter.pickOutput);
+}
+
+/// The output button the player shows by itself: Music's AirPlay button on iOS.
+class RoutePicker extends StatelessWidget {
+  const RoutePicker({super.key});
+
+  @override
+  Widget build(BuildContext context) => defaultTargetPlatform == TargetPlatform.iOS
+      ? UiKitView(viewType: 'cauce/route_picker', gestureRecognizers: nativeTouches)
+      : IconButton(
+          iconSize: 28,
+          icon: const CauceIcon(CauceGlyph.speaker, size: 28),
+          tooltip: context.t('player.output'),
+          onPressed: NowPlayingCenter.pickOutput,
+        );
+}
 
 /// Previous or next on a tap. Held, it runs through the track at twice the speed after 400 ms
 /// and four times after 2 s, backwards for previous, with the speed shown over it. Each change
@@ -863,9 +911,7 @@ class RouteChip extends StatelessWidget {
               glyphSize: glyphSize,
             ),
           ),
-          Positioned.fill(
-            child: UiKitView(viewType: 'cauce/route_picker_clear', gestureRecognizers: nativeTouches),
-          ),
+          const Positioned.fill(child: ClearRoutePicker()),
         ],
       ),
     );

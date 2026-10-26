@@ -57,7 +57,8 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
   }
 
   void _start() {
-    _signedIn = Completer();
+    // Nothing may be waiting on it when the sign-in fails.
+    _signedIn = Completer()..future.ignore();
     setState(() {
       _code = _url = null;
     });
@@ -68,7 +69,8 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
           username: _username.text.trim(),
           password: _password.text,
         )
-        .listen(_heard, onError: _failed);
+        // Ended with no account and no error: still a failure, or the button stays disabled.
+        .listen(_heard, onError: _failed, onDone: () => _flow != null && !_done ? _failed('sign-in ended') : null);
   }
 
   void _heard(core.SignInEvent event) {

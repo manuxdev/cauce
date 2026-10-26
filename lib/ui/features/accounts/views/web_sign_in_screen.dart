@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -116,16 +117,33 @@ class _WebSignInScreenState extends State<WebSignInScreen> {
     return arl is String && arl.isNotEmpty ? arl : null;
   }
 
+  /// The webview's cookies. Android's store cannot list them all and names no domain, so there the
+  /// provider's own domain is asked by url and stamped on each, which is all the core keeps anyway.
+  Future<List<core.WebCookie>> _cookies() async {
+    final store = CookieManager.instance();
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return [
+        for (final cookie in await store.getAllCookies())
+          if (cookie.domain != null)
+            core.WebCookie(name: cookie.name, value: '${cookie.value ?? ''}', domain: cookie.domain!),
+      ];
+    }
+    final domain = widget.login.domain;
+    final found = <String, core.WebCookie>{};
+    for (final url in ['https://$domain', 'https://www.$domain', 'https://music.$domain']) {
+      for (final cookie in await store.getCookies(url: WebUri(url))) {
+        found[cookie.name] = core.WebCookie(name: cookie.name, value: '${cookie.value ?? ''}', domain: '.$domain');
+      }
+    }
+    return found.values.toList();
+  }
+
   /// Whether the core signed in with the cookies so far.
   Future<bool> _check() async {
     if (_checking) return false;
     _checking = true;
     try {
-      final cookies = [
-        for (final cookie in await CookieManager.instance().getAllCookies())
-          if (cookie.domain != null)
-            core.WebCookie(name: cookie.name, value: '${cookie.value ?? ''}', domain: cookie.domain!),
-      ];
+      final cookies = await _cookies();
       final arl = await _askDeezer(cookies);
       if (arl != null) cookies.add(core.WebCookie(name: 'arl', value: arl, domain: '.deezer.com'));
       if (arl != null || cookies.any((cookie) => cookie.name == 'arl' && cookie.value.isNotEmpty)) {

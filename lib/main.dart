@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ui/core/across_providers.dart';
+import 'ui/core/button_bar.dart';
 import 'ui/core/app_prefs.dart';
 import 'src/rust/api/player.dart' as core;
 import 'src/rust/frb_generated.dart';
@@ -237,7 +238,10 @@ class CauceApp extends StatelessWidget {
               child: Builder(
                 builder: (context) => ColoredBox(
                   color: TintScope.of(context).page,
-                  child: ToastHost(child: child!),
+                  child: MediaQuery(
+                    data: clearButtonBar(MediaQuery.of(context), Theme.of(context).platform),
+                    child: ToastHost(child: child!),
+                  ),
                 ),
               ),
             );

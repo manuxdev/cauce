@@ -9,7 +9,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 
-pub use client::SubsonicClient;
+pub use client::{SubsonicClient, scrub};
 pub use lyrics::SubsonicLyrics;
 
 use crate::subsonic::playback::Factory;

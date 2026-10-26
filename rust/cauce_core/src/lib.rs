@@ -153,6 +153,9 @@ impl Core {
             "You can go back to Cauce. This page closes by itself.",
         ));
         trust_roots(&paths.cache);
+        log_panics();
+        #[cfg(target_os = "android")]
+        app_dirs(&paths);
         // librespot, oauth2 and ytmusic ask rustls for ring, reqwest for aws-lc-rs, and rustls
         // refuses to guess. A second install only means another crate got there first.
         rustls::crypto::ring::default_provider()
@@ -1547,6 +1550,30 @@ fn trust_roots(cache: &std::path::Path) {
     }
     // SAFETY: set once at start, before the runtime or any provider reads the environment.
     unsafe { std::env::set_var("SSL_CERT_FILE", &file) };
+}
+
+/// Writes every panic to the log as well. A phone shows no stderr, so a thread that panicked,
+/// such as a playback engine, otherwise just stops answering with no trace of why.
+fn log_panics() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        log::error!("panic on {}: {info}", thread.name().unwrap_or("a thread"));
+        previous(info);
+    }));
+}
+
+/// Points `dirs` at the app's own folders. On Android it reads the Linux variables, which an
+/// app process never has, so every cache and credentials folder came back missing.
+#[cfg(target_os = "android")]
+fn app_dirs(paths: &Paths) {
+    // SAFETY: set once at start, before the runtime or any provider reads the environment.
+    unsafe {
+        std::env::set_var("HOME", &paths.data);
+        std::env::set_var("XDG_DATA_HOME", &paths.data);
+        std::env::set_var("XDG_CONFIG_HOME", &paths.data);
+        std::env::set_var("XDG_CACHE_HOME", &paths.cache);
+    }
 }
 
 /// Whether `connected`, the account of `slug`, plays its own tracks. A TIDAL account without a

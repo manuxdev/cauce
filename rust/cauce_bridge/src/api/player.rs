@@ -238,7 +238,7 @@ pub fn sign_in_flow(
         },
     };
     let prompts = events.clone();
-    let name = core()?.sign_in(&slug, method, move |prompt| {
+    let signed_in = core()?.sign_in(&slug, method, move |prompt| {
         let (code, url) = match prompt {
             music::SignInPrompt::Code { code, url } => (Some(code), url),
             music::SignInPrompt::Url(url) => (None, url),
@@ -251,7 +251,15 @@ pub fn sign_in_flow(
                 name: None,
             })
             .ok();
-    })?;
+    });
+    // Dart runs this call unawaited and only listens to the stream, so a failure goes there too.
+    let name = match signed_in {
+        Ok(name) => name,
+        Err(error) => {
+            events.add_error(error).ok();
+            return Ok(());
+        }
+    };
     events
         .add(SignInEvent {
             code: None,

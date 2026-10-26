@@ -11,7 +11,7 @@ license = "GPL-3.0-or-later"
 
 # Patches for the vendored crates' dependencies: a nested workspace's patches do not apply here.
 [patch.crates-io]
-# librespot is vendored from librespot (fork at 84f551d) with one change: on iOS it reports macOS
+# librespot is vendored from librespot (fork at 84f551d) with one change: on iOS and Android it reports macOS
 # (vendor/librespot/core/src/config.rs), so Spotify accepts the desktop OAuth token.
 librespot-audio = { path = "vendor/librespot/audio" }
 librespot-core = { path = "vendor/librespot/core" }

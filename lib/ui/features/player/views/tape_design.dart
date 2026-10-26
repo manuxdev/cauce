@@ -798,9 +798,7 @@ class _RouteKey extends StatelessWidget {
               ),
             ),
           ),
-          Positioned.fill(
-            child: UiKitView(viewType: 'cauce/route_picker_clear', gestureRecognizers: nativeTouches),
-          ),
+          const Positioned.fill(child: ClearRoutePicker()),
         ],
       ),
     );

@@ -10,11 +10,11 @@ pub(crate) const IOS_CLIENT_ID: &str = "58bd3c95768941ea9eb4350aaa033eb3";
 // Easily adjust the current platform to mock the behavior on it. If for example
 // android or ios needs to be mocked, the `os_version` has to be set to a valid version.
 // Otherwise, client-token or login5 requests will fail with a generic invalid-credential error.
-/// See [std::env::consts::OS]. Cauce: on iOS this reports macOS, since the session signs in
-/// with the desktop (keymaster) OAuth token, which Spotify refuses from an iPhone platform.
-#[cfg(not(target_os = "ios"))]
+/// See [std::env::consts::OS]. Cauce: on iOS and Android this reports macOS, since the session
+/// signs in with the desktop (keymaster) OAuth token, which Spotify refuses from a phone platform.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub const OS: &str = std::env::consts::OS;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "android"))]
 pub const OS: &str = "macos";
 
 // valid versions for some os:
@@ -22,8 +22,8 @@ pub const OS: &str = "macos";
 // 'ios': 17
 /// See [sysinfo::System::os_version]
 pub fn os_version() -> String {
-    // Cauce: the iPhone's own version is no macOS version.
-    if cfg!(target_os = "ios") {
+    // Cauce: the phone's own version is no macOS version.
+    if cfg!(any(target_os = "ios", target_os = "android")) {
         return "15.5".into();
     }
     sysinfo::System::os_version().unwrap_or("0".into())

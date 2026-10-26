@@ -16,3 +16,10 @@ cauce_core = { path = "../cauce_core" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+# The platform certificate verifier (reqwest) and cpal (through ndk-context) need the app's
+# Java VM and context on Android.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22", default-features = false }
+rustls-platform-verifier = "0.7"
+ndk-context = "0.1"
