@@ -1,20 +1,10 @@
 mod aac;
-pub mod apple;
-pub mod artwork;
 mod audio;
-pub mod binimum;
-mod calendar;
-pub mod connect;
 pub mod credentials;
-pub mod deezer;
-pub mod drm;
 pub mod engine;
 pub mod equalizer;
 pub mod escape;
 pub mod kugou;
-pub mod link;
-#[cfg(test)]
-mod live_tests;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
@@ -22,19 +12,14 @@ mod models;
 pub mod musixmatch;
 pub mod netease;
 pub mod output;
-pub mod potoken;
 pub mod progress;
 pub mod scrobble;
 mod sink;
 mod spectrum;
-pub mod spotify;
 mod stream;
 pub mod subsonic;
-pub mod tidal;
-mod trim;
 pub mod trouble;
 pub mod vault;
-pub mod youtube;
 
 use std::collections::HashMap;
 use std::num::NonZero;
@@ -137,12 +122,6 @@ pub enum Report {
 pub trait MusicApi: Send + Sync {
     fn alive(&self) -> bool {
         true
-    }
-
-    /// The provider's device network, for a provider that has one. Spotify Connect is the
-    /// only one so far.
-    fn connect(&self) -> Option<Arc<dyn connect::Connect>> {
-        None
     }
 
     fn share_url(&self, kind: MediaKind, id: &str) -> Option<String>;
@@ -258,12 +237,6 @@ pub trait MusicApi: Send + Sync {
     async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()>;
     async fn add_playlist_to_library(&self, playlist_id: &str) -> Result<()>;
 
-    /// Puts a track or an album into the listener's library, or takes it out, on a provider
-    /// whose library is apart from its favorites. Only a `Catalog::Editable` provider
-    /// answers. An artist is never added: a library artist is one whose music is there.
-    async fn set_in_library(&self, _kind: MediaKind, _id: &str, _present: bool) -> Result<()> {
-        anyhow::bail!("this provider has no library apart from its favorites")
-    }
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()>;
     async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
 
@@ -516,9 +489,6 @@ pub enum Normalisation {
     Off,
     /// A fixed gain in decibels, zero when nothing says how loud the track is.
     Gain(f32),
-    /// librespot normalises inside its own player with a limiter, so the gain is not known
-    /// and changes with the music.
-    Limited,
 }
 
 /// What a server that converts audio on request is asked to send. Only Subsonic honours it, and
@@ -750,12 +720,6 @@ impl Shape {
     pub fn is_catalog(self) -> bool {
         matches!(self, Self::Catalog(_))
     }
-
-    /// Whether the listener can put things into the library and take them out, apart from
-    /// favoriting them.
-    pub fn editable(self) -> bool {
-        self == Self::Catalog(Catalog::Editable)
-    }
 }
 
 /// Whether the listener can change what a catalog holds.
@@ -764,16 +728,13 @@ pub enum Catalog {
     /// Everything the provider has, which changes only with the files behind it, as with local
     /// files and a self-hosted server.
     Fixed,
-    /// A set the listener picked out of a bigger catalog, which tracks and albums are put into
-    /// and taken out of through `set_in_library`, as on Apple Music.
-    Editable,
 }
 
 /// What a provider can do beyond listing and playing, so a control it has no answer for is
 /// never put in front of the listener.
 ///
 /// This is about the service, not the account: something a provider simply does not have, like
-/// a station Apple Music will not list or a play count Deezer does not keep. A capability that
+/// a station or a play count it does not keep. A capability that
 /// is off hides its button, its menu item and its column, rather than showing one that fails
 /// when pressed. A provider that gains one flips a flag here and the UI follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -801,15 +762,11 @@ pub struct Capabilities {
     /// one. Such a service downloads one track at a time, with no pause until it first refuses.
     /// Zero lets downloads run side by side.
     pub download_gap: Duration,
-    /// The account can play its tracks. Off for an account kept only to browse, such as a free
-    /// Spotify account an app chose to accept.
-    pub streams: bool,
 }
 
 impl Capabilities {
-    /// What a full streaming service offers. Pins of the provider's own are not among them,
-    /// since only Spotify and Apple Music keep any. Converting on request is not either, since
-    /// only Subsonic does it.
+    /// What a full streaming service offers. Pins of the provider's own are not among them, and
+    /// converting on request is not either, since only Subsonic does it.
     pub const ALL: Self = Self {
         follow_artists: true,
         radio: true,
@@ -820,7 +777,6 @@ impl Capabilities {
         downloads: true,
         qualities: &[],
         download_gap: Duration::ZERO,
-        streams: true,
     };
 
     /// Nothing beyond listing and playing.
@@ -834,7 +790,6 @@ impl Capabilities {
         downloads: false,
         qualities: &[],
         download_gap: Duration::ZERO,
-        streams: true,
     };
 }
 
@@ -849,25 +804,12 @@ pub struct ProviderSession {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SignIn {
-    Default,
-    Anonymous,
-    Secret,
     Path(Vec<PathBuf>),
     Credentials {
         server: String,
         username: String,
         password: String,
     },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SignInProblem {
-    Premium,
-    Region,
-    Credentials,
-    Network,
-    Cancelled,
-    Refused,
 }
 
 /// A provider refusing for now because too much was asked of it too quickly. Whoever asked can
@@ -882,43 +824,6 @@ impl std::fmt::Display for Throttled {
 }
 
 impl std::error::Error for Throttled {}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SignInFailure(pub SignInProblem);
-
-impl std::fmt::Display for SignInFailure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let reason = match self.0 {
-            SignInProblem::Premium => "the account has no Spotify Premium",
-            SignInProblem::Region => "the account is out of its home region",
-            SignInProblem::Credentials => "the stored credentials are no longer valid",
-            SignInProblem::Network => "the provider could not be reached",
-            SignInProblem::Cancelled => "authorization was cancelled in the browser",
-            SignInProblem::Refused => "Spotify refused the session",
-        };
-        write!(f, "{reason}")
-    }
-}
-
-impl std::error::Error for SignInFailure {}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccountChoice {
-    pub id: String,
-    pub name: String,
-    pub detail: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SignInPrompt {
-    Accounts(Vec<AccountChoice>),
-    Code { code: String, url: String },
-    Url(String),
-    Secret,
-}
-
-pub type PromptSink = Arc<dyn Fn(SignInPrompt) + Send + Sync>;
-pub type InputSource = tokio::sync::mpsc::UnboundedReceiver<String>;
 
 /// One page of a listing that arrives in pieces. `total` is how long the whole listing will
 /// be, on the pages of a provider that knows before the last one; a page that does not know
@@ -957,22 +862,6 @@ pub fn whole<T: Send + 'static>(items: Vec<T>) -> Pages<T> {
     receiver
 }
 
-/// A cookie sign-in the app runs in its own browser window. `url` opens first and `landing` scopes
-/// URL-based cookie reads. The user is through once the cookies for `domain` carry one of the
-/// `proof` names. The header those cookies make is what `SignInPrompt::Secret` then receives.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WebSignIn {
-    pub url: &'static str,
-    pub landing: &'static str,
-    pub domain: &'static str,
-    pub proof: &'static [&'static str],
-    /// A user agent the window presents instead of its default. Some providers' anti-bot
-    /// checks reject an agent that does not match the engine behind it (a Firefox string on a
-    /// WebKit window); the string must match what the backend's engine would say. Backends
-    /// whose default is already engine-consistent may ignore it.
-    pub agent: Option<&'static str>,
-}
-
 #[async_trait]
 pub trait MusicProvider: Send + Sync {
     fn name(&self) -> &'static str;
@@ -995,11 +884,6 @@ pub trait MusicProvider: Send + Sync {
     }
     fn sign_in_options(&self) -> Vec<SignIn>;
     fn stored(&self) -> bool;
-    /// Whether what is stored is an anonymous session rather than an account, so a caller
-    /// can tell the two apart. A provider without an anonymous sign-in never says yes.
-    fn stored_guest(&self) -> bool {
-        false
-    }
     fn location(&self) -> Option<String> {
         None
     }
@@ -1014,11 +898,6 @@ pub trait MusicProvider: Send + Sync {
     fn listening_to(&self) -> &'static str {
         self.name()
     }
-    /// Whether this provider's tracks need the Widevine module to play. The app fetches the
-    /// module once such a provider has an account, and does not go near it otherwise.
-    fn protected(&self) -> bool {
-        false
-    }
     /// Whether the artwork urls this provider hands out can be given to another service. A path
     /// on disk means nothing elsewhere, and a self-hosted url carries the credentials that fetch
     /// it, so the default is no.
@@ -1032,26 +911,9 @@ pub trait MusicProvider: Send + Sync {
     fn offline_playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
         None
     }
-    /// What `link` points at when it is one of this provider's own, on its website or in its
-    /// app's scheme. It reads the text alone and fetches nothing, so a short link comes back as
-    /// `Linked::Short` for the caller to follow and ask again.
-    fn link(&self, _link: &str) -> Option<link::Linked> {
-        None
-    }
     async fn restore(&self) -> Result<Option<ProviderSession>>;
-    async fn sign_in(
-        &self,
-        method: SignIn,
-        prompt: PromptSink,
-        input: InputSource,
-    ) -> Result<ProviderSession>;
-    fn abandon(&self) {}
+    async fn sign_in(&self, method: SignIn) -> Result<ProviderSession>;
     fn sign_out(&self);
-    /// How to run `SignIn::Secret` in a browser window. `None` means the provider has no cookie
-    /// sign-in, and the app offers no `Secret` option for it.
-    fn web_sign_in(&self) -> Option<WebSignIn> {
-        None
-    }
 }
 
 /// Leniently convert an ISO8601 timestamp to unix epoch seconds. Accepts only

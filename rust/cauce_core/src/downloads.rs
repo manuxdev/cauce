@@ -232,12 +232,12 @@ mod tests {
     #[test]
     fn only_a_finished_download_is_kept() {
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("a"));
-        downloads.add("deezer", track("b"));
-        downloads.finished("deezer", "a", true);
-        assert!(downloads.kept("deezer", "a"));
-        assert!(!downloads.kept("deezer", "b"));
-        assert!(!downloads.kept("youtube", "a"));
+        downloads.add("subsonic", track("a"));
+        downloads.add("subsonic", track("b"));
+        downloads.finished("subsonic", "a", true);
+        assert!(downloads.kept("subsonic", "a"));
+        assert!(!downloads.kept("subsonic", "b"));
+        assert!(!downloads.kept("local", "a"));
     }
     use std::time::Duration;
 
@@ -268,12 +268,12 @@ mod tests {
     #[test]
     fn a_track_is_listed_once() {
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("1"));
-        downloads.add("deezer", track("1"));
+        downloads.add("subsonic", track("1"));
+        downloads.add("subsonic", track("1"));
         assert_eq!(downloads.entries().len(), 1);
         assert_eq!(
             downloads.next(),
-            Some(("deezer".to_owned(), "1".to_owned()))
+            Some(("subsonic".to_owned(), "1".to_owned()))
         );
         assert_eq!(downloads.next(), None);
     }
@@ -282,53 +282,53 @@ mod tests {
     fn no_more_than_two_run_at_once() {
         let mut downloads = Downloads::default();
         for id in ["1", "2", "3"] {
-            downloads.add("deezer", track(id));
+            downloads.add("subsonic", track(id));
         }
         assert!(downloads.next().is_some());
         assert!(downloads.next().is_some());
         assert_eq!(downloads.next(), None);
-        downloads.finished("deezer", "1", true);
+        downloads.finished("subsonic", "1", true);
         assert_eq!(
             downloads.next(),
-            Some(("deezer".to_owned(), "3".to_owned()))
+            Some(("subsonic".to_owned(), "3".to_owned()))
         );
     }
 
     #[test]
     fn a_failed_download_can_be_asked_for_again() {
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("1"));
+        downloads.add("subsonic", track("1"));
         downloads.next();
-        downloads.finished("deezer", "1", false);
-        assert_eq!(downloads.get("deezer", "1").unwrap().state(), State::Failed);
-        downloads.add("deezer", track("1"));
+        downloads.finished("subsonic", "1", false);
+        assert_eq!(downloads.get("subsonic", "1").unwrap().state(), State::Failed);
+        downloads.add("subsonic", track("1"));
         assert_eq!(
             downloads.next(),
-            Some(("deezer".to_owned(), "1".to_owned()))
+            Some(("subsonic".to_owned(), "1".to_owned()))
         );
     }
 
     #[test]
     fn a_provider_not_signed_in_keeps_its_place() {
         let mut downloads = Downloads::default();
-        downloads.add("youtube", track("y"));
-        downloads.add("deezer", track("d"));
+        downloads.add("local", track("y"));
+        downloads.add("subsonic", track("d"));
         assert_eq!(
-            downloads.next_ready(|source| source == "deezer"),
-            Some(("deezer".to_owned(), "d".to_owned()))
+            downloads.next_ready(|source| source == "subsonic"),
+            Some(("subsonic".to_owned(), "d".to_owned()))
         );
-        assert_eq!(downloads.next_ready(|source| source == "deezer"), None);
+        assert_eq!(downloads.next_ready(|source| source == "subsonic"), None);
         assert_eq!(
             downloads.next(),
-            Some(("youtube".to_owned(), "y".to_owned()))
+            Some(("local".to_owned(), "y".to_owned()))
         );
     }
 
     #[test]
     fn a_removed_track_is_skipped_in_the_queue() {
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("1"));
-        assert!(downloads.remove("deezer", "1"));
+        downloads.add("subsonic", track("1"));
+        assert!(downloads.remove("subsonic", "1"));
         assert_eq!(downloads.next(), None);
         assert!(!downloads.running());
     }
@@ -336,9 +336,9 @@ mod tests {
     const DAY: u64 = 24 * 60 * 60;
 
     fn downloaded(downloads: &mut Downloads, id: &str, at: u64) {
-        downloads.add("deezer", track(id));
+        downloads.add("subsonic", track(id));
         downloads.next();
-        downloads.finished_at("deezer", id, true, at);
+        downloads.finished_at("subsonic", id, true, at);
     }
 
     #[test]
@@ -348,7 +348,7 @@ mod tests {
         downloaded(&mut downloads, "new", 80 * DAY);
         assert_eq!(
             downloads.stale(91 * DAY, 90 * DAY),
-            vec![("deezer".to_owned(), "old".to_owned())]
+            vec![("subsonic".to_owned(), "old".to_owned())]
         );
     }
 
@@ -356,7 +356,7 @@ mod tests {
     fn playing_a_download_keeps_it_fresh() {
         let mut downloads = Downloads::default();
         downloaded(&mut downloads, "1", 0);
-        downloads.played("deezer", "1", 50 * DAY);
+        downloads.played("subsonic", "1", 50 * DAY);
         assert!(downloads.stale(100 * DAY, 90 * DAY).is_empty());
         assert_eq!(downloads.stale(141 * DAY, 90 * DAY).len(), 1);
     }
@@ -364,9 +364,9 @@ mod tests {
     #[test]
     fn unfinished_or_undated_downloads_never_go_stale() {
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("queued"));
+        downloads.add("subsonic", track("queued"));
         downloaded(&mut downloads, "undated", 0);
-        downloads.entry_mut("deezer", "undated").unwrap().played_at = None;
+        downloads.entry_mut("subsonic", "undated").unwrap().played_at = None;
         assert!(downloads.stale(1000 * DAY, 90 * DAY).is_empty());
     }
 
@@ -375,17 +375,17 @@ mod tests {
         let folder = std::env::temp_dir().join(format!("cauce-downloads-{}", std::process::id()));
         std::fs::create_dir_all(&folder).unwrap();
         let mut downloads = Downloads::default();
-        downloads.add("deezer", track("done"));
-        downloads.add("deezer", track("half"));
+        downloads.add("subsonic", track("done"));
+        downloads.add("subsonic", track("half"));
         downloads.next();
         downloads.next();
-        downloads.finished("deezer", "done", true);
+        downloads.finished("subsonic", "done", true);
         downloads.save(&folder);
         let mut loaded = Downloads::load(&folder);
-        assert_eq!(loaded.get("deezer", "done").unwrap().state(), State::Done);
+        assert_eq!(loaded.get("subsonic", "done").unwrap().state(), State::Done);
         assert_eq!(
             loaded.next(),
-            Some(("deezer".to_owned(), "half".to_owned()))
+            Some(("subsonic".to_owned(), "half".to_owned()))
         );
         std::fs::remove_dir_all(&folder).ok();
     }

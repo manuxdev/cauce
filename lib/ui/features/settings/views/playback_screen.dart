@@ -258,12 +258,7 @@ class _QualityScreenState extends State<_QualityScreen> {
                 for (final offer in offers)
                   SettingsRow(
                     title: context.t('quality.${offer.id}'),
-                    // YouTube serves its 256 kbps stream to Premium accounts only.
-                    subtitle: widget.service.slug == 'youtube' && offer.id == 'high'
-                        ? context.t('quality.youtubeHigh')
-                        : offer.upTo
-                        ? context.t('quality.upTo', {'encoding': offer.encoding})
-                        : offer.encoding,
+                    subtitle: offer.upTo ? context.t('quality.upTo', {'encoding': offer.encoding}) : offer.encoding,
                     trailing: offer.id == playing ? pickedMark : null,
                     onTap: () {
                       setState(() => _quality = offer.id);

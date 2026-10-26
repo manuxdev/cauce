@@ -310,12 +310,7 @@ class InitialAvatar extends StatelessWidget {
 
 /// A provider's brand colour and the two letters on its badge.
 ({Color color, String letters}) brandOf(String slug) => switch (slug) {
-  'youtube' || 'ytmusic' || 'youtube-music' => (color: const Color(0xFFEE3533), letters: 'YT'),
-  'deezer' => (color: const Color(0xFF906AE5), letters: 'DZ'),
-  'spotify' => (color: const Color(0xFF1FC35C), letters: 'SP'),
-  'tidal' => (color: const Color(0xFF5FCFE0), letters: 'TD'),
   'subsonic' => (color: const Color(0xFFEFA02E), letters: 'SS'),
-  'apple' => (color: const Color(0xFFFA2D48), letters: 'AM'),
   _ => (color: CauceColors.accent, letters: slug.isEmpty ? '?' : slug.substring(0, 2).toUpperCase()),
 };
 

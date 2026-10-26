@@ -4,29 +4,12 @@ use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use music::{Encoding, GenreItem, HomeFeed, Lyrics, MediaKind, Track};
-use cauce_core::{Cookie, Core, Item, Paths, PlayerState, Repeat, Status};
+use cauce_core::{Core, Item, Paths, PlayerState, Repeat, Status};
 
 use crate::frb_generated::StreamSink;
 
 // ponytail: one global core for the spike; becomes an opaque handle once the API grows.
 static CORE: OnceLock<Core> = OnceLock::new();
-
-/// How a provider signs in through a webview: open `url`, and once cookies for `domain` exist,
-/// hand them all to `sign_in_with_cookies` until it answers a name.
-pub struct WebLogin {
-    pub url: String,
-    pub landing: String,
-    pub domain: String,
-    /// The user agent the webview must present, when the provider's anti-bot wants one.
-    pub agent: Option<String>,
-}
-
-/// One cookie from the webview's store.
-pub struct WebCookie {
-    pub name: String,
-    pub value: String,
-    pub domain: String,
-}
 
 /// A track as screens draw it, and as they hand it back to be queued. `source` is the provider
 /// slug, or `local` for a file.
@@ -38,8 +21,6 @@ pub struct TrackItem {
     pub artists: String,
     pub album: String,
     pub cover: Option<String>,
-    /// The same cover asked for at full-screen size.
-    pub cover_large: Option<String>,
     pub duration_ms: u64,
     pub playable: bool,
     /// Where "Go to album" leads, when the provider names the album.
@@ -169,38 +150,9 @@ pub fn player_states(states: StreamSink<PlayerSnapshot>) -> Result<()> {
     Ok(())
 }
 
-pub fn web_sign_in(slug: String) -> Result<Option<WebLogin>> {
-    Ok(core()?.web_sign_in(&slug)?.map(|web| WebLogin {
-        url: web.url.to_owned(),
-        landing: web.landing.to_owned(),
-        domain: web.domain.to_owned(),
-        agent: web.agent.map(str::to_owned),
-    }))
-}
-
 /// The display name of the account a provider stored, or `None` when there is none.
 pub fn restore(slug: String) -> Result<Option<String>> {
     core()?.restore(&slug)
-}
-
-/// `None` while the cookies prove no session yet; the account's display name once signed in.
-pub fn sign_in_with_cookies(slug: String, cookies: Vec<WebCookie>) -> Result<Option<String>> {
-    let cookies: Vec<Cookie> = cookies
-        .into_iter()
-        .map(|cookie| Cookie {
-            name: cookie.name,
-            value: cookie.value,
-            domain: cookie.domain,
-        })
-        .collect();
-    core()?.sign_in_with_cookies(&slug, &cookies)
-}
-
-/// Whether `slug`'s account plays its own tracks. A free Spotify account only browses, and its
-/// songs play from another connected service.
-#[flutter_rust_bridge::frb(sync)]
-pub fn streams(slug: String) -> Result<bool> {
-    Ok(core()?.streams(&slug))
 }
 
 /// Whether `slug` has an account stored, without reaching it.
@@ -209,70 +161,16 @@ pub fn stored(slug: String) -> Result<bool> {
     core()?.stored(&slug)
 }
 
-/// Where a sign-in stands: asking the listener to type `code` on the page at `url`, or, with no
-/// code, to approve on that page, which hands the answer back to a local address; or, last,
-/// signed in as `name`.
-#[derive(Clone)]
-pub struct SignInEvent {
-    pub code: Option<String>,
-    pub url: String,
-    pub name: Option<String>,
-}
-
-/// Signs `slug` in. With a `server`, it signs in to that server with `username` and `password`;
-/// otherwise the provider's own flow runs. Its prompts arrive on `events`, then the account's
-/// name; a failure ends the stream with the error.
-pub fn sign_in_flow(
-    slug: String,
-    server: String,
-    username: String,
-    password: String,
-    events: StreamSink<SignInEvent>,
-) -> Result<()> {
-    let method = match server.is_empty() {
-        true => music::SignIn::Default,
-        false => music::SignIn::Credentials {
+/// Signs `slug` in to `server` with `username` and `password`, and answers the account's name.
+pub fn sign_in(slug: String, server: String, username: String, password: String) -> Result<String> {
+    core()?.sign_in(
+        &slug,
+        music::SignIn::Credentials {
             server,
             username,
             password,
         },
-    };
-    let prompts = events.clone();
-    let signed_in = core()?.sign_in(&slug, method, move |prompt| {
-        let (code, url) = match prompt {
-            music::SignInPrompt::Code { code, url } => (Some(code), url),
-            music::SignInPrompt::Url(url) => (None, url),
-            _ => return,
-        };
-        prompts
-            .add(SignInEvent {
-                code,
-                url,
-                name: None,
-            })
-            .ok();
-    });
-    // Dart runs this call unawaited and only listens to the stream, so a failure goes there too.
-    let name = match signed_in {
-        Ok(name) => name,
-        Err(error) => {
-            events.add_error(error).ok();
-            return Ok(());
-        }
-    };
-    events
-        .add(SignInEvent {
-            code: None,
-            url: String::new(),
-            name: Some(name),
-        })
-        .ok();
-    Ok(())
-}
-
-/// Gives up on the sign-in `slug` is waiting on.
-pub fn sign_in_cancel(slug: String) -> Result<()> {
-    core()?.sign_in_cancel(&slug)
+    )
 }
 
 pub fn sign_out(slug: String) -> Result<()> {
@@ -315,23 +213,9 @@ pub fn genres(slug: String) -> Result<Vec<GenreCard>> {
         .collect())
 }
 
-/// The shelf titles a genre page needs from the app, in the listener's language.
-pub struct GenreTitles {
-    pub tracks: String,
-    pub albums: String,
-    pub artists: String,
-    pub playlists: String,
-}
-
 /// A style's page as shelves, like the home feed's.
-pub fn genre_page(slug: String, id: String, titles: GenreTitles) -> Result<Vec<HomeShelf>> {
-    let titles = cauce_core::genres::Titles {
-        tracks: titles.tracks,
-        albums: titles.albums,
-        artists: titles.artists,
-        playlists: titles.playlists,
-    };
-    let detail = core()?.genre(&slug, id, titles)?;
+pub fn genre_page(slug: String, id: String) -> Result<Vec<HomeShelf>> {
+    let detail = core()?.genre(&slug, id)?;
     Ok(detail
         .sections
         .into_iter()
@@ -880,46 +764,6 @@ pub fn pause() -> Result<()> {
     Ok(())
 }
 
-/// A command for the system's player, which plays Apple Music on iOS. `kind` is `load`, `cue`
-/// (load and stay paused), `play`, `pause`, `seek` or `stop`; `id` and `at_ms` are empty and zero
-/// where the kind needs neither.
-pub struct NativeCommand {
-    pub kind: String,
-    pub id: String,
-    pub at_ms: u32,
-}
-
-/// Every command for the system's player from now on.
-pub fn native_commands(commands: StreamSink<NativeCommand>) {
-    cauce_core::native::on_command(move |command| {
-        commands.add(native_command(command)).ok();
-    });
-}
-
-fn native_command(command: cauce_core::native::Command) -> NativeCommand {
-    use cauce_core::native::Command;
-    let millis = |at: Duration| at.as_millis().min(u32::MAX as u128) as u32;
-    let (kind, id, at_ms) = match command {
-        Command::Load { id, at, play } => (if play { "load" } else { "cue" }, id, millis(at)),
-        Command::Play => ("play", String::new(), 0),
-        Command::Pause => ("pause", String::new(), 0),
-        Command::Seek(at) => ("seek", String::new(), millis(at)),
-        Command::Stop => ("stop", String::new(), 0),
-    };
-    NativeCommand {
-        kind: kind.to_owned(),
-        id,
-        at_ms,
-    }
-}
-
-/// What the system's player did with track `id`: `loading`, `playing`, `paused`, `position`,
-/// `seeked`, `length` (with `duration_ms`), `ended` or `unavailable`.
-#[flutter_rust_bridge::frb(sync)]
-pub fn native_event(kind: String, id: String, at_ms: u32, duration_ms: u32) {
-    cauce_core::native::event(&kind, id, at_ms.into(), duration_ms.into());
-}
-
 /// How loud the left and right channels are now, each 0 to 1; read about 30 times a second
 /// while a design that draws them is on screen.
 #[flutter_rust_bridge::frb(sync)]
@@ -1006,7 +850,6 @@ fn track_item(source: &str, track: &Track) -> Option<TrackItem> {
         artists: track.artists.clone(),
         album: track.album.clone(),
         cover: track.cover.clone(),
-        cover_large: track.cover.as_deref().map(cauce_core::artwork::large),
         duration_ms: track.duration.as_millis() as u64,
         playable: track.playable,
         album_id: track.album_id.clone(),

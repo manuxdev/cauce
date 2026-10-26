@@ -533,7 +533,7 @@ class _CoverDeckState extends State<_CoverDeck> with SingleTickerProviderStateMi
       borderRadius: BorderRadius.circular(16),
       boxShadow: const [BoxShadow(color: Color(0x73000000), blurRadius: 50, offset: Offset(0, 22))],
     ),
-    child: Artwork(url: track.coverLarge ?? track.cover, size: side, radius: 16),
+    child: Artwork(url: track.cover, size: side, radius: 16),
   );
 
   @override

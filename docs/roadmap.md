@@ -174,7 +174,7 @@ Complaints to turn into strengths:
 
 - [ ] Check the licence of each lyrics source. LRCLIB and lyrics embedded in the files are safe; others may need a
       licence
-- [ ] Build the store flavour without the unofficial providers
+- [x] Build the store flavour without the unofficial providers
 - [ ] Ask to be listed in Navidrome's catalog of Subsonic/OpenSubsonic clients
       (https://x.com/navidrome/status/2002413209488433306)
 

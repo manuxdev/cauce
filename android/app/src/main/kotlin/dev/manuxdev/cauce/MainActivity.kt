@@ -5,8 +5,6 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -16,7 +14,7 @@ import io.flutter.plugin.common.MethodChannel
 
 /// The channels the iOS app answers natively. Playback controls and notifications are Android's
 /// own; the rest answer with the value that means "nothing here": no phone Music library and no
-/// picked folders yet. Sign-in pages open in the system browser.
+/// picked folders yet.
 class MainActivity : FlutterActivity() {
     /// Hands the Rust core the app context: its certificate verifier and audio output need it.
     private external fun initAndroid(context: Context)
@@ -63,17 +61,11 @@ class MainActivity : FlutterActivity() {
                 else -> result.success(null)
             }
         }
-        for (name in listOf("media_library", "browser")) {
-            MethodChannel(messenger, "cauce/$name").setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "songs", "folders" -> result.success(emptyList<Any>())
-                    "claim", "addFolder" -> result.success(false)
-                    "open" -> {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(call.arguments as String)))
-                        result.success(null)
-                    }
-                    else -> result.success(null)
-                }
+        MethodChannel(messenger, "cauce/media_library").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "songs", "folders" -> result.success(emptyList<Any>())
+                "claim", "addFolder" -> result.success(false)
+                else -> result.success(null)
             }
         }
     }

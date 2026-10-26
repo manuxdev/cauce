@@ -95,12 +95,12 @@ void main() {
         'lastTab': 3,
         'searchAll': true,
         'substitute': false,
-        'providerOrder': ['deezer', 'youtube'],
+        'providerOrder': ['subsonic', 'local'],
       });
     final again = AppPrefs()..read(prefs.toJson());
     expect(again.searchAll, isTrue);
     expect(again.substitute, isFalse);
-    expect(again.providerOrder, ['deezer', 'youtube']);
+    expect(again.providerOrder, ['subsonic', 'local']);
     expect(again.haptics, isFalse);
     expect(again.startTab, StartTab.library);
     expect(again.initialTab, 2);

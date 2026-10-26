@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/across_providers.dart';
@@ -51,11 +50,6 @@ class ProviderScreen extends StatelessWidget {
                 ],
               ),
             ),
-            if (accounts.browsesOnly(service.slug))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 22),
-                child: _FreeNotice(service: service.name, slug: service.slug),
-              ),
             SettingsGroup(
               children: [
                 SettingsSwitch(
@@ -102,14 +96,6 @@ class ProviderScreen extends StatelessWidget {
 /// What each plan of `slug` gets in Cauce, as label and text keys, with the lines about this
 /// platform alone. Only what Cauce itself does is said; a plan's own terms are the service's.
 List<(String, String)> _plans(String slug) => switch (slug) {
-  'youtube' => [('plans.free', 'plans.youtube.free'), ('plans.paid', 'plans.youtube.paid')],
-  'deezer' => [('plans.any', 'plans.deezer')],
-  'spotify' => [('plans.free', 'plans.spotify.free'), ('plans.paid', 'plans.spotify.paid')],
-  'tidal' => [('plans.free', 'plans.tidal.free'), ('plans.paid', 'plans.tidal.paid')],
-  // Apple Music is only offered on iOS and Android, and plays a different way on each.
-  'apple' => [
-    ('plans.device', defaultTargetPlatform == TargetPlatform.iOS ? 'plans.apple.ios' : 'plans.apple.android'),
-  ],
   'subsonic' => [('plans.server', 'plans.subsonic')],
   _ => const [],
 };
@@ -177,52 +163,6 @@ class ProviderOrderScreen extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// Says the account is a free one that only browses, where its songs play from, and that the
-/// service's Premium plan brings its own playback.
-class _FreeNotice extends StatelessWidget {
-  const _FreeNotice({required this.service, required this.slug});
-
-  final String service;
-  final String slug;
-
-  /// TIDAL has no free plan: an account without a subscription only gets previews.
-  String get _key => slug == 'tidal' ? 'providers.unsubscribed' : 'providers.free';
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CauceColors.accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(CauceMetrics.groupRadius),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CauceIcon(CauceGlyph.alert, size: 18, color: CauceColors.accent, weight: 2.2),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.t(_key, {'service': service}),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  context.t('$_key.detail', {'service': service}),
-                  style: TextStyle(fontSize: 13.5, height: 1.35, color: CauceColors.mutedForeground),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

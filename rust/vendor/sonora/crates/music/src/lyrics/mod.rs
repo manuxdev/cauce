@@ -1,10 +1,8 @@
-pub(crate) mod catalog;
 mod japanese;
 pub mod lrc;
 pub(crate) mod romanize;
 mod shape;
 pub(crate) mod sheet;
-pub(crate) mod ttml;
 
 use std::collections::HashSet;
 use std::time::Duration;

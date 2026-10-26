@@ -60,7 +60,6 @@ Future<void> main() async {
     return;
   }
   NowPlayingCenter(player);
-  if (defaultTargetPlatform == TargetPlatform.iOS) _attachApplePlayer();
   waveforms.attach(player);
   final scrobbles = ScrobbleTracker<core.TrackItem>(
     nowPlaying: (track) => core.scrobbleNowPlaying(track: track).ignore(),
@@ -103,7 +102,6 @@ Future<void> main() async {
     if (accounts.unreachable) accounts.restoreAll();
   });
   accounts.restoreAll();
-  PlayerViewModel.blockFor = (source, {reachable = true}) => accounts.playBlockFor(source, reachable: reachable);
   favorites.signInFirst = accounts.needsSignInFor;
   PlayerViewModel.substitute = (track) async {
     if (!appPrefs.substitute) return null;
@@ -187,7 +185,7 @@ class Appearance with WidgetsBindingObserver {
 
   void _follow() {
     final track = player.track;
-    final cover = track?.coverLarge ?? track?.cover;
+    final cover = track?.cover;
     if (cover == _cover) return;
     _cover = cover;
     coverHueOf(cover).then((hue) {
@@ -239,7 +237,7 @@ class CauceApp extends StatelessWidget {
           builder: (context, _) {
             final track = AppScope.of(context).player.track;
             return CoverTint(
-              url: track?.coverLarge ?? track?.cover,
+              url: track?.cover,
               child: Builder(
                 builder: (context) => ColoredBox(
                   color: TintScope.of(context).page,
@@ -310,14 +308,6 @@ class _ShellState extends State<Shell> {
   }
 
   void _showError() {
-    if (_player.takeSignIn() case final slug? when mounted) {
-      return _askSignIn(slug, 'signIn.toPlay', detail: 'signIn.toPlay.detail');
-    }
-    if (_player.takeOffline() && mounted) {
-      return showToast(
-        Toast(title: context.t('downloads.needsConnection'), glyph: CauceGlyph.offline, tone: ToastTone.info),
-      );
-    }
     final error = _player.takeError();
     if (error == null || !mounted) return;
     showToast(Toast(title: error, tone: ToastTone.error));
@@ -328,12 +318,11 @@ class _ShellState extends State<Shell> {
   }
 
   /// Says what `slug`'s sign-in is needed for, under `key`, with the sign-in a tap away.
-  void _askSignIn(String slug, String key, {String? detail}) {
+  void _askSignIn(String slug, String key) {
     final service = streamingServices.firstWhere((service) => service.slug == slug);
     showToast(
       Toast(
         title: context.t(key, {'service': service.name}),
-        detail: detail == null ? null : context.t(detail, {'service': service.name}),
         tone: ToastTone.error,
         action: context.t('providers.signIn'),
         onAction: () => signIn(context, service, AppScope.of(context).accounts),
@@ -483,20 +472,4 @@ class _MeasuredState extends State<_Measured> {
       child: SizeChangedLayoutNotifier(child: widget.child),
     );
   }
-}
-
-/// Apple Music plays through the system's queue player on iOS: the core's commands for it go to
-/// the platform side, and what it does comes back to the core.
-void _attachApplePlayer() {
-  const channel = MethodChannel('cauce/apple_player');
-  channel.setMethodCallHandler((call) async {
-    final arguments = call.arguments as Map;
-    core.nativeEvent(
-      kind: call.method,
-      id: arguments['id'] as String? ?? '',
-      atMs: arguments['at'] as int? ?? 0,
-      durationMs: arguments['duration'] as int? ?? 0,
-    );
-  });
-  core.nativeCommands().listen((command) => channel.invokeMethod(command.kind, {'id': command.id, 'at': command.atMs}));
 }

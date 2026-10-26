@@ -24,9 +24,6 @@ String errorKey(Object error) {
 }
 
 const _rules = [
-  ('error.freeSpotify', ['free spotify account']),
-  ('error.noStandIn', ['no other connected service']),
-  ('error.premium', ['premium']),
   ('error.storage', ['no space left', 'os error 28', 'disk full']),
   ('error.busy', ['429', 'too many requests', 'rate limit', '503', 'service unavailable']),
   ('error.region', ['your country', 'region', 'geo-blocked', 'geoblocked']),

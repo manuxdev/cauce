@@ -20,7 +20,7 @@ fn kept(target: &str, level: Level) -> bool {
     let krate = target.split("::").next().unwrap_or(target);
     let ours = matches!(
         krate,
-        "music" | "ytmusic" | "cauce_core" | "cauce_bridge" | "storage"
+        "music" | "cauce_core" | "cauce_bridge" | "storage"
     );
     match ours {
         true => level <= Level::Debug,
@@ -85,16 +85,15 @@ mod tests {
 
     #[test]
     fn own_crates_log_from_debug() {
-        assert!(kept("music::youtube", Level::Debug));
-        assert!(kept("ytmusic::client", Level::Debug));
+        assert!(kept("music::subsonic", Level::Debug));
         assert!(kept("cauce_core", Level::Info));
-        assert!(!kept("music::youtube", Level::Trace));
+        assert!(!kept("music::subsonic", Level::Trace));
     }
 
     #[test]
     fn other_crates_log_only_warnings() {
         assert!(kept("reqwest::connect", Level::Warn));
-        assert!(kept("librespot_core", Level::Error));
+        assert!(kept("opensubsonic", Level::Error));
         assert!(!kept("hyper::proto", Level::Debug));
         assert!(!kept("rustls", Level::Info));
     }

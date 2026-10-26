@@ -38,7 +38,7 @@ class ImmersiveDesign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = track.coverLarge ?? track.cover;
+    final url = track.cover;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -125,7 +125,7 @@ class ImmersiveDesign extends StatelessWidget {
         _top(context, lyrics: false),
         const Spacer(),
         _Glass(
-          url: track.coverLarge ?? track.cover,
+          url: track.cover,
           radius: 38,
           padding: const EdgeInsets.fromLTRB(22, 24, 22, 14),
           child: Column(
@@ -204,7 +204,7 @@ class ImmersiveDesign extends StatelessWidget {
           child: LyricsPanel(lyrics: AppScope.of(context).lyrics, player: player, look: LyricsLook.immersive),
         ),
         _Glass(
-          url: track.coverLarge ?? track.cover,
+          url: track.cover,
           radius: 32,
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
           child: Column(

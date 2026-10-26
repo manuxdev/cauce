@@ -31,16 +31,7 @@ class GenreScreen extends StatefulWidget {
 class _GenreScreenState extends State<GenreScreen> {
   late Future<List<core.HomeShelf>> _shelves = _load();
 
-  Future<List<core.HomeShelf>> _load() => core.genrePage(
-    slug: widget.slug,
-    id: widget.genre.id,
-    titles: core.GenreTitles(
-      tracks: context.t('search.songs'),
-      albums: context.t('search.albums'),
-      artists: context.t('search.artists'),
-      playlists: context.t('search.playlists'),
-    ),
-  );
+  Future<List<core.HomeShelf>> _load() => core.genrePage(slug: widget.slug, id: widget.genre.id);
 
   @override
   Widget build(BuildContext context) {

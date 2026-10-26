@@ -18,7 +18,7 @@ import 'package:cauce/ui/features/settings/view_models/playback_settings_view_mo
 import 'package:cauce/ui/features/settings/views/player_design_screen.dart';
 
 final _track = core.TrackItem(
-  source: 'deezer',
+  source: 'subsonic',
   id: '42',
   title: 'Mar de fondo',
   artists: 'Lucía Vega',

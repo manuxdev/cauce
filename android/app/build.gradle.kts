@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "dev.manuxdev.cauce"
+        applicationId = "dev.codemyc.cauce"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // cpal links -laaudio; NDK only ships that stub from API 26+.
@@ -29,7 +29,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // rquickjs-sys has no armeabi-v7a bindings; emulator/device targets are 64-bit.
+        // Only the 64-bit targets are built: emulators and current devices.
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }

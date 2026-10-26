@@ -71,7 +71,7 @@ class VinylDesign extends StatelessWidget {
                   id: (track.source, track.id),
                   order: player.index ?? 0,
                   style: SwapStyle.roll,
-                  child: VinylDisc(url: track.coverLarge ?? track.cover, size: side * 0.867, playing: player.playing),
+                  child: VinylDisc(url: track.cover, size: side * 0.867, playing: player.playing),
                 );
                 return Center(
                   child: ring ? SeekRing(player: player, size: side, child: disc) : disc,

@@ -1,15 +1,11 @@
 # Cauce
 
-A music player for iPhone that brings your streaming services and your own music into one
+A music player for iPhone that brings your Subsonic server and your own music into one
 library and one queue. The UI is Flutter; the providers, playback, downloads and the encrypted
 offline vault run in Rust, reached through [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge).
 
 ## Providers
 
-- Spotify (Premium streams; free accounts play their songs from your other services)
-- Tidal
-- Deezer
-- YouTube Music
 - Subsonic servers (Navidrome, Gonic, Airsonic, …)
 - The songs in the phone's Music library
 
@@ -22,9 +18,9 @@ Lyrics, Last.fm / ListenBrainz scrobbling and offline downloads are built in.
 | `lib/` | The Flutter app |
 | `rust/cauce_core` | The app's core: session, settings, downloads, lyrics, scrobbling |
 | `rust/cauce_bridge` | The API exposed to Dart |
-| `rust/vendor/` | Vendored crates (`sonora`: providers and storage; `librespot`) |
+| `rust/vendor/` | Vendored crates (`sonora`: providers and storage) |
 | `rust_builder/` | The cargokit plugin that builds the Rust library for each platform |
-| `ios/` | The iOS runner, with the native now-playing, media library and browser channels |
+| `ios/` | The iOS runner, with the native now-playing and media library channels |
 
 ## Building
 
@@ -53,7 +49,7 @@ cd rust && cargo test -p cauce_core -p cauce_bridge --lib
 ## Installing on an iPhone
 
 1. Open `ios/Runner.xcworkspace` in Xcode, select the Runner target and set your team under
-   *Signing & Capabilities* (change the bundle id `dev.manuxdev.cauce` if it is taken).
+   *Signing & Capabilities* (change the bundle id `dev.codemyc.cauce` if it is taken).
 2. Enable Developer Mode on the phone (*Settings → Privacy & Security*) and connect it.
 3. Build and install:
 

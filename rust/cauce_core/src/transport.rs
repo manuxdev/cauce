@@ -102,18 +102,6 @@ impl Transport {
         }
     }
 
-    /// Plays `stand_in` in place of the current item when that is still `wanted`, so the
-    /// engine's events, which name the stand-in, belong to the current item.
-    pub fn stand_in(&mut self, wanted: &Item, stand_in: Item) {
-        if self
-            .queue
-            .current()
-            .is_some_and(|current| current.source == wanted.source && current.id == wanted.id)
-        {
-            self.queue.swap_current(stand_in);
-        }
-    }
-
     /// Empties the queue, as when the provider of what was playing is gone. The settings that
     /// outlive a queue stay.
     pub fn clear(&mut self) {
@@ -319,26 +307,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_stand_in_takes_the_current_place_only_while_it_is_current() {
-        let mut transport = Transport::default();
-        transport.start(vec![item("a"), item("b")], 0);
-        let mut other = item("a2");
-        other.source = "youtube".into();
-        transport.stand_in(&item("b"), other.clone());
-        assert_eq!(
-            transport.snapshot().item.map(|item| item.id),
-            Some("a".into())
-        );
-        transport.stand_in(&item("a"), other);
-        let snapshot = transport.snapshot();
-        assert_eq!(
-            snapshot.item.map(|item| (item.source, item.id)),
-            Some(("youtube".into(), "a2".into()))
-        );
-        assert_eq!(snapshot.items.len(), 2);
-    }
-
-    #[test]
     fn clearing_leaves_nothing_to_play_and_keeps_continue_similar() {
         let mut transport = Transport::default();
         transport.set_continue_similar(true);
@@ -351,7 +319,7 @@ mod tests {
 
     fn item(id: &str) -> Item {
         Item {
-            source: "deezer".to_owned(),
+            source: "subsonic".to_owned(),
             id: id.to_owned(),
             track: Track {
                 id: Some(id.to_owned()),

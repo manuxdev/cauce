@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["cauce_bridge", "cauce_core"]
-# The vendored librespot keeps its own workspace.
+# The vendored Sonora keeps its own workspace.
 exclude = ["vendor"]
 
 [workspace.package]
@@ -11,14 +11,6 @@ license = "GPL-3.0-or-later"
 
 # Patches for the vendored crates' dependencies: a nested workspace's patches do not apply here.
 [patch.crates-io]
-# librespot is vendored from librespot (fork at 84f551d) with one change: on iOS and Android it reports macOS
-# (vendor/librespot/core/src/config.rs), so Spotify accepts the desktop OAuth token.
-librespot-audio = { path = "vendor/librespot/audio" }
-librespot-core = { path = "vendor/librespot/core" }
-librespot-metadata = { path = "vendor/librespot/metadata" }
-librespot-oauth = { path = "vendor/librespot/oauth" }
-librespot-playback = { path = "vendor/librespot/playback" }
-librespot-protocol = { path = "vendor/librespot/protocol" }
 rodio = { git = "https://github.com/RustAudio/rodio", rev = "880aaba54b00aead53651ed1ccbdb672d1375a95" }
 
 [profile.release]

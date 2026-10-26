@@ -181,7 +181,7 @@ class _NowPlaying extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(CauceMetrics.gutter, 22, 8, 16),
       child: Row(
         children: [
-          Artwork(url: track.coverLarge ?? track.cover, size: 84, radius: 12),
+          Artwork(url: track.cover, size: 84, radius: 12),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

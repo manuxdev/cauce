@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `native_command`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
+// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
 
 /// Starts the core once. Await it before any other call: everything else needs the core.
 Future<void> init({required String dataDir, required String cacheDir}) =>
@@ -16,34 +16,19 @@ Future<void> init({required String dataDir, required String cacheDir}) =>
 /// Every change to the player from now on, starting with the current state.
 Stream<PlayerSnapshot> playerStates() => RustLib.instance.api.crateApiPlayerPlayerStates();
 
-Future<WebLogin?> webSignIn({required String slug}) => RustLib.instance.api.crateApiPlayerWebSignIn(slug: slug);
-
 /// The display name of the account a provider stored, or `None` when there is none.
 Future<String?> restore({required String slug}) => RustLib.instance.api.crateApiPlayerRestore(slug: slug);
-
-/// `None` while the cookies prove no session yet; the account's display name once signed in.
-Future<String?> signInWithCookies({required String slug, required List<WebCookie> cookies}) =>
-    RustLib.instance.api.crateApiPlayerSignInWithCookies(slug: slug, cookies: cookies);
-
-/// Whether `slug`'s account plays its own tracks. A free Spotify account only browses, and its
-/// songs play from another connected service.
-bool streams({required String slug}) => RustLib.instance.api.crateApiPlayerStreams(slug: slug);
 
 /// Whether `slug` has an account stored, without reaching it.
 bool stored({required String slug}) => RustLib.instance.api.crateApiPlayerStored(slug: slug);
 
-/// Signs `slug` in. With a `server`, it signs in to that server with `username` and `password`;
-/// otherwise the provider's own flow runs. Its prompts arrive on `events`, then the account's
-/// name; a failure ends the stream with the error.
-Stream<SignInEvent> signInFlow({
+/// Signs `slug` in to `server` with `username` and `password`, and answers the account's name.
+Future<String> signIn({
   required String slug,
   required String server,
   required String username,
   required String password,
-}) => RustLib.instance.api.crateApiPlayerSignInFlow(slug: slug, server: server, username: username, password: password);
-
-/// Gives up on the sign-in `slug` is waiting on.
-Future<void> signInCancel({required String slug}) => RustLib.instance.api.crateApiPlayerSignInCancel(slug: slug);
+}) => RustLib.instance.api.crateApiPlayerSignIn(slug: slug, server: server, username: username, password: password);
 
 Future<void> signOut({required String slug}) => RustLib.instance.api.crateApiPlayerSignOut(slug: slug);
 
@@ -57,8 +42,8 @@ Future<List<MediaCard>> searchAlbums({required String slug, required String quer
 Future<List<GenreCard>> genres({required String slug}) => RustLib.instance.api.crateApiPlayerGenres(slug: slug);
 
 /// A style's page as shelves, like the home feed's.
-Future<List<HomeShelf>> genrePage({required String slug, required String id, required GenreTitles titles}) =>
-    RustLib.instance.api.crateApiPlayerGenrePage(slug: slug, id: id, titles: titles);
+Future<List<HomeShelf>> genrePage({required String slug, required String id}) =>
+    RustLib.instance.api.crateApiPlayerGenrePage(slug: slug, id: id);
 
 Future<List<PlaylistItem>> ownPlaylists({required String slug}) =>
     RustLib.instance.api.crateApiPlayerOwnPlaylists(slug: slug);
@@ -201,14 +186,6 @@ Future<void> setStopAfterCurrent({required bool stop}) =>
 
 Future<void> pause() => RustLib.instance.api.crateApiPlayerPause();
 
-/// Every command for the system's player from now on.
-Stream<NativeCommand> nativeCommands() => RustLib.instance.api.crateApiPlayerNativeCommands();
-
-/// What the system's player did with track `id`: `loading`, `playing`, `paused`, `position`,
-/// `seeked`, `length` (with `duration_ms`), `ended` or `unavailable`.
-void nativeEvent({required String kind, required String id, required int atMs, required int durationMs}) =>
-    RustLib.instance.api.crateApiPlayerNativeEvent(kind: kind, id: id, atMs: atMs, durationMs: durationMs);
-
 /// How loud the left and right channels are now, each 0 to 1; read about 30 times a second
 /// while a design that draws them is on screen.
 Float32List levels() => RustLib.instance.api.crateApiPlayerLevels();
@@ -327,29 +304,6 @@ class GenreCard {
           cover == other.cover;
 }
 
-/// The shelf titles a genre page needs from the app, in the listener's language.
-class GenreTitles {
-  final String tracks;
-  final String albums;
-  final String artists;
-  final String playlists;
-
-  const GenreTitles({required this.tracks, required this.albums, required this.artists, required this.playlists});
-
-  @override
-  int get hashCode => tracks.hashCode ^ albums.hashCode ^ artists.hashCode ^ playlists.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is GenreTitles &&
-          runtimeType == other.runtimeType &&
-          tracks == other.tracks &&
-          albums == other.albums &&
-          artists == other.artists &&
-          playlists == other.playlists;
-}
-
 class HomeShelf {
   final String title;
   final List<MediaCard> cards;
@@ -459,29 +413,6 @@ class MediaCard {
           subtitle == other.subtitle &&
           cover == other.cover &&
           track == other.track;
-}
-
-/// A command for the system's player, which plays Apple Music on iOS. `kind` is `load`, `cue`
-/// (load and stay paused), `play`, `pause`, `seek` or `stop`; `id` and `at_ms` are empty and zero
-/// where the kind needs neither.
-class NativeCommand {
-  final String kind;
-  final String id;
-  final int atMs;
-
-  const NativeCommand({required this.kind, required this.id, required this.atMs});
-
-  @override
-  int get hashCode => kind.hashCode ^ id.hashCode ^ atMs.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NativeCommand &&
-          runtimeType == other.runtimeType &&
-          kind == other.kind &&
-          id == other.id &&
-          atMs == other.atMs;
 }
 
 /// The playback preferences. `bands` holds the ten graphic equalizer gains in dB.
@@ -749,29 +680,6 @@ class ScrobbleSecret {
           server == other.server;
 }
 
-/// Where a sign-in stands: asking the listener to type `code` on the page at `url`, or, with no
-/// code, to approve on that page, which hands the answer back to a local address; or, last,
-/// signed in as `name`.
-class SignInEvent {
-  final String? code;
-  final String url;
-  final String? name;
-
-  const SignInEvent({this.code, required this.url, this.name});
-
-  @override
-  int get hashCode => code.hashCode ^ url.hashCode ^ name.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SignInEvent &&
-          runtimeType == other.runtimeType &&
-          code == other.code &&
-          url == other.url &&
-          name == other.name;
-}
-
 class StorageUsage {
   final BigInt cacheBytes;
   final BigInt downloadBytes;
@@ -799,9 +707,6 @@ class TrackItem {
   final String artists;
   final String album;
   final String? cover;
-
-  /// The same cover asked for at full-screen size.
-  final String? coverLarge;
   final BigInt durationMs;
   final bool playable;
 
@@ -818,7 +723,6 @@ class TrackItem {
     required this.artists,
     required this.album,
     this.cover,
-    this.coverLarge,
     required this.durationMs,
     required this.playable,
     this.albumId,
@@ -833,7 +737,6 @@ class TrackItem {
       artists.hashCode ^
       album.hashCode ^
       cover.hashCode ^
-      coverLarge.hashCode ^
       durationMs.hashCode ^
       playable.hashCode ^
       albumId.hashCode ^
@@ -850,56 +753,8 @@ class TrackItem {
           artists == other.artists &&
           album == other.album &&
           cover == other.cover &&
-          coverLarge == other.coverLarge &&
           durationMs == other.durationMs &&
           playable == other.playable &&
           albumId == other.albumId &&
           artistLinks == other.artistLinks;
-}
-
-/// One cookie from the webview's store.
-class WebCookie {
-  final String name;
-  final String value;
-  final String domain;
-
-  const WebCookie({required this.name, required this.value, required this.domain});
-
-  @override
-  int get hashCode => name.hashCode ^ value.hashCode ^ domain.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is WebCookie &&
-          runtimeType == other.runtimeType &&
-          name == other.name &&
-          value == other.value &&
-          domain == other.domain;
-}
-
-/// How a provider signs in through a webview: open `url`, and once cookies for `domain` exist,
-/// hand them all to `sign_in_with_cookies` until it answers a name.
-class WebLogin {
-  final String url;
-  final String landing;
-  final String domain;
-
-  /// The user agent the webview must present, when the provider's anti-bot wants one.
-  final String? agent;
-
-  const WebLogin({required this.url, required this.landing, required this.domain, this.agent});
-
-  @override
-  int get hashCode => url.hashCode ^ landing.hashCode ^ domain.hashCode ^ agent.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is WebLogin &&
-          runtimeType == other.runtimeType &&
-          url == other.url &&
-          landing == other.landing &&
-          domain == other.domain &&
-          agent == other.agent;
 }

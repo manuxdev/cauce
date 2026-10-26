@@ -135,10 +135,10 @@ void main() {
   });
 
   test('a song with no wave yet gets the same made-up one every time, and each song its own', () {
-    final wave = placeholderWave('deezer:42', 52);
+    final wave = placeholderWave('subsonic:42', 52);
     expect(wave, hasLength(52));
-    expect(wave, placeholderWave('deezer:42', 52));
-    expect(wave, isNot(placeholderWave('deezer:43', 52)));
+    expect(wave, placeholderWave('subsonic:42', 52));
+    expect(wave, isNot(placeholderWave('subsonic:43', 52)));
     expect(wave.every((bar) => bar > 0 && bar <= 1), isTrue);
   });
 

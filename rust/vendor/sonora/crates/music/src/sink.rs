@@ -429,17 +429,6 @@ impl Paced {
         self.output.rate()
     }
 
-    /// Waits until there is room for another packet.
-    pub fn drain(&mut self) -> Result<(), Gone> {
-        while self.full() {
-            if self.output.failed() {
-                return Err(self.disconnected());
-            }
-            std::thread::sleep(DRAIN_POLL);
-        }
-        Ok(())
-    }
-
     /// How long a full queue takes to play out. This is how far a decoder runs ahead of what
     /// is heard, so it is also the longest a paused writer waits before it sees a command.
     pub const fn poll() -> Duration {
@@ -493,8 +482,7 @@ impl Paced {
 ///
 /// A device that is present is not enough: ALSA always names a default one, and without the
 /// sound server's plugin it never opens. Reporting it anyway would restart the engine every poll,
-/// and dropping librespot's player joins its thread on the main one, so the watch waits until a
-/// stream actually opens.
+/// so the watch waits until a stream actually opens.
 pub fn watch_for_output(notify: UnboundedSender<()>) {
     std::thread::spawn(move || {
         while !notify.is_closed() {

@@ -5,18 +5,12 @@ use std::path::{Path, PathBuf};
 
 use music::Lyrics;
 
-/// The lyrics services in each group the listener orders: the providers' own, LRCLIB, and
+/// The lyrics services in each group the listener orders: the online lyrics services, LRCLIB, and
 /// `.lrc` files beside local tracks.
 const GROUPS: [(&str, &[&str]); 3] = [
     (
         "provider",
-        &[
-            "YouTube Music",
-            "Apple Music",
-            "Musixmatch",
-            "Kugou",
-            "NetEase",
-        ],
+        &["Musixmatch", "Kugou", "NetEase"],
     ),
     ("lrclib", &["LrcLib"]),
     ("lrc", &[music::lyrics::LOCAL]),
@@ -88,8 +82,8 @@ mod tests {
         let services = sources(&order);
         assert_eq!(services[0], "LrcLib");
         assert_eq!(services[1], music::lyrics::LOCAL);
-        assert_eq!(services[2], "YouTube Music");
-        assert_eq!(services.len(), 7);
+        assert_eq!(services[2], "Musixmatch");
+        assert_eq!(services.len(), 5);
     }
 
     #[test]
@@ -100,11 +94,11 @@ mod tests {
             text: "High tide".into(),
             romanized: None,
         };
-        shelf.keep("youtube", "a/b?c", &lyrics);
-        assert_eq!(shelf.get("youtube", "a/b?c"), Some(lyrics));
-        assert_eq!(shelf.get("deezer", "a/b?c"), None);
-        shelf.drop("youtube", "a/b?c");
-        assert_eq!(shelf.get("youtube", "a/b?c"), None);
+        shelf.keep("local", "a/b?c", &lyrics);
+        assert_eq!(shelf.get("local", "a/b?c"), Some(lyrics));
+        assert_eq!(shelf.get("subsonic", "a/b?c"), None);
+        shelf.drop("local", "a/b?c");
+        assert_eq!(shelf.get("local", "a/b?c"), None);
         std::fs::remove_dir_all(folder).ok();
     }
 }

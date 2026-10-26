@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../src/rust/api/player.dart' as core;
 import '../../../core/error_text.dart';
-import '../../../core/status_band.dart';
 
 /// A streaming service the app can sign in to.
 class StreamingService {
@@ -12,35 +11,13 @@ class StreamingService {
   final String name;
 }
 
-/// Apple Music only on iOS and Android, where the system has a player or a CDM for its songs.
-final streamingServices = [
-  const StreamingService('youtube', 'YouTube Music'),
-  const StreamingService('deezer', 'Deezer'),
-  const StreamingService('spotify', 'Spotify'),
-  if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)
-    const StreamingService('apple', 'Apple Music'),
-  const StreamingService('tidal', 'Tidal'),
-  const StreamingService('subsonic', 'Subsonic'),
-];
+final streamingServices = [const StreamingService('subsonic', 'Subsonic')];
 
-/// Whether `source`'s track waits on signing in to its service, with `signedIn` the services
-/// that have an account in. Liking always does. Playing only does for Apple Music, which keeps
-/// its downloads encrypted and licenses every play afresh; the rest play their downloads from
-/// the account kept on the phone. A file on the phone never waits.
-bool needsSignIn(String source, Set<String> signedIn, {bool toPlay = false}) =>
-    source != 'local' && !signedIn.contains(source) && (!toPlay || source == 'apple');
-
-/// What keeps a track from playing now, short of trying it.
-enum PlayBlock { none, signIn, offline }
-
-/// What keeps `source`'s track from playing, with `signedIn` as in [needsSignIn] and `online`
-/// whether a license can be reached. The sign-in comes first; once in, Apple Music still needs
-/// the connection for each play's license.
-PlayBlock playBlock(String source, Set<String> signedIn, {required bool online}) => switch (source) {
-  _ when needsSignIn(source, signedIn, toPlay: true) => PlayBlock.signIn,
-  'apple' when !online => PlayBlock.offline,
-  _ => PlayBlock.none,
-};
+/// Whether `source`'s track waits on signing in to its service to be liked, with `signedIn`
+/// the services that have an account in. Downloads play from the account kept on the phone,
+/// and a file on the phone never waits.
+bool needsSignIn(String source, Set<String> signedIn) =>
+    !signedIn.contains(source) && streamingServices.any((service) => service.slug == source);
 
 /// Which services have an account in, by display name.
 class AccountsViewModel extends ChangeNotifier {
@@ -81,21 +58,10 @@ class AccountsViewModel extends ChangeNotifier {
   /// Whether `slug` has an account kept on the phone, reached or not.
   bool stored(String slug) => _stored.contains(slug);
 
-  /// Signed in with an account that only browses, such as a free Spotify one: its songs play
-  /// from another connected service.
-  bool browsesOnly(String slug) => signedIn(slug) && !core.streams(slug: slug);
   String? account(String slug) => _accounts[slug];
 
   /// See [needsSignIn]. One still being brought back counts as in.
-  bool needsSignInFor(String source, {bool toPlay = false}) =>
-      needsSignIn(source, {..._accounts.keys, ..._restoring}, toPlay: toPlay);
-
-  /// See [playBlock], offline as the platform last said or once `reachable` failed. iOS plays
-  /// Apple Music through the system, which keeps its own downloads playable offline.
-  PlayBlock playBlockFor(String source, {bool reachable = true}) => playBlock(source, {
-    ..._accounts.keys,
-    ..._restoring,
-  }, online: defaultTargetPlatform == TargetPlatform.iOS || (reachable && online.value));
+  bool needsSignInFor(String source) => needsSignIn(source, {..._accounts.keys, ..._restoring});
   bool restoring(String slug) => _restoring.contains(slug);
 
   /// Why the last restore of `slug` failed. Cleared once the service has an account.

@@ -56,7 +56,7 @@ class PosterDesign extends StatelessWidget {
                 TrackSwap(
                   id: (track.source, track.id),
                   style: SwapStyle.fade,
-                  child: DriftingCover(url: track.coverLarge ?? track.cover, moving: player.playing),
+                  child: DriftingCover(url: track.cover, moving: player.playing),
                 ),
                 DecoratedBox(
                   decoration: BoxDecoration(

@@ -32,7 +32,7 @@ void openAlbum(BuildContext context, core.TrackItem track) {
           id: album,
           title: track.album,
           subtitle: track.artists,
-          cover: track.coverLarge ?? track.cover,
+          cover: track.cover,
         ),
       ),
     ),
@@ -609,7 +609,7 @@ class _NewPlaylistState extends State<_NewPlaylist> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Center(child: Artwork(url: widget.track.coverLarge ?? widget.track.cover, size: 160, radius: 16)),
+                Center(child: Artwork(url: widget.track.cover, size: 160, radius: 16)),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: CauceMetrics.gutter),

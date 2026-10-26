@@ -2,7 +2,7 @@
 //!
 //! Symphonia 0.5 decodes AAC-LC only. Handed an HE-AAC stream it reads past the SBR signalling
 //! and plays the core alone, at half the rate and without the top half of the spectrum, which is
-//! how the low streams of Tidal, YouTube Music and Apple Music arrive. A stream whose config
+//! how low-bitrate streams often arrive. A stream whose config
 //! signals SBR goes to `rusty_aac` instead, which reconstructs it. Every other AAC stream stays
 //! on symphonia's decoder, so nothing about AAC-LC playback changes.
 

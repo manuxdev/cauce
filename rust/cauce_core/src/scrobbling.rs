@@ -130,7 +130,7 @@ mod tests {
             .accounts
             .insert("maloja".into(), Account::default());
         let ids: Vec<_> = scrobbling
-            .receivers("youtube")
+            .receivers("subsonic")
             .into_iter()
             .map(|(id, _)| id)
             .collect();

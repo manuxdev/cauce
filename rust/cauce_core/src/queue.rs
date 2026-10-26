@@ -53,13 +53,6 @@ impl<T> Queue<T> {
         self.items.get(self.current?)
     }
 
-    /// Puts `item` in the current one's place. Nothing happens with nothing current.
-    pub fn swap_current(&mut self, item: T) {
-        if let Some(index) = self.current {
-            self.items[index] = item;
-        }
-    }
-
     pub fn index(&self) -> Option<usize> {
         self.current
     }

@@ -10,15 +10,6 @@
 //! whole data folder carries the key along with the downloads.
 //!
 //! What goes in is what the provider sent, before its [`Body`](crate::stream::Body) touched it.
-//! A Deezer track stays striped with Blowfish inside the vault, so its decrypted audio still
-//! never reaches the disk. An Apple Music track stays under Widevine and is licensed again on
-//! every play, so peeling off the vault's layer leaves nothing easier to play than the stream
-//! and nothing that plays once Apple stops handing out the key.
-//!
-//! Spotify is the exception. librespot keeps its own played files, as the CDN sent them and
-//! still under the key Spotify hands out on every play, in a folder inside the vault that
-//! [`Vault::foreign`] names. A Spotify download is sealed in the vault with that key beside it,
-//! so peeling off the vault's layer leaves all it takes to play the file.
 //!
 //! The owner of the machine can always read the master key out of their keychain or key file,
 //! or the audio out of the process. The vault keeps kept tracks from playing outside Cauce for
@@ -60,8 +51,6 @@ pub const MASTER: usize = 32;
 const VERSION: &[u8] = b"cauce vault 1";
 /// What one track may take of the whole vault at most, as a fraction of the limit.
 const SHARE: u64 = 4;
-/// The folder inside the vault that players keeping their own files share.
-const FOREIGN: &str = "players";
 /// How long a half-written entry left by a crash stays before a sweep removes it.
 const ABANDONED: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long a lookup made before the vault has its key waits for it. Reading the keychain takes
@@ -70,20 +59,9 @@ const UNLOCK_WAIT: Duration = Duration::from_secs(5);
 
 /// Tells apart the temporary files of two recordings running at once in one process.
 static WRITES: AtomicU64 = AtomicU64::new(0);
-/// Whether keeping played tracks is on, for a player that keeps its own files and is set up
-/// before any engine starts. Spotify reads it when its session opens.
-static KEEPING: AtomicBool = AtomicBool::new(false);
-/// The most the standard cache may hold, in bytes, for the same players.
-static LIMIT: AtomicU64 = AtomicU64::new(0);
-/// The players that keep their own files and are running, each with what empties its folder
-/// through the player itself.
-static PLAYERS: Mutex<Vec<(&'static str, Clear)>> = Mutex::new(Vec::new());
-
 /// Answers the facts a provider keeps beside a track once the whole track has arrived, or
 /// `None` when the provider cannot vouch that it has.
 type Describe = Box<dyn FnOnce() -> Option<Vec<u8>> + Send>;
-/// Empties a player's own folder through the player, or answers false once the player is gone.
-type Clear = Box<dyn Fn() -> bool + Send + Sync>;
 
 /// What a sealed block is, which its nonce carries so one cannot stand in for another.
 #[derive(Clone, Copy)]
@@ -147,20 +125,6 @@ impl Vault {
         }
     }
 
-    /// A vault in Cauce's folders: the cache in `$XDG_CACHE_HOME/cauce/vault` and downloads in
-    /// `$XDG_DATA_HOME/cauce/downloads`.
-    pub fn standard(limit: u64) -> Self {
-        Self::new(standard_root(), pinned_root(), limit)
-    }
-
-    /// Tells a player that keeps its own files whether to keep them and how much the whole
-    /// cache may hold. Its session reads this when it opens, so a change reaches it at the next
-    /// sign-in.
-    pub fn set_keeping(on: bool, limit: u64) {
-        KEEPING.store(on, Ordering::Relaxed);
-        LIMIT.store(limit, Ordering::Relaxed);
-    }
-
     /// Changes how much the cache may hold. A lower limit evicts the least recently played
     /// tracks at once, which walks the cache on disk, so call it off the main thread.
     pub fn set_limit(&self, limit: u64) {
@@ -177,40 +141,6 @@ impl Vault {
     /// Whether tracks that only played are cached. Downloads are kept either way.
     pub fn set_caching(&self, on: bool) {
         self.caching.store(on, Ordering::Relaxed);
-    }
-
-    /// Where a player that keeps its own files keeps them when keeping is on, and how many bytes
-    /// it may keep there. The folder is made private before the player can create it.
-    ///
-    /// The listener's limit covers the whole cache, the player's folder included. The player
-    /// gets what Cauce's own entries leave of it, and at least half, so the oldest of those
-    /// entries are evicted here when they take more. The share is fixed for the session, so a
-    /// new limit reaches the player at its next sign-in.
-    pub(crate) fn foreign(player: &str) -> Option<(PathBuf, u64)> {
-        if !KEEPING.load(Ordering::Relaxed) {
-            return None;
-        }
-        let root = standard_root();
-        let folder = root.join(FOREIGN).join(player);
-        if let Err(error) = create_private(&root)
-            .and_then(|()| create_private(&root.join(FOREIGN)))
-            .and_then(|()| create_private(&folder))
-        {
-            log::warn!("vault: {player} keeps no files: {error:#}");
-            return None;
-        }
-        let limit = LIMIT.load(Ordering::Relaxed);
-        let own = evict(&root, limit - limit / 2);
-        Some((folder, limit.saturating_sub(own)))
-    }
-
-    /// Registers a running player that keeps its own files, with `clear` emptying its folder
-    /// through the player so its own count of what it keeps stays true. `clear` answers false
-    /// once the player is gone. A later registration for the same player replaces this one.
-    pub(crate) fn adopt(player: &'static str, clear: impl Fn() -> bool + Send + Sync + 'static) {
-        let mut players = PLAYERS.lock().unwrap_or_else(|held| held.into_inner());
-        players.retain(|(name, _)| *name != player);
-        players.push((player, Box::new(clear)));
     }
 
     /// A fresh random master key, for a machine whose keychain has none yet.
@@ -272,31 +202,23 @@ impl Vault {
         }
     }
 
-    /// Removes every cached track. Downloads stay. A running player's own files are removed
-    /// through the player, which keeps its folder and its count of what it holds.
+    /// Removes every cached track. Downloads stay.
     pub fn forget(&self) {
-        let players = PLAYERS.lock().unwrap_or_else(|held| held.into_inner());
         let mut failed = false;
         for item in fs::read_dir(&self.root).into_iter().flatten().flatten() {
-            let path = item.path();
-            let removed = match item.file_name() == FOREIGN {
-                true => forget_players(&path, &players),
-                false => remove(&path),
-            };
-            if let Err(error) = removed {
+            if let Err(error) = remove(&item.path()) {
                 failed = true;
                 log::warn!("vault: cannot forget the cached tracks: {error}");
             }
         }
-        drop(players);
         if !failed {
             log::info!("vault: forgot every cached track");
         }
         *self.used.lock().unwrap_or_else(|held| held.into_inner()) = None;
     }
 
-    /// What the cache and the downloads take on disk, in bytes, the cache counting the files
-    /// players keep for themselves. It walks both folders, so call it off the main thread.
+    /// What the cache and the downloads take on disk, in bytes. It walks both folders, so call it
+    /// off the main thread.
     pub fn usage(&self) -> (u64, u64) {
         (footprint(&self.root), footprint(&self.pinned))
     }
@@ -338,14 +260,12 @@ impl Vault {
     }
 
     /// Counts a new cache entry of `size` bytes and evicts the least recently played ones once
-    /// the cache, players' own files included, holds more than its limit.
+    /// the cache holds more than its limit.
     fn settle(&self, size: u64) {
         let over = {
             let mut used = self.used.lock().unwrap_or_else(|held| held.into_inner());
             *used = used.map(|used| used.saturating_add(size));
-            used.is_none_or(|used| {
-                used.saturating_add(footprint(&self.root.join(FOREIGN))) > self.limit()
-            })
+            used.is_none_or(|used| used > self.limit())
         };
         if over {
             self.sweep();
@@ -353,13 +273,10 @@ impl Vault {
     }
 
     /// Drops what a crash left half-written in either place and the least recently played cache
-    /// entries until they and the players' own files fit the limit. Only a player removes its
-    /// own files, so those are counted and never evicted here.
+    /// entries until they fit the limit.
     fn sweep(&self) {
-        let limit = self.limit();
         abandoned(&self.pinned);
-        let room = limit.saturating_sub(footprint(&self.root.join(FOREIGN)));
-        let own = evict(&self.root, room);
+        let own = evict(&self.root, self.limit());
         *self.used.lock().unwrap_or_else(|held| held.into_inner()) = Some(own);
     }
 }
@@ -459,24 +376,6 @@ impl Shelf {
             }
         };
         Recording { source, pending }
-    }
-
-    /// Keeps a whole track that arrived in one piece as a download, with the provider's `facts`
-    /// beside it.
-    pub(crate) fn pin(&self, id: &str, facts: Vec<u8>, bytes: &[u8]) -> Result<()> {
-        let mut pending = self
-            .begin(Place::Pinned, id, "", Box::new(move || Some(facts)))?
-            .context("the vault is locked")?;
-        pending.write(bytes)?;
-        pending.commit()
-    }
-
-    /// The download of track `id`, ready to be read anywhere in it, for a player that seeks in
-    /// the file itself.
-    pub(crate) fn open_pinned(&self, id: &str) -> Option<(Vec<u8>, SealedReader)> {
-        let prk = self.vault.keys.get()?;
-        let kept = self.find_in(prk, Place::Pinned, id, "")?;
-        Some((kept.facts, kept.source.into_reader(kept.length)))
     }
 
     /// Marks track `id` as being downloaded, so the next fetch of it is kept as a download.
@@ -749,19 +648,6 @@ impl Source for Sealed {
 }
 
 impl Sealed {
-    /// The same bytes read anywhere in them. `length` is how long the track is.
-    pub(crate) fn into_reader(self, length: u64) -> SealedReader {
-        SealedReader {
-            file: self.file,
-            key: self.key,
-            name: self.name,
-            sealed: self.left,
-            length,
-            position: 0,
-            opened: None,
-        }
-    }
-
     /// Reads and opens the next chunk, or answers `None` once there are none left.
     fn open_next(&mut self) -> Result<Option<Bytes>> {
         if self.left == 0 {
@@ -780,80 +666,6 @@ impl Sealed {
         let opened = open(&self.key, &self.name, block, self.index, &mut self.buffer)?;
         self.index += 1;
         Ok(Some(Bytes::copy_from_slice(opened)))
-    }
-}
-
-/// A kept track read anywhere in it. Every chunk but the last holds [`CHUNK`] bytes, so a
-/// position names its chunk directly, and the chunk last opened is held for the reads after it.
-pub(crate) struct SealedReader {
-    file: File,
-    key: LessSafeKey,
-    name: String,
-    /// The bytes of sealed chunks after the salt.
-    sealed: u64,
-    /// The bytes of the track.
-    length: u64,
-    position: u64,
-    opened: Option<(u64, Vec<u8>)>,
-}
-
-impl SealedReader {
-    /// How long the track is.
-    pub(crate) fn length(&self) -> u64 {
-        self.length
-    }
-
-    /// The plain bytes of chunk `index`.
-    fn chunk(&mut self, index: u64) -> io::Result<&[u8]> {
-        if self.opened.as_ref().is_none_or(|(held, _)| *held != index) {
-            let stride = (CHUNK + TAG) as u64;
-            let start = index * stride;
-            let size = stride.min(self.sealed.saturating_sub(start)) as usize;
-            let block = match start + size as u64 >= self.sealed {
-                true => Block::Last,
-                false => Block::Chunk,
-            };
-            let mut buffer = vec![0; size];
-            self.file.seek(SeekFrom::Start(SALT as u64 + start))?;
-            self.file.read_exact(&mut buffer)?;
-            let plain = open(&self.key, &self.name, block, index, &mut buffer)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?
-                .to_vec();
-            self.opened = Some((index, plain));
-        }
-        Ok(self
-            .opened
-            .as_ref()
-            .map_or(&[], |(_, plain)| plain.as_slice()))
-    }
-}
-
-impl Read for SealedReader {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-        if self.position >= self.length || out.is_empty() {
-            return Ok(0);
-        }
-        let index = self.position / CHUNK as u64;
-        let within = (self.position % CHUNK as u64) as usize;
-        let chunk = self.chunk(index)?;
-        let take = chunk.len().saturating_sub(within).min(out.len());
-        out[..take].copy_from_slice(&chunk[within..within + take]);
-        self.position += take as u64;
-        Ok(take)
-    }
-}
-
-impl Seek for SealedReader {
-    fn seek(&mut self, to: SeekFrom) -> io::Result<u64> {
-        let target = match to {
-            SeekFrom::Start(at) => Some(at),
-            SeekFrom::End(by) => self.length.checked_add_signed(by),
-            SeekFrom::Current(by) => self.position.checked_add_signed(by),
-        };
-        self.position = target.ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "a seek before the start")
-        })?;
-        Ok(self.position)
     }
 }
 
@@ -1052,25 +864,9 @@ fn remove(path: &Path) -> io::Result<()> {
     }
 }
 
-/// Empties the folder of players keeping their own files. A running player clears its own
-/// folder through `players`, and the folder of any other is removed.
-fn forget_players(folder: &Path, players: &[(&'static str, Clear)]) -> io::Result<()> {
-    for item in fs::read_dir(folder)?.flatten() {
-        let name = item.file_name();
-        let running = players
-            .iter()
-            .find(|(player, _)| name == *player)
-            .is_some_and(|(_, clear)| clear());
-        if !running {
-            remove(&item.path())?;
-        }
-    }
-    Ok(())
-}
-
 /// Evicts the least recently played entries under `root` until they take `room` bytes or
 /// fewer, and answers what they take after. Half-written entries a crash left are dropped on
-/// the way, and the folder of players keeping their own files is left alone.
+/// the way.
 fn evict(root: &Path, room: u64) -> u64 {
     let mut entries = abandoned(root);
     entries.sort_unstable_by_key(|(_, used, _)| *used);
@@ -1097,11 +893,6 @@ fn private_file(path: &Path) -> Result<File> {
         .with_context(|| format!("cannot create {}", path.display()))
 }
 
-/// Cauce's vault folder, `$XDG_CACHE_HOME/cauce/vault`.
-fn standard_root() -> PathBuf {
-    crate::credentials::root().join("vault")
-}
-
 /// What everything under `path` takes on disk, in bytes. A folder that cannot be read counts as
 /// empty.
 fn footprint(path: &Path) -> u64 {
@@ -1117,24 +908,12 @@ fn footprint(path: &Path) -> u64 {
         .sum()
 }
 
-/// Cauce's downloads folder, `$XDG_DATA_HOME/cauce/downloads`.
-fn pinned_root() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("cauce")
-        .join("downloads")
-}
-
 /// Removes what a crash left half-written under `root` a while ago, and answers every whole
-/// entry there with when it last played and its size. The folder of players keeping their own
-/// files is left alone.
+/// entry there with when it last played and its size.
 fn abandoned(root: &Path) -> Vec<(PathBuf, SystemTime, u64)> {
     let now = SystemTime::now();
     let mut entries = Vec::new();
     for shelf in fs::read_dir(root).into_iter().flatten().flatten() {
-        if shelf.file_name() == FOREIGN {
-            continue;
-        }
         for item in fs::read_dir(shelf.path()).into_iter().flatten().flatten() {
             let Ok(metadata) = item.metadata() else {
                 continue;

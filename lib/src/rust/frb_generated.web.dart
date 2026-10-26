@@ -24,13 +24,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
-  RustStreamSink<NativeCommand> dco_decode_StreamSink_native_command_Sse(dynamic raw);
-
-  @protected
   RustStreamSink<PlayerSnapshot> dco_decode_StreamSink_player_snapshot_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<SignInEvent> dco_decode_StreamSink_sign_in_event_Sse(dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -46,9 +40,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double dco_decode_box_autoadd_f_32(dynamic raw);
-
-  @protected
-  GenreTitles dco_decode_box_autoadd_genre_titles(dynamic raw);
 
   @protected
   LyricsView dco_decode_box_autoadd_lyrics_view(dynamic raw);
@@ -67,9 +58,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
-
-  @protected
-  WebLogin dco_decode_box_autoadd_web_login(dynamic raw);
 
   @protected
   CardKind dco_decode_card_kind(dynamic raw);
@@ -91,9 +79,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GenreCard dco_decode_genre_card(dynamic raw);
-
-  @protected
-  GenreTitles dco_decode_genre_titles(dynamic raw);
 
   @protected
   HomeShelf dco_decode_home_shelf(dynamic raw);
@@ -150,9 +135,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrackItem> dco_decode_list_track_item(dynamic raw);
 
   @protected
-  List<WebCookie> dco_decode_list_web_cookie(dynamic raw);
-
-  @protected
   LyricLine dco_decode_lyric_line(dynamic raw);
 
   @protected
@@ -163,9 +145,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaCard dco_decode_media_card(dynamic raw);
-
-  @protected
-  NativeCommand dco_decode_native_command(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -184,9 +163,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
-
-  @protected
-  WebLogin? dco_decode_opt_box_autoadd_web_login(dynamic raw);
 
   @protected
   PlaybackSettings dco_decode_playback_settings(dynamic raw);
@@ -219,9 +195,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScrobbleSecret dco_decode_scrobble_secret(dynamic raw);
 
   @protected
-  SignInEvent dco_decode_sign_in_event(dynamic raw);
-
-  @protected
   StorageUsage dco_decode_storage_usage(dynamic raw);
 
   @protected
@@ -240,22 +213,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
-  WebCookie dco_decode_web_cookie(dynamic raw);
-
-  @protected
-  WebLogin dco_decode_web_login(dynamic raw);
-
-  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
-  RustStreamSink<NativeCommand> sse_decode_StreamSink_native_command_Sse(SseDeserializer deserializer);
-
-  @protected
   RustStreamSink<PlayerSnapshot> sse_decode_StreamSink_player_snapshot_Sse(SseDeserializer deserializer);
-
-  @protected
-  RustStreamSink<SignInEvent> sse_decode_StreamSink_sign_in_event_Sse(SseDeserializer deserializer);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -271,9 +232,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double sse_decode_box_autoadd_f_32(SseDeserializer deserializer);
-
-  @protected
-  GenreTitles sse_decode_box_autoadd_genre_titles(SseDeserializer deserializer);
 
   @protected
   LyricsView sse_decode_box_autoadd_lyrics_view(SseDeserializer deserializer);
@@ -292,9 +250,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
-
-  @protected
-  WebLogin sse_decode_box_autoadd_web_login(SseDeserializer deserializer);
 
   @protected
   CardKind sse_decode_card_kind(SseDeserializer deserializer);
@@ -316,9 +271,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GenreCard sse_decode_genre_card(SseDeserializer deserializer);
-
-  @protected
-  GenreTitles sse_decode_genre_titles(SseDeserializer deserializer);
 
   @protected
   HomeShelf sse_decode_home_shelf(SseDeserializer deserializer);
@@ -375,9 +327,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrackItem> sse_decode_list_track_item(SseDeserializer deserializer);
 
   @protected
-  List<WebCookie> sse_decode_list_web_cookie(SseDeserializer deserializer);
-
-  @protected
   LyricLine sse_decode_lyric_line(SseDeserializer deserializer);
 
   @protected
@@ -388,9 +337,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaCard sse_decode_media_card(SseDeserializer deserializer);
-
-  @protected
-  NativeCommand sse_decode_native_command(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -409,9 +355,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
-
-  @protected
-  WebLogin? sse_decode_opt_box_autoadd_web_login(SseDeserializer deserializer);
 
   @protected
   PlaybackSettings sse_decode_playback_settings(SseDeserializer deserializer);
@@ -444,9 +387,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScrobbleSecret sse_decode_scrobble_secret(SseDeserializer deserializer);
 
   @protected
-  SignInEvent sse_decode_sign_in_event(SseDeserializer deserializer);
-
-  @protected
   StorageUsage sse_decode_storage_usage(SseDeserializer deserializer);
 
   @protected
@@ -465,22 +405,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
-  WebCookie sse_decode_web_cookie(SseDeserializer deserializer);
-
-  @protected
-  WebLogin sse_decode_web_login(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(AnyhowException self, SseSerializer serializer);
 
   @protected
-  void sse_encode_StreamSink_native_command_Sse(RustStreamSink<NativeCommand> self, SseSerializer serializer);
-
-  @protected
   void sse_encode_StreamSink_player_snapshot_Sse(RustStreamSink<PlayerSnapshot> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_StreamSink_sign_in_event_Sse(RustStreamSink<SignInEvent> self, SseSerializer serializer);
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
@@ -496,9 +424,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_genre_titles(GenreTitles self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_lyrics_view(LyricsView self, SseSerializer serializer);
@@ -517,9 +442,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_web_login(WebLogin self, SseSerializer serializer);
 
   @protected
   void sse_encode_card_kind(CardKind self, SseSerializer serializer);
@@ -541,9 +463,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_genre_card(GenreCard self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_genre_titles(GenreTitles self, SseSerializer serializer);
 
   @protected
   void sse_encode_home_shelf(HomeShelf self, SseSerializer serializer);
@@ -600,9 +519,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_track_item(List<TrackItem> self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_web_cookie(List<WebCookie> self, SseSerializer serializer);
-
-  @protected
   void sse_encode_lyric_line(LyricLine self, SseSerializer serializer);
 
   @protected
@@ -613,9 +529,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_media_card(MediaCard self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_native_command(NativeCommand self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
@@ -634,9 +547,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_web_login(WebLogin? self, SseSerializer serializer);
 
   @protected
   void sse_encode_playback_settings(PlaybackSettings self, SseSerializer serializer);
@@ -669,9 +579,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_scrobble_secret(ScrobbleSecret self, SseSerializer serializer);
 
   @protected
-  void sse_encode_sign_in_event(SignInEvent self, SseSerializer serializer);
-
-  @protected
   void sse_encode_storage_usage(StorageUsage self, SseSerializer serializer);
 
   @protected
@@ -688,12 +595,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_web_cookie(WebCookie self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_web_login(WebLogin self, SseSerializer serializer);
 }
 
 // Section: wire_class

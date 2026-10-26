@@ -27,18 +27,18 @@ void main() {
   });
 
   test('ordered puts the slugs in the order kept, the unknown ones last as they came', () {
-    expect(ordered(['deezer', 'youtube', 'local'], ['youtube', 'spotify', 'deezer']), ['youtube', 'deezer', 'local']);
-    expect(ordered(['deezer', 'youtube'], const []), ['deezer', 'youtube']);
+    expect(ordered(['subsonic', 'other', 'local'], ['other', 'missing', 'subsonic']), ['other', 'subsonic', 'local']);
+    expect(ordered(['subsonic', 'other'], const []), ['subsonic', 'other']);
   });
 
   test('sameSong finds the playable one with the same title and first artist, ignoring case and extras', () {
-    final wanted = track('deezer', 'Marea Alta', 'Lucía Ferrer', playable: false);
+    final wanted = track('subsonic', 'Marea Alta', 'Lucía Ferrer', playable: false);
     final found = [
-      track('youtube', 'Marea Baja', 'Lucía Ferrer'),
-      track('youtube', 'marea alta (Remastered)', 'Lucía Ferrer, Otro', playable: false),
-      track('youtube', 'Marea Alta - Remastered 2020', 'lucía ferrer & Otro'),
+      track('other', 'Marea Baja', 'Lucía Ferrer'),
+      track('other', 'marea alta (Remastered)', 'Lucía Ferrer, Otro', playable: false),
+      track('other', 'Marea Alta - Remastered 2020', 'lucía ferrer & Otro'),
     ];
     expect(sameSong(wanted, found)?.title, 'Marea Alta - Remastered 2020');
-    expect(sameSong(wanted, [track('youtube', 'Marea Alta', 'Someone Else')]), isNull);
+    expect(sameSong(wanted, [track('other', 'Marea Alta', 'Someone Else')]), isNull);
   });
 }

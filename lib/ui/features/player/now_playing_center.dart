@@ -48,13 +48,9 @@ class NowPlayingCenter {
   Duration _sentPosition = Duration.zero;
   DateTime _sentAt = DateTime.now();
 
-  /// Whether the system plays this source rather than the core: Apple Music on iOS only.
-  static bool _systemPlayed(String? source) => source == 'apple' && defaultTargetPlatform == TargetPlatform.iOS;
-
   void _sync() {
     final track = _player.track;
-    // On iOS the system's queue player shows Apple Music on the lock screen itself.
-    if (track == null || _systemPlayed(track.source)) {
+    if (track == null) {
       if (_track != null) _channel.invokeMethod('clear');
       _track = null;
       return;
@@ -72,7 +68,7 @@ class NowPlayingCenter {
       'title': track.title,
       'artist': track.artists,
       'album': track.album,
-      'artwork': track.coverLarge ?? track.cover,
+      'artwork': track.cover,
       'duration': _player.duration.inMilliseconds / 1000,
       'position': _player.position.inMilliseconds / 1000,
       'playing': playing,
@@ -93,8 +89,7 @@ class NowPlayingCenter {
       case 'next':
         await _player.next();
       case 'reroute':
-        // The system's queue player follows a new route by itself.
-        if (!_systemPlayed(_player.track?.source)) await _player.reroute();
+        await _player.reroute();
       case 'previous':
         await _player.previous();
       case 'online':

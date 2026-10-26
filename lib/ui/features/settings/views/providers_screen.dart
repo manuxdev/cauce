@@ -155,13 +155,7 @@ class _Connected extends StatelessWidget {
     final lapsed = account == null && !restoring;
     return _Row(
       service: service,
-      subtitle: restoring
-          ? context.t('providers.connecting')
-          : account == null
-          ? context.t('providers.expired')
-          : accounts.browsesOnly(service.slug)
-          ? context.t(service.slug == 'tidal' ? 'providers.unsubscribedTag' : 'providers.freeTag', {'account': account})
-          : account,
+      subtitle: restoring ? context.t('providers.connecting') : account ?? context.t('providers.expired'),
       subtitleColor: lapsed ? _warning : null,
       onTap: lapsed ? () => signIn(context, service, accounts) : (restoring ? null : () => _open(context)),
       trailing: Row(

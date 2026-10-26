@@ -1,20 +1,14 @@
 //! The core of Cauce: the vendored `music` and `storage` crates, driven without a window.
 
-pub mod artwork;
-pub mod cookies;
 pub mod downloads;
-pub mod genres;
-pub mod home;
 pub mod karaoke;
 pub mod levels;
 pub mod logging;
 pub mod lyrics_shelf;
-pub mod native;
 pub mod queue;
 pub mod scrobbling;
 pub mod session;
 pub mod settings;
-mod stand_in;
 pub mod transport;
 
 use std::collections::HashMap;
@@ -30,15 +24,14 @@ use music::equalizer::{Edit, EqualizerWriter};
 use music::local::LocalProvider;
 use music::vault::Vault;
 use music::{
-    Analyzer, Artist, Capabilities, Fraction, GenreDetail, GenreItem, GenreSection, HomeFeed,
-    Lyrics, LyricsProvider, LyricsQuery, MediaKind, MusicApi, MusicProvider, PlaybackConfig,
-    PlaybackFactory, Player, SignIn, SignInPrompt, Track, TrackKey, WebSignIn,
+    Analyzer, Artist, Capabilities, Fraction, GenreDetail, HomeFeed, Lyrics, LyricsProvider,
+    LyricsQuery, MediaKind, MusicApi, MusicProvider, PlaybackConfig, PlaybackFactory, Player,
+    SignIn, Track, TrackKey,
 };
 use music::{Encoding, Meter, Offer, PlaybackEvent, Quality, Transcode};
 use settings::PlaybackSettings;
 use tokio::runtime::{Handle, Runtime};
 
-pub use cookies::Cookie;
 pub use queue::Repeat;
 pub use transport::{Item, Snapshot, Status};
 
@@ -95,8 +88,6 @@ struct Inner {
     /// The scrobbling link waiting for the listener's approval, to give up on.
     linking: Mutex<Option<tokio::task::AbortHandle>>,
     sessions: Mutex<HashMap<String, Connected>>,
-    /// The input of each sign-in waiting on the listener; dropping it cancels that sign-in.
-    signing: Mutex<HashMap<String, tokio::sync::mpsc::UnboundedSender<String>>>,
     /// Engine factories built from a stored account before it was reached, so its downloads
     /// play offline. A session that connects later takes over.
     offline: Mutex<HashMap<String, Arc<dyn PlaybackFactory>>>,
@@ -114,8 +105,6 @@ struct Inner {
     /// Feeds every engine's equalizer, so a change is heard without a restart.
     equalizer: Mutex<EqualizerWriter>,
     vault: Arc<Vault>,
-    /// For the public APIs a provider does not cover, such as Deezer's genres.
-    http: reqwest::Client,
     downloads: Mutex<Downloads>,
     /// How far each running download has got.
     fractions: Mutex<HashMap<(String, String), Fraction>>,
@@ -153,15 +142,9 @@ impl Core {
             "Connected",
             "You can go back to Cauce. This page closes by itself.",
         ));
-        trust_roots(&paths.cache);
         log_panics();
         #[cfg(target_os = "android")]
         app_dirs(&paths);
-        // librespot, oauth2 and ytmusic ask rustls for ring, reqwest for aws-lc-rs, and rustls
-        // refuses to guess. A second install only means another crate got there first.
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .ok();
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("cauce-io")
@@ -173,27 +156,10 @@ impl Core {
         log::info!("cauce: core started");
         let database = storage::Database::at(paths.data.join("state.sqlite"));
         let cache = storage::Cache::at(paths.cache.join("cache.sqlite"));
-        let providers: Vec<Arc<dyn MusicProvider>> = vec![
-            Arc::new(music::deezer::DeezerProvider::new()),
-            Arc::new(music::youtube::YouTubeProvider::new()),
-            // A free account is kept to browse; its songs play from another service.
-            Arc::new(music::spotify::SpotifyProvider::new(
-                music::spotify::AuthConfig {
-                    allow_free: true,
-                    ..music::spotify::AuthConfig::default()
-                },
-            )),
-            Arc::new(music::tidal::TidalProvider::new()),
-            Arc::new(music::subsonic::SubsonicProvider::new()),
-            // Apple Music is mobile only: on iOS its songs play through the system's player, on
-            // Android its license comes from the system's MediaDrm.
-            #[cfg(any(target_os = "ios", target_os = "android"))]
-            Arc::new(music::apple::AppleProvider::new()),
-        ];
+        let providers: Vec<Arc<dyn MusicProvider>> =
+            vec![Arc::new(music::subsonic::SubsonicProvider::new())];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
-            Arc::new(music::youtube::YouTubeLyrics::new()),
-            Arc::new(music::binimum::Binimum::new()),
             Arc::new(music::musixmatch::Musixmatch::new()),
             Arc::new(music::lrclib::LrcLib::new()),
             Arc::new(music::kugou::Kugou::new()),
@@ -216,10 +182,6 @@ impl Core {
         let equalizer = EqualizerWriter::new(settings.equalizer, settings.curve());
         let data = paths.data.clone();
         let data_folder = paths.data.clone();
-        TIDAL_PREVIEWS.store(
-            data_folder.join(TIDAL_PREVIEWS_FILE).exists(),
-            Ordering::Relaxed,
-        );
         let inner = Arc::new(Inner {
             runtime: runtime.handle().clone(),
             local: LocalProvider::new(paths.cache, database, cache),
@@ -229,7 +191,6 @@ impl Core {
             scrobbling: Mutex::new(scrobbling::Scrobbling::load(&data_folder)),
             linking: Mutex::default(),
             sessions: Mutex::default(),
-            signing: Mutex::default(),
             offline: Mutex::default(),
             transport: Mutex::new(resumed_transport(&paths.data, &settings)),
             saver: Mutex::default(),
@@ -240,7 +201,6 @@ impl Core {
             settings: Mutex::new(settings),
             equalizer: Mutex::new(equalizer),
             vault,
-            http: reqwest::Client::new(),
             downloads: Mutex::new(Downloads::load(&data_folder)),
             fractions: Mutex::default(),
             downloaders: Mutex::default(),
@@ -249,11 +209,6 @@ impl Core {
         let freeing = inner.clone();
         inner.runtime.spawn_blocking(move || freeing.free_up());
         Ok(Self { runtime, inner })
-    }
-
-    /// How a provider signs in through a webview, or `None` when it has no cookie sign-in.
-    pub fn web_sign_in(&self, slug: &str) -> Result<Option<WebSignIn>> {
-        Ok(self.inner.provider(slug)?.web_sign_in())
     }
 
     /// Brings back the account a provider stored. Answers its display name, or `None` when there
@@ -275,78 +230,10 @@ impl Core {
         Ok(Some(name))
     }
 
-    /// Signs in with what the webview holds. Answers `None` while the cookies prove no session
-    /// yet, so the host keeps polling, and the account's display name once signed in.
-    pub fn sign_in_with_cookies(&self, slug: &str, cookies: &[Cookie]) -> Result<Option<String>> {
+    /// Signs in with `method`. Blocks until the account is in, and answers its display name.
+    pub fn sign_in(&self, slug: &str, method: SignIn) -> Result<String> {
         let provider = self.inner.provider(slug)?;
-        let web = provider
-            .web_sign_in()
-            .context("this provider has no cookie sign-in")?;
-        let Some(header) = cookies::signed_in_header(cookies, web.domain, web.proof) else {
-            // Names and domains only: the values are credentials.
-            let seen: Vec<String> = cookies
-                .iter()
-                .filter(|cookie| cookie.domain.contains(web.domain))
-                .map(|cookie| {
-                    format!(
-                        "{}@{}{}",
-                        cookie.name,
-                        cookie.domain,
-                        if cookie.value.is_empty() {
-                            "(empty)"
-                        } else {
-                            ""
-                        }
-                    )
-                })
-                .collect();
-            log::debug!(
-                "session: {slug} not signed in yet, {} cookies, for {}: {seen:?}",
-                cookies.len(),
-                web.domain
-            );
-            return Ok(None);
-        };
-        log::info!("session: {slug} cookies prove a session, signing in");
-        let (input, receiver) = tokio::sync::mpsc::unbounded_channel();
-        input.send(header).ok();
-        let started = std::time::Instant::now();
-        let session = self.run(async move {
-            provider
-                .sign_in(SignIn::Secret, Arc::new(|_| {}), receiver)
-                .await
-        });
-        match &session {
-            Ok(_) => log::info!("session: {slug} signed in after {:?}", started.elapsed()),
-            Err(error) => log::warn!(
-                "session: {slug} sign-in failed after {:?}: {error:#}",
-                started.elapsed()
-            ),
-        }
-        let session = session?;
-        let name = session.profile.display_name.clone();
-        self.inner
-            .connect(slug, session.api, session.playback, session.capabilities);
-        Ok(Some(name))
-    }
-
-    /// Signs in with `method`, handing every prompt (a code to type, a page to approve on) to
-    /// `on_prompt`. Blocks until the account is in, and answers its display name.
-    pub fn sign_in(
-        &self,
-        slug: &str,
-        method: SignIn,
-        on_prompt: impl Fn(SignInPrompt) + Send + Sync + 'static,
-    ) -> Result<String> {
-        let provider = self.inner.provider(slug)?;
-        let (input, receiver) = tokio::sync::mpsc::unbounded_channel();
-        lock(&self.inner.signing).insert(slug.to_owned(), input);
-        let session = self.run(async move {
-            provider
-                .sign_in(method, Arc::new(on_prompt), receiver)
-                .await
-        });
-        lock(&self.inner.signing).remove(slug);
+        let session = self.run(async move { provider.sign_in(method).await });
         match &session {
             Ok(_) => log::info!("session: {slug} signed in"),
             Err(error) => log::warn!("session: {slug} sign-in failed: {error:#}"),
@@ -358,21 +245,10 @@ impl Core {
         Ok(name)
     }
 
-    /// Gives up on the sign-in `slug` is waiting on.
-    pub fn sign_in_cancel(&self, slug: &str) -> Result<()> {
-        lock(&self.inner.signing).remove(slug);
-        self.inner.provider(slug)?.abandon();
-        Ok(())
-    }
-
     pub fn sign_out(&self, slug: &str) -> Result<()> {
         self.inner.provider(slug)?.sign_out();
         lock(&self.inner.sessions).remove(slug);
         lock(&self.inner.offline).remove(slug);
-        if slug == "tidal" {
-            TIDAL_PREVIEWS.store(false, Ordering::Relaxed);
-            std::fs::remove_file(self.inner.data.join(TIDAL_PREVIEWS_FILE)).ok();
-        }
         // What was playing leaves the player rather than linger in it, unless it is downloaded and
         // so still plays from the vault.
         let playing = lock(&self.inner.transport).snapshot().item;
@@ -387,12 +263,6 @@ impl Core {
         Ok(())
     }
 
-    /// Whether `slug`'s account plays its own tracks. A free Spotify account only browses, and
-    /// its songs play from another connected service. True for a provider not signed in.
-    pub fn streams(&self, slug: &str) -> bool {
-        self.inner.streams(slug)
-    }
-
     /// Whether `slug` has an account stored, without reaching it.
     pub fn stored(&self, slug: &str) -> Result<bool> {
         Ok(self.inner.provider(slug)?.stored())
@@ -403,22 +273,14 @@ impl Core {
         self.run(async move { api.search(&query).await })
     }
 
-    /// The styles to browse the service by: Deezer's genres, YouTube Music's moods and genres.
+    /// The styles to browse the service by.
     pub fn genres(&self, slug: &str) -> Result<Vec<music::Genre>> {
-        if slug == "deezer" {
-            let http = self.inner.http.clone();
-            return self.run(async move { genres::genres(&http).await });
-        }
         let api = self.inner.api(slug)?;
         self.run(async move { api.genres().await })
     }
 
-    /// A style's shelves. `titles` names Deezer's chart shelves; YouTube names its own.
-    pub fn genre(&self, slug: &str, id: String, titles: genres::Titles) -> Result<GenreDetail> {
-        if slug == "deezer" {
-            let http = self.inner.http.clone();
-            return self.run(async move { genres::genre(&http, &id, &titles).await });
-        }
+    /// A style's shelves.
+    pub fn genre(&self, slug: &str, id: String) -> Result<GenreDetail> {
         let api = self.inner.api(slug)?;
         self.run(async move { api.genre(&id).await })
     }
@@ -460,83 +322,9 @@ impl Core {
     }
 
     /// What the provider recommends: listen again, quick picks and its shelves.
-    /// Falls back to the user's own library when the provider recommends nothing.
     pub fn home(&self, slug: &str) -> Result<HomeFeed> {
         let api = self.inner.api(slug)?;
-        self.run(async move {
-            let feed = api.home().await?;
-            if !home::empty(&feed) {
-                return Ok(feed);
-            }
-            let (saved, playlists, albums, artists) = tokio::join!(
-                api.saved_tracks(),
-                api.playlists(),
-                api.saved_albums(),
-                api.saved_artists(),
-            );
-            let saved = saved.unwrap_or_default();
-            let seeds = home::seeds(&saved, 4);
-            // One radio per seed: the first is quick picks, the rest are named mixes.
-            let handles: Vec<_> = seeds
-                .iter()
-                .map(|seed| {
-                    let api = api.clone();
-                    let id = seed.id.clone().unwrap_or_default();
-                    tokio::spawn(
-                        async move { api.track_radio(&id, None).await.map(|(radio, _)| radio) },
-                    )
-                })
-                .collect();
-            let mut radios = Vec::with_capacity(handles.len());
-            for handle in handles {
-                radios.push(handle.await.ok().and_then(Result::ok).unwrap_or_default());
-            }
-            let mut radios = radios.into_iter();
-            let quick = radios.next().unwrap_or_default();
-            let mut recommended: Vec<GenreSection> = seeds
-                .iter()
-                .skip(1)
-                .zip(radios)
-                .map(|(seed, radio)| GenreSection {
-                    title: format!("{} mix", lead_artist(seed)),
-                    items: radio.into_iter().map(GenreItem::Track).collect(),
-                })
-                .collect();
-            // Around the most recent favorite: artists like theirs and more of their records.
-            if let Some(seed) = seeds.first()
-                && let (Some(album), Some(artist)) =
-                    (seed.album_id.as_deref(), seed.artist_refs[0].id.as_deref())
-                && let Ok(catalogue) = api.album_catalogue(album, Some(artist)).await
-            {
-                let name = lead_artist(seed);
-                recommended.insert(
-                    0,
-                    GenreSection {
-                        title: format!("Because you like {name}"),
-                        items: catalogue
-                            .similar
-                            .into_iter()
-                            .map(GenreItem::Artist)
-                            .collect(),
-                    },
-                );
-                recommended.push(GenreSection {
-                    title: format!("More from {name}"),
-                    items: catalogue
-                        .also_like
-                        .into_iter()
-                        .map(GenreItem::Album)
-                        .collect(),
-                });
-            }
-            Ok(home::from_library(
-                quick,
-                recommended,
-                playlists.unwrap_or_default(),
-                albums.unwrap_or_default(),
-                artists.unwrap_or_default(),
-            ))
-        })
+        self.run(async move { api.home().await })
     }
 
     pub fn artist(&self, slug: &str, id: String) -> Result<Artist> {
@@ -857,10 +645,6 @@ impl Core {
     /// Asks for every track in `tracks` from `source`, and starts what the queue allows. They
     /// download once the provider is signed in, whether it plays or not.
     pub fn download(&self, source: &str, tracks: Vec<Track>) -> Result<()> {
-        // An account that only browses, such as a free Spotify one, cannot download.
-        if !self.inner.streams(source) {
-            anyhow::bail!("this account cannot download: a free Spotify account only browses");
-        }
         if lock(&self.inner.sessions)
             .get(source)
             .is_some_and(|connected| !connected.capabilities.downloads)
@@ -1039,50 +823,6 @@ impl Inner {
             .context("that provider is not signed in")
     }
 
-    /// Whether `slug`'s account plays its own tracks; see [`Core::streams`].
-    fn streams(&self, slug: &str) -> bool {
-        lock(&self.sessions)
-            .get(slug)
-            .is_none_or(|connected| plays(slug, connected))
-    }
-
-    /// The same song as `item` from another connected service that plays, searched in turn.
-    fn stand_in(&self, item: &Item) -> Result<Item> {
-        // ponytail: services in name order; the app's provider order if listeners care which.
-        let mut apis: Vec<_> = lock(&self.sessions)
-            .iter()
-            .filter(|(slug, connected)| **slug != item.source && plays(slug, connected))
-            .map(|(slug, connected)| (slug.clone(), connected.api.clone()))
-            .collect();
-        apis.sort_by(|left, right| left.0.cmp(&right.0));
-        let wanted = item.track.clone();
-        let query = format!("{} {}", wanted.name, wanted.artists);
-        let search = async move {
-            for (slug, api) in apis {
-                match api.search(&query).await {
-                    Ok(found) => {
-                        if let Some(track) = stand_in::same_song(&wanted, &found) {
-                            return Some((slug, track.clone()));
-                        }
-                    }
-                    Err(error) => {
-                        log::warn!("playback: {slug} cannot search for a stand-in: {error:#}")
-                    }
-                }
-            }
-            None
-        };
-        // Called from the engine's event task and from the host's threads alike.
-        let found = tokio::task::block_in_place(|| self.runtime.block_on(search));
-        let (source, track) = found.context("no other connected service has this song")?;
-        log::info!("playback: {} plays from {source}", item.source);
-        Ok(Item {
-            source,
-            id: track.id.clone().context("the stand-in has no id")?,
-            track,
-        })
-    }
-
     /// Keeps a signed-in provider, and starts the downloads it left unfinished.
     fn connect(
         self: &Arc<Self>,
@@ -1091,21 +831,6 @@ impl Inner {
         playback: Arc<dyn PlaybackFactory>,
         capabilities: Capabilities,
     ) {
-        // On iOS Apple Music plays through the system's queue player, since its Widevine engine
-        // has no module there. That player picks the stream itself and keeps nothing.
-        #[cfg(target_os = "ios")]
-        let (playback, capabilities) = match slug {
-            "apple" => (
-                Arc::new(native::Factory) as Arc<dyn PlaybackFactory>,
-                Capabilities {
-                    keeps: false,
-                    downloads: false,
-                    qualities: &[],
-                    ..capabilities
-                },
-            ),
-            _ => (playback, capabilities),
-        };
         lock(&self.sessions).insert(
             slug.to_owned(),
             Connected {
@@ -1207,15 +932,6 @@ impl Inner {
     /// Loads `item`, starting its source's engine first when another one is running. Dropping the
     /// old engine is what stops it, and a segue across engines cannot be seamless.
     fn load(self: &Arc<Self>, item: &Item, at: Duration, seamless: bool) -> Result<()> {
-        let stood_in;
-        let item = match self.streams(&item.source) {
-            true => item,
-            false => {
-                stood_in = self.stand_in(item)?;
-                lock(&self.transport).stand_in(item, stood_in.clone());
-                &stood_in
-            }
-        };
         {
             let mut downloads = lock(&self.downloads);
             if downloads.played(&item.source, &item.id, downloads::now()) {
@@ -1265,37 +981,6 @@ impl Inner {
                             encodings.clear();
                         }
                         encodings.insert(id.clone(), encoding);
-                    }
-                    // The track failed because its account turned out to play previews only:
-                    // the same track stands in from another service, or counts as unplayable
-                    // when none has it.
-                    if let PlaybackEvent::Unavailable { id: Some(id) } = &event
-                        && let Some(item) = lock(&inner.transport).snapshot().item
-                        && item.id == *id
-                        && !inner.streams(&item.source)
-                    {
-                        if item.source == "tidal" && !TIDAL_PREVIEWS.swap(true, Ordering::Relaxed) {
-                            std::fs::write(inner.data.join(TIDAL_PREVIEWS_FILE), b"").ok();
-                        }
-                        // Loading the stand-in searches and starts another engine, which blocks;
-                        // run here, inside this engine's event task, it never finished.
-                        let retrying = inner.clone();
-                        let failed = event.clone();
-                        inner.runtime.spawn_blocking(move || {
-                            let retried = retrying.apply(Some(Command::Load {
-                                item,
-                                seamless: false,
-                            }));
-                            if let Err(error) = retried {
-                                // No service has it: the failure counts as the track's own.
-                                log::warn!("playback: no stand-in: {error:#}");
-                                let command = lock(&retrying.transport).on_event(&failed);
-                                if let Err(error) = retrying.apply(command) {
-                                    log::warn!("playback: cannot follow the engine: {error:#}");
-                                }
-                            }
-                        });
-                        continue;
                     }
                     let command = lock(&inner.transport).on_event(&event);
                     if let Err(error) = inner.apply(command) {
@@ -1537,14 +1222,6 @@ fn vault_key(folder: &std::path::Path) -> Result<Vec<u8>> {
     Ok(key.to_vec())
 }
 
-/// The first credited artist's name, for a shelf title.
-fn lead_artist(track: &Track) -> &str {
-    track
-        .artist_refs
-        .first()
-        .map_or(track.artists.as_str(), |artist| artist.name.as_str())
-}
-
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -1553,30 +1230,6 @@ fn scrobble_service(id: &str) -> Option<Arc<dyn music::scrobble::Service>> {
     music::scrobble::services()
         .into_iter()
         .find(|service| service.id() == id)
-}
-
-/// Writes the Mozilla root certificates to a PEM file in `cache` and points `SSL_CERT_FILE` at
-/// it. librespot reads the platform's root certificates, and iOS keeps none where
-/// `rustls-native-certs` looks, so Spotify could not reach any server without it.
-fn trust_roots(cache: &std::path::Path) {
-    use base64::Engine as _;
-    let mut pem = String::new();
-    for root in webpki_root_certs::TLS_SERVER_ROOT_CERTS {
-        let text = base64::engine::general_purpose::STANDARD.encode(root.as_ref());
-        pem.push_str("-----BEGIN CERTIFICATE-----\n");
-        for line in text.as_bytes().chunks(64) {
-            pem.push_str(std::str::from_utf8(line).unwrap_or_default());
-            pem.push('\n');
-        }
-        pem.push_str("-----END CERTIFICATE-----\n");
-    }
-    let file = cache.join("roots.pem");
-    if let Err(error) = std::fs::create_dir_all(cache).and_then(|()| std::fs::write(&file, pem)) {
-        log::warn!("tls: cannot write the root certificates: {error}");
-        return;
-    }
-    // SAFETY: set once at start, before the runtime or any provider reads the environment.
-    unsafe { std::env::set_var("SSL_CERT_FILE", &file) };
 }
 
 /// Writes every panic to the log as well. A phone shows no stderr, so a thread that panicked,
@@ -1602,19 +1255,6 @@ fn app_dirs(paths: &Paths) {
         std::env::set_var("XDG_CACHE_HOME", &paths.cache);
     }
 }
-
-/// Whether `connected`, the account of `slug`, plays its own tracks. A TIDAL account without a
-/// subscription only learns it plays previews once a track is asked for.
-fn plays(slug: &str, connected: &Connected) -> bool {
-    let previews = music::tidal::preview_only() || TIDAL_PREVIEWS.load(Ordering::Relaxed);
-    connected.capabilities.streams && !(slug == "tidal" && previews)
-}
-
-/// Whether the TIDAL account was found to play previews only, kept across launches: upstream
-/// learns it again only once a track fails, which would cost a failed track every launch.
-static TIDAL_PREVIEWS: AtomicBool = AtomicBool::new(false);
-/// The file that remembers [`TIDAL_PREVIEWS`] in the data folder.
-const TIDAL_PREVIEWS_FILE: &str = "tidal-previews";
 
 /// The page a sign-in's browser lands on once it hands Cauce its code: the app's dark page and
 /// accent, a check mark, `title` and `line`.

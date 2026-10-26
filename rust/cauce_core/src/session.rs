@@ -109,7 +109,7 @@ mod tests {
 
     fn item(id: &str) -> Item {
         Item {
-            source: "deezer".to_owned(),
+            source: "subsonic".to_owned(),
             id: id.to_owned(),
             track: Track {
                 id: Some(id.to_owned()),

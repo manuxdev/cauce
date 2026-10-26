@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- The Rust core and the sign-in pages reach every service over the network. -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Knowing when the phone is offline, as Apple Music downloads need a connection to play. -->
+    <!-- Knowing when the phone is offline, and when it is on mobile data, which picks the stream quality. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Playback keeps going, with its controls in a notification, once the app leaves the screen. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
