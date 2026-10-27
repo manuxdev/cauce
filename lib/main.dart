@@ -50,6 +50,8 @@ Future<void> main() async {
     final cache = await getApplicationCacheDirectory();
     await core.init(dataDir: data.path, cacheDir: cache.path);
     player = PlayerViewModel(core.playerStates());
+    // A playing track saves its position only every few seconds: going away saves it now.
+    AppLifecycleListener(onHide: () => player.saveSession().ignore());
   } catch (error) {
     // Without the core there is no app, but a blank screen would hide why.
     runApp(

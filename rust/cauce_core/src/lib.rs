@@ -782,6 +782,25 @@ impl Core {
         self.inner.changed();
     }
 
+    /// Queues `items` right after the current track, or plays them when nothing is playing.
+    pub fn play_next(&self, items: Vec<Item>) -> Result<()> {
+        let command = lock(&self.inner.transport).play_next(items);
+        self.inner.apply(command)
+    }
+
+    /// Queues `items` at the end, or plays them when nothing is playing.
+    pub fn add_to_queue(&self, items: Vec<Item>) -> Result<()> {
+        let command = lock(&self.inner.transport).append(items);
+        self.inner.apply(command)
+    }
+
+    /// Writes the session now, whatever the saver says, as the app goes to the background.
+    pub fn save_session(&self) {
+        if let Some(session) = session::Session::of(&lock(&self.inner.transport).snapshot()) {
+            session.save(&self.inner.data);
+        }
+    }
+
     pub fn playback_settings(&self) -> PlaybackSettings {
         lock(&self.inner.settings).clone()
     }

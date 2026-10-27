@@ -152,6 +152,20 @@ impl Transport {
         self.queue.clear_upcoming();
     }
 
+    /// Puts `items` right after the current track, or plays them when nothing is playing.
+    pub fn play_next(&mut self, items: Vec<Item>) -> Option<Command> {
+        let first = self.queue.index().map_or(0, |index| index + 1);
+        self.queue.play_next(items);
+        self.start_if_idle(first)
+    }
+
+    /// Puts `items` at the end, or plays them when nothing is playing.
+    pub fn append(&mut self, items: Vec<Item>) -> Option<Command> {
+        let first = self.queue.index().map_or(0, |_| self.queue.items().len());
+        self.queue.append(items);
+        self.start_if_idle(first)
+    }
+
     /// Makes `items` the queue and starts `start`.
     pub fn start(&mut self, items: Vec<Item>, start: usize) -> Option<Command> {
         // The listener picked something: earlier failures no longer hold the queue.
@@ -209,9 +223,7 @@ impl Transport {
     /// Puts what [`Command::Continue`] found at the end and segues into the first of it, or
     /// rests at the end when nothing was found.
     pub fn extend(&mut self, items: Vec<Item>) -> Option<Command> {
-        for item in items {
-            self.queue.append(item);
-        }
+        self.queue.append(items);
         let next = self.queue.ended().cloned();
         self.advance(next, true)
     }
@@ -276,6 +288,14 @@ impl Transport {
             _ => {}
         }
         None
+    }
+
+    /// Plays the item at `first` when nothing was playing: an empty queue or one that ran out.
+    fn start_if_idle(&mut self, first: usize) -> Option<Command> {
+        if self.status != Status::Idle {
+            return None;
+        }
+        self.jump(first)
     }
 
     /// Starts `item` from zero, taking the length its listing knew until the engine says better.
@@ -676,5 +696,44 @@ mod tests {
         assert!(!transport.seek(Duration::from_secs(60)));
         assert_eq!(transport.snapshot().position, Duration::from_secs(60));
         assert_eq!(transport.snapshot().status, Status::Paused);
+    }
+
+    #[test]
+    fn play_next_while_playing_queues_without_loading() {
+        let mut transport = started(&["a", "b"]);
+        transport.on_event(&PlaybackEvent::Playing {
+            id: id("a"),
+            at: Duration::ZERO,
+        });
+        assert_eq!(transport.play_next(vec![item("c")]), None);
+        assert_eq!(transport.next(), load("c", false));
+    }
+
+    #[test]
+    fn play_next_with_nothing_queued_plays_it() {
+        let mut transport = Transport::default();
+        assert_eq!(transport.play_next(vec![item("a")]), load("a", false));
+        let mut transport = Transport::default();
+        assert_eq!(
+            transport.append(vec![item("a"), item("b")]),
+            load("a", false)
+        );
+    }
+
+    #[test]
+    fn appending_after_the_queue_ended_plays_what_was_added() {
+        let mut transport = started(&["a"]);
+        transport.on_event(&PlaybackEvent::Ended { id: id("a") });
+        assert_eq!(transport.append(vec![item("b")]), load("b", false));
+        assert_eq!(transport.snapshot().index, Some(1));
+    }
+
+    #[test]
+    fn appending_to_a_paused_queue_leaves_it_paused() {
+        let mut transport = Transport::default();
+        transport.resume(vec![item("a")], 0, Duration::from_secs(9), Repeat::Off);
+        assert_eq!(transport.append(vec![item("b")]), None);
+        assert_eq!(transport.snapshot().status, Status::Paused);
+        assert_eq!(transport.snapshot().items.len(), 2);
     }
 }

@@ -44,8 +44,8 @@ impl<T> Queue<T> {
     /// Replaces everything with `items` and makes `start` current. `None` when `start` is out of
     /// range, which leaves the queue empty.
     pub fn replace(&mut self, items: Vec<T>, start: usize) -> Option<&T> {
-        self.items = items;
-        self.current = (start < self.items.len()).then_some(start);
+        self.current = (start < items.len()).then_some(start);
+        self.items = if self.current.is_some() { items } else { Vec::new() };
         self.current()
     }
 
@@ -107,20 +107,18 @@ impl<T> Queue<T> {
         self.items.get(index - 1).map(Back::To)
     }
 
-    /// Puts `item` right after the current one.
-    pub fn play_next(&mut self, item: T) {
-        match self.current {
-            Some(index) => self.items.insert(index + 1, item),
-            None => self.start_with(item),
-        }
+    /// Puts `items` right after the current one, in order. A shuffle only ever mixes what is
+    /// already queued, so they still play next with one on.
+    pub fn play_next(&mut self, items: Vec<T>) {
+        let at = self.current.map_or(0, |index| index + 1);
+        self.items.splice(at..at, items);
+        self.start_if_empty();
     }
 
-    /// Puts `item` at the end.
-    pub fn append(&mut self, item: T) {
-        match self.current {
-            Some(_) => self.items.push(item),
-            None => self.start_with(item),
-        }
+    /// Puts `items` at the end.
+    pub fn append(&mut self, items: Vec<T>) {
+        self.items.extend(items);
+        self.start_if_empty();
     }
 
     /// Moves the item at `from` to `to`, the current one staying current wherever it lands.
@@ -171,9 +169,12 @@ impl<T> Queue<T> {
         }
     }
 
-    fn start_with(&mut self, item: T) {
-        self.items = vec![item];
-        self.current = Some(0);
+    /// A queue that had nothing current starts at its first item. Nothing is current only when
+    /// it was empty.
+    fn start_if_empty(&mut self) {
+        if self.current.is_none() && !self.items.is_empty() {
+            self.current = Some(0);
+        }
     }
 
     /// The index that follows the current one. `natural` is an end the track reached itself,
@@ -288,28 +289,57 @@ mod tests {
     }
 
     #[test]
+    fn replace_out_of_range_keeps_no_items_either() {
+        let mut queue = Queue::default();
+        queue.replace(vec![1, 2], 5);
+        assert!(queue.items().is_empty());
+    }
+
+    #[test]
     fn play_next_inserts_after_the_current_item() {
         let mut queue = queue(&[1, 2], 0);
-        queue.play_next(9);
-        assert_eq!(queue.items(), &[1, 9, 2]);
+        queue.play_next(vec![8, 9]);
+        assert_eq!(queue.items(), &[1, 8, 9, 2]);
         assert_eq!(queue.current(), Some(&1));
     }
 
     #[test]
-    fn play_next_and_append_on_an_empty_queue_make_the_item_current() {
+    fn play_next_after_a_shuffle_still_plays_next() {
+        let mut queue = queue(&[1, 2, 3, 4, 5], 0);
+        queue.shuffle_upcoming(|n| n - 1);
+        queue.play_next(vec![9]);
+        assert_eq!(queue.skip(), Some(&9));
+    }
+
+    #[test]
+    fn play_next_and_append_on_an_empty_queue_make_the_first_current() {
         let mut queue = Queue::default();
-        queue.play_next(7);
+        queue.play_next(vec![7, 8]);
         assert_eq!(queue.current(), Some(&7));
+        assert_eq!(queue.items(), &[7, 8]);
         let mut queue = Queue::default();
-        queue.append(8);
+        queue.append(vec![8, 9]);
         assert_eq!(queue.current(), Some(&8));
+        let mut queue = Queue::<u32>::default();
+        queue.append(Vec::new());
+        assert_eq!(queue.current(), None);
     }
 
     #[test]
     fn append_adds_at_the_end() {
         let mut queue = queue(&[1], 0);
-        queue.append(2);
-        assert_eq!(queue.items(), &[1, 2]);
+        queue.append(vec![2, 3]);
+        assert_eq!(queue.items(), &[1, 2, 3]);
+        assert_eq!(queue.current(), Some(&1));
+    }
+
+    #[test]
+    fn a_track_already_queued_is_added_again() {
+        let mut queue = queue(&[1, 2], 0);
+        queue.play_next(vec![1]);
+        queue.append(vec![2]);
+        assert_eq!(queue.items(), &[1, 1, 2, 2]);
+        assert_eq!(queue.index(), Some(0));
     }
 
     #[test]
