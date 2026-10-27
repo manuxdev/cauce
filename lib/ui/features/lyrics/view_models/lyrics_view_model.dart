@@ -33,7 +33,7 @@ class LyricsViewModel extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     try {
-      _found[key] = await core.lyrics(track: track, sources: appPrefs.lyricsSources);
+      _found[key] = await core.lyrics(track: track, sources: appPrefs.askedLyricsSources);
     } catch (_) {
       _found[key] = null;
     }

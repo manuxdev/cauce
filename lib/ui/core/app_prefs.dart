@@ -122,6 +122,15 @@ class AppPrefs extends ChangeNotifier {
   /// The lyrics source groups in the order tried: `provider`, `server`, `lrclib` and `lrc`.
   List<String> lyricsSources = lyricsSourceGroups;
 
+  /// The lyrics source groups turned off: kept in [lyricsSources] but never asked.
+  Set<String> lyricsSourcesOff = const {};
+
+  /// The lyrics source groups asked, in order: [lyricsSources] without those turned off.
+  List<String> get askedLyricsSources => [
+    for (final group in lyricsSources)
+      if (!lyricsSourcesOff.contains(group)) group,
+  ];
+
   /// Downloads keep their lyrics, so they show offline.
   bool saveLyrics = true;
   File? _file;
@@ -169,6 +178,9 @@ class AppPrefs extends ChangeNotifier {
       if (!saved.contains(group)) saved.insert(index.clamp(0, saved.length), group);
     }
     lyricsSources = saved;
+    lyricsSourcesOff = {
+      ...?(json['lyricsSourcesOff'] as List?)?.whereType<String>().where(lyricsSourceGroups.contains),
+    };
     saveLyrics = json['saveLyrics'] as bool? ?? true;
   }
 
@@ -202,6 +214,7 @@ class AppPrefs extends ChangeNotifier {
     'lyricsOffsetMs': lyricsOffset.inMilliseconds,
     'openLyrics': openLyrics,
     'lyricsSources': lyricsSources,
+    'lyricsSourcesOff': [...lyricsSourcesOff],
     'saveLyrics': saveLyrics,
   };
 

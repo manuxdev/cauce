@@ -90,6 +90,43 @@ void main() {
     expect(prefs.lyricsSources, ['lrclib', 'server', 'lrc', 'provider']);
   });
 
+  test('turned off lyrics sources read back the same and are left out of what is asked', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSources': ['lrclib', 'provider', 'server', 'lrc'],
+        'lyricsSourcesOff': ['server'],
+      });
+    final again = AppPrefs()..read(prefs.toJson());
+    expect(again.lyricsSourcesOff, {'server'});
+    expect(again.lyricsSources, ['lrclib', 'provider', 'server', 'lrc']);
+    expect(again.askedLyricsSources, ['lrclib', 'provider', 'lrc']);
+  });
+
+  test('prefs saved before sources could be turned off have every source on', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSources': ['lrclib', 'provider', 'lrc', 'server'],
+      });
+    expect(prefs.lyricsSourcesOff, isEmpty);
+    expect(prefs.askedLyricsSources, ['lrclib', 'provider', 'lrc', 'server']);
+    expect((AppPrefs()..read({})).askedLyricsSources, lyricsSourceGroups);
+  });
+
+  test('unknown names among the turned off sources are ignored', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSourcesOff': ['nope', 'lrc', 7],
+      });
+    expect(prefs.lyricsSourcesOff, {'lrc'});
+    expect(prefs.askedLyricsSources, ['provider', 'server', 'lrclib']);
+  });
+
+  test('with every source off none is asked', () {
+    final prefs = AppPrefs()..read({'lyricsSourcesOff': lyricsSourceGroups});
+    expect(prefs.lyricsSources, lyricsSourceGroups);
+    expect(prefs.askedLyricsSources, isEmpty);
+  });
+
   test('the cover colour sets how strongly pages take the cover hue', () {
     expect(CoverColor.immersive.strength, 1);
     expect(CoverColor.subtle.strength, inExclusiveRange(0, 1));
