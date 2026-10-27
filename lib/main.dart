@@ -98,13 +98,22 @@ Future<void> main() async {
       }
     }
   });
+  final playbackSettings = PlaybackSettingsViewModel();
+  // Likes, when they download, and kept albums and playlists get what they are missing.
+  void catchUp() {
+    if (!online.value) return;
+    final likes = playbackSettings.settings?.downloadLikes ?? false;
+    downloads.catchUp([for (final service in accounts.connected) service.slug], likes: likes).ignore();
+  }
+
+  playbackSettings.onDownloadLikes = catchUp;
   online.addListener(() {
     if (!online.value) return;
     showToast(Toast(title: translate('band.backOnline'), glyph: CauceGlyph.check, tone: ToastTone.info));
     // Accounts that could not be reached offline are tried again.
-    if (accounts.unreachable) accounts.restoreAll();
+    (accounts.unreachable ? accounts.restoreAll() : Future<void>.value()).then((_) => catchUp());
   });
-  accounts.restoreAll();
+  final restored = accounts.restoreAll();
   PlayerViewModel.blockFor = (source, {reachable = true}) => accounts.playBlockFor(source, reachable: reachable);
   favorites.signInFirst = accounts.needsSignInFor;
   PlayerViewModel.substitute = (track) async {
@@ -123,7 +132,6 @@ Future<void> main() async {
     }
     return null;
   };
-  final playbackSettings = PlaybackSettingsViewModel();
   downloads.onBatchDone = (batch) {
     final failed = batch.done == 0;
     final title = translate(failed ? 'downloads.notReady' : 'downloads.finished', {'name': batch.name});
@@ -153,6 +161,7 @@ Future<void> main() async {
     playbackSettings.load(),
     downloads.refresh(),
   ]);
+  restored.then((_) => catchUp()).ignore();
   Appearance(player);
   // The page a sign-in's browser lands on speaks the app's language.
   void wordReturnPage() =>

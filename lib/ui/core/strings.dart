@@ -513,6 +513,9 @@ const english = <String, String>{
   'downloads.signInToPlay': 'Sign in to {service} to play',
   'downloads.connectionToPlay': 'Needs a connection to play',
   'downloads.needsConnection': 'Apple Music downloads need a connection to play',
+  'downloads.remove': 'Remove download',
+  'downloads.remove.confirm':
+      'The songs of {name} are removed from this iPhone, and new ones stop downloading. They stay in your library.',
 
   // Web sign-in
   'signIn.private': 'You sign in with the provider itself. Cauce never sees your password.',
@@ -1032,6 +1035,9 @@ const spanish = <String, String>{
   'downloads.signInToPlay': 'Inicia sesión en {service} para reproducir',
   'downloads.connectionToPlay': 'Necesita conexión para reproducirse',
   'downloads.needsConnection': 'Las descargas de Apple Music necesitan conexión para reproducirse',
+  'downloads.remove': 'Quitar descarga',
+  'downloads.remove.confirm':
+      'Las canciones de {name} se borran del iPhone y las nuevas dejan de descargarse. Siguen en tu biblioteca.',
 
   'signIn.private': 'Iniciás sesión directamente con el proveedor. Cauce nunca ve tu contraseña.',
   'signIn.title': 'Iniciá sesión en {service}',

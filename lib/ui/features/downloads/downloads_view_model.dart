@@ -14,6 +14,9 @@ class DownloadsViewModel extends ChangeNotifier {
   Timer? _poll;
   final List<DownloadBatch> _batches = [];
 
+  /// The albums and playlists kept downloaded, by [_collection] key.
+  Set<String> _kept = const {};
+
   /// Removed, but kept on disk until the toast offering to undo it goes.
   final Set<String> _hidden = {};
 
@@ -39,9 +42,12 @@ class DownloadsViewModel extends ChangeNotifier {
     return _hidden.contains(key) ? null : _byKey[key];
   }
 
+  bool keeps(String slug, core.CardKind kind, String id) => _kept.contains(_collection(slug, kind, id));
+
   Future<void> refresh() async {
-    final items = await core.downloads();
+    final (items, kept) = await (core.downloads(), core.keptCollections()).wait;
     _items = items;
+    _kept = {for (final collection in kept) _collection(collection.slug, collection.kind, collection.id)};
     _byKey = {for (final item in items) _key(item.track.source, item.track.id): item};
     notifyListeners();
     final states = {
@@ -85,10 +91,7 @@ class DownloadsViewModel extends ChangeNotifier {
   /// Downloads `tracks`; with a `name`, they are told about together once all are in. Answers
   /// that batch, to follow its progress.
   Future<DownloadBatch?> download(List<core.TrackItem> tracks, {String? name, String? cover}) async {
-    final wanted = [
-      for (final track in tracks)
-        if (track.source != 'local' && track.playable) track,
-    ];
+    final wanted = _wanted(tracks);
     if (wanted.isEmpty) return null;
     final batch = name == null
         ? null
@@ -97,6 +100,49 @@ class DownloadsViewModel extends ChangeNotifier {
     await core.downloadTracks(tracks: wanted);
     await refresh();
     return batch;
+  }
+
+  /// Keeps an album or playlist downloaded with the `tracks` it has now: those not listed yet
+  /// download, and so do the ones it gains each time it is kept again.
+  Future<void> keep(String slug, core.CardKind kind, String id, List<core.TrackItem> tracks) async {
+    await core.keepCollection(slug: slug, kind: kind, id: id, tracks: _wanted(tracks));
+    await refresh();
+  }
+
+  /// Stops keeping an album or playlist downloaded and removes the downloads of its `tracks`.
+  Future<void> removeCollection(String slug, core.CardKind kind, String id, List<core.TrackItem> tracks) async {
+    await core.unkeepCollection(slug: slug, kind: kind, id: id);
+    for (final track in tracks) {
+      if (_byKey.containsKey(_key(track.source, track.id))) {
+        await core.removeDownload(source: track.source, id: track.id);
+      }
+    }
+    await refresh();
+  }
+
+  /// Downloads what the kept albums and playlists of the `signedIn` services are missing, and
+  /// with `likes` their liked songs too. Only what is not listed yet is asked for, so the queue
+  /// and Wi-Fi-only hold as for any download. One that cannot be reached now waits for the next.
+  Future<void> catchUp(List<String> signedIn, {required bool likes}) async {
+    if (likes) {
+      for (final slug in signedIn) {
+        try {
+          await core.downloadMissing(tracks: _wanted(await core.savedTracks(slug: slug)));
+        } on Object {
+          // Offline or refused: the next catch-up tries again.
+        }
+      }
+    }
+    for (final kept in await core.keptCollections()) {
+      if (!signedIn.contains(kept.slug)) continue;
+      try {
+        final tracks = await core.collectionTracks(slug: kept.slug, kind: kept.kind, id: kept.id);
+        await core.keepCollection(slug: kept.slug, kind: kept.kind, id: kept.id, tracks: _wanted(tracks));
+      } on Object {
+        // Gone or unreachable: it stays kept, and the next catch-up tries again.
+      }
+    }
+    await refresh();
   }
 
   Future<void> remove(core.TrackItem track) async {
@@ -122,6 +168,14 @@ class DownloadsViewModel extends ChangeNotifier {
   }
 
   static String _key(String source, String id) => '$source\u0000$id';
+
+  static String _collection(String slug, core.CardKind kind, String id) => '$slug\u0000${kind.name}\u0000$id';
+
+  /// The ones a provider can download: not local files, and playable.
+  static List<core.TrackItem> _wanted(List<core.TrackItem> tracks) => [
+    for (final track in tracks)
+      if (track.source != 'local' && track.playable) track,
+  ];
 }
 
 final downloads = DownloadsViewModel();
