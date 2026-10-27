@@ -12,8 +12,15 @@ import '../../../core/toast.dart';
 import '../../settings/views/settings_widgets.dart';
 import '../view_models/accounts_view_model.dart';
 
-/// Signs in to a service through its own flow: a server and password for Subsonic, a code to
-/// approve for Tidal, an approval page for Spotify. Pops with the account's name once signed in.
+/// The text key of the help under the sign-in fields of `slug`.
+String signInHelp(String slug) => switch (slug) {
+  'jellyfin' => 'signIn.jellyfin.help',
+  _ => 'signIn.server.help',
+};
+
+/// Signs in to a service through its own flow: a server and password for Subsonic and Jellyfin,
+/// a code to approve for Tidal, an approval page for Spotify. Pops with the account's name once
+/// signed in.
 class FlowSignInScreen extends StatefulWidget {
   const FlowSignInScreen({super.key, required this.service});
 
@@ -38,7 +45,7 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
   /// Whether the approval page is open, which closes itself before this screen can.
   bool _paging = false;
 
-  bool get _asksServer => widget.service.slug == 'subsonic';
+  bool get _asksServer => const {'subsonic', 'jellyfin'}.contains(widget.service.slug);
 
   @override
   void initState() {
@@ -151,7 +158,7 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
       children: [
         if (_asksServer) ...[
           SettingsGroup(
-            footer: context.t('signIn.server.help'),
+            footer: context.t(signInHelp(widget.service.slug)),
             children: [
               _field(_server, context.t('signIn.server'), type: TextInputType.url),
               _field(_username, context.t('signIn.username')),

@@ -21,6 +21,7 @@ final streamingServices = [
     const StreamingService('apple', 'Apple Music'),
   const StreamingService('tidal', 'Tidal'),
   const StreamingService('subsonic', 'Subsonic'),
+  const StreamingService('jellyfin', 'Jellyfin'),
 ];
 
 /// Whether `source`'s track waits on signing in to its service, with `signedIn` the services

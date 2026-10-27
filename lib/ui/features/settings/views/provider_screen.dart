@@ -111,6 +111,7 @@ List<(String, String)> _plans(String slug) => switch (slug) {
     ('plans.device', defaultTargetPlatform == TargetPlatform.iOS ? 'plans.apple.ios' : 'plans.apple.android'),
   ],
   'subsonic' => [('plans.server', 'plans.subsonic')],
+  'jellyfin' => [('plans.server', 'plans.jellyfin')],
   _ => const [],
 };
 

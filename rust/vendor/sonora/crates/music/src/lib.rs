@@ -29,6 +29,7 @@ mod sink;
 mod spectrum;
 pub mod spotify;
 mod stream;
+pub mod jellyfin;
 pub mod subsonic;
 pub mod tidal;
 mod trim;

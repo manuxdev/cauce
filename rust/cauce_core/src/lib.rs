@@ -190,6 +190,7 @@ impl Core {
             )),
             Arc::new(music::tidal::TidalProvider::new()),
             Arc::new(music::subsonic::SubsonicProvider::new()),
+            Arc::new(music::jellyfin::JellyfinProvider::new()),
             // Apple Music is mobile only: on iOS its songs play through the system's player, on
             // Android its license comes from the system's MediaDrm.
             #[cfg(any(target_os = "ios", target_os = "android"))]

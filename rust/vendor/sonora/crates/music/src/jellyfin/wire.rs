@@ -1,0 +1,437 @@
+//! What Jellyfin answers with, and how it becomes the app's models.
+
+use std::time::Duration;
+
+use serde::Deserialize;
+
+use crate::engine::Loudness;
+use crate::escape;
+use crate::jellyfin::auth::Credentials;
+use crate::{Album, ArtistRef, Playlist, ReleaseType, SavedArtist, Track, iso_8601_to_epoch};
+
+/// How many ticks Jellyfin counts in a second.
+const TICKS_PER_SECOND: u64 = 10_000_000;
+const COVER: u32 = 300;
+const COVER_LARGE: u32 = 600;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Items {
+    #[serde(default)]
+    pub items: Vec<Item>,
+    pub total_record_count: Option<usize>,
+}
+
+/// One entry of a listing: a track, album, artist or playlist. Jellyfin sends `null` for many
+/// fields it has nothing for, so every one of them is optional.
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct Item {
+    pub id: String,
+    pub name: Option<String>,
+    pub run_time_ticks: Option<u64>,
+    pub index_number: Option<u32>,
+    pub parent_index_number: Option<u32>,
+    pub album: Option<String>,
+    pub album_id: Option<String>,
+    pub album_primary_image_tag: Option<String>,
+    pub artists: Option<Vec<String>>,
+    pub artist_items: Option<Vec<Named>>,
+    pub album_artist: Option<String>,
+    pub album_artists: Option<Vec<Named>>,
+    pub image_tags: Option<ImageTags>,
+    pub production_year: Option<i32>,
+    pub date_created: Option<String>,
+    pub child_count: Option<u32>,
+    pub user_data: Option<UserData>,
+    pub normalization_gain: Option<f32>,
+    pub overview: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct Named {
+    pub id: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct ImageTags {
+    pub primary: Option<String>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct UserData {
+    pub play_count: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Authenticated {
+    pub access_token: String,
+    pub user: User,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct User {
+    pub id: String,
+    pub name: String,
+}
+
+impl Item {
+    fn primary(&self) -> Option<&str> {
+        self.image_tags.as_ref()?.primary.as_deref()
+    }
+}
+
+pub fn duration(ticks: Option<u64>) -> Duration {
+    let ticks = ticks.unwrap_or(0);
+    Duration::from_secs(ticks / TICKS_PER_SECOND)
+        + Duration::from_nanos((ticks % TICKS_PER_SECOND) * 100)
+}
+
+/// The picture of item `id` as tagged. The tag changes with the picture, so the url stays the
+/// same until then and image caches hold it. The demo and a default server serve pictures with
+/// no sign-in, so the url carries no token.
+pub fn cover(server: &str, id: &str, tag: Option<&str>, height: u32) -> Option<String> {
+    let tag = tag.filter(|tag| !tag.is_empty())?;
+    Some(format!(
+        "{server}/Items/{}/Images/Primary?maxHeight={height}&tag={}",
+        escape::component(id),
+        escape::component(tag)
+    ))
+}
+
+/// The track's own picture, or its album's.
+fn track_cover(item: &Item, server: &str) -> Option<String> {
+    cover(server, &item.id, item.primary(), COVER).or_else(|| {
+        cover(
+            server,
+            item.album_id.as_deref()?,
+            item.album_primary_image_tag.as_deref(),
+            COVER,
+        )
+    })
+}
+
+fn refs(named: Option<&Vec<Named>>) -> Vec<ArtistRef> {
+    named
+        .into_iter()
+        .flatten()
+        .filter_map(|artist| {
+            Some(ArtistRef {
+                name: artist.name.clone().filter(|name| !name.is_empty())?,
+                id: artist.id.clone().filter(|id| !id.is_empty()),
+            })
+        })
+        .collect()
+}
+
+fn joined(refs: &[ArtistRef]) -> String {
+    refs.iter()
+        .map(|artist| artist.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub fn track(item: Item, server: &str) -> Track {
+    let cover = track_cover(&item, server);
+    let artist_refs = refs(item.artist_items.as_ref());
+    let artists = match artist_refs.is_empty() {
+        true => item.artists.unwrap_or_default().join(", "),
+        false => joined(&artist_refs),
+    };
+    Track {
+        id: Some(item.id),
+        name: item.name.unwrap_or_default(),
+        playable: true,
+        artists,
+        artist_refs,
+        album: item.album.unwrap_or_default(),
+        album_id: item.album_id.filter(|id| !id.is_empty()),
+        cover,
+        duration: duration(item.run_time_ticks),
+        added_at: iso_8601_to_epoch(item.date_created.as_deref()),
+        added_by: None,
+        playcount: item.user_data.and_then(|data| data.play_count),
+        popularity: 0,
+        explicit: false,
+        track_number: item.index_number.unwrap_or(0),
+        disc_number: item.parent_index_number.unwrap_or(1).max(1),
+        tags: Vec::new(),
+        languages: Vec::new(),
+        credits: Vec::new(),
+    }
+}
+
+/// Jellyfin's `NormalizationGain` is the gain in dB that brings a track to -18 LUFS, which is
+/// what a ReplayGain gain is. It sends no peak.
+pub fn loudness(item: &Item) -> Option<Loudness> {
+    item.normalization_gain
+        .map(|gain| Loudness::replay_gain(gain, None))
+}
+
+pub fn album(item: Item, server: &str) -> Album {
+    let mut artist_refs = refs(item.album_artists.as_ref());
+    if artist_refs.is_empty() {
+        artist_refs = refs(item.artist_items.as_ref());
+    }
+    let artists = match (&item.album_artist, artist_refs.is_empty()) {
+        (Some(name), _) if !name.is_empty() => name.clone(),
+        _ => joined(&artist_refs),
+    };
+    let year = item.production_year.unwrap_or(0);
+    Album {
+        cover: cover(server, &item.id, item.primary(), COVER),
+        cover_large: cover(server, &item.id, item.primary(), COVER_LARGE),
+        id: item.id,
+        name: item.name.unwrap_or_default(),
+        artists,
+        artist_refs,
+        release_type: ReleaseType::Album,
+        year,
+        track_count: item.child_count.unwrap_or(0),
+        release_date: match year {
+            0 => String::new(),
+            _ => year.to_string(),
+        },
+        label: String::new(),
+        copyrights: Vec::new(),
+        added_at: iso_8601_to_epoch(item.date_created.as_deref()),
+    }
+}
+
+pub fn artist(item: &Item, server: &str) -> SavedArtist {
+    SavedArtist {
+        id: item.id.clone(),
+        name: item.name.clone().unwrap_or_default(),
+        cover: cover(server, &item.id, item.primary(), COVER_LARGE),
+        added_at: None,
+    }
+}
+
+/// A playlist, never marked as the listener's own: editing one comes later, so until then the
+/// app offers no edits on it.
+pub fn playlist(item: Item, server: &str) -> Playlist {
+    Playlist {
+        cover: cover(server, &item.id, item.primary(), COVER),
+        id: item.id,
+        name: item.name.unwrap_or_default(),
+        owner: String::new(),
+        owner_id: String::new(),
+        owned: false,
+        collaborative: false,
+        blend: false,
+        public: false,
+        track_count: item.child_count.unwrap_or(0),
+        modified_at: None,
+    }
+}
+
+pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Credentials {
+    Credentials {
+        server: server.to_owned(),
+        user_id: answer.user.id,
+        username: answer.user.name,
+        device_id: device_id.to_owned(),
+        token: answer.access_token,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    const SERVER: &str = "https://demo.jellyfin.org/stable";
+
+    /// An `Audio` item from the demo's `/Items`, trimmed.
+    const AUDIO: &str = r#"{
+        "Name": "Bend",
+        "Id": "a794b7c125d436df8dc2d870ad7b7e1e",
+        "DateCreated": "2019-11-28T06:07:13.4661661Z",
+        "Container": "mp3",
+        "ChannelId": null,
+        "RunTimeTicks": 2675461220,
+        "ProductionYear": 2006,
+        "IndexNumber": 1,
+        "IsFolder": false,
+        "Type": "Audio",
+        "UserData": { "PlayCount": 3, "IsFavorite": false },
+        "Artists": ["Binaerpilot"],
+        "ArtistItems": [{ "Name": "Binaerpilot", "Id": "9ebcc113abb3ee375dbf1d68c9576ed5" }],
+        "Album": "You Can't Stop Da Funk",
+        "AlbumId": "f21ea9ece4e6e26ec26ebfb81b82ad78",
+        "AlbumPrimaryImageTag": "95b159065964e1210d8c39d255920ebc",
+        "AlbumArtist": "Binaerpilot",
+        "AlbumArtists": [{ "Name": "Binaerpilot", "Id": "9ebcc113abb3ee375dbf1d68c9576ed5" }],
+        "ImageTags": {},
+        "MediaType": "Audio",
+        "NormalizationGain": -6.6000004
+    }"#;
+
+    const ALBUM: &str = r#"{
+        "Name": "Nemesis",
+        "Id": "f7e6d83954e06a0d46724a6068fa21ff",
+        "DateCreated": "2025-02-22T02:32:09.0178164Z",
+        "RunTimeTicks": 1830508539,
+        "ProductionYear": 2024,
+        "IsFolder": true,
+        "Type": "MusicAlbum",
+        "ChildCount": 1,
+        "Artists": ["Leap Fidei"],
+        "ArtistItems": [{ "Name": "Leap Fidei", "Id": "78e6763b3d9b58c349a58ce5eb7877c1" }],
+        "AlbumArtist": "Leap Fidei",
+        "AlbumArtists": [{ "Name": "Leap Fidei", "Id": "78e6763b3d9b58c349a58ce5eb7877c1" }],
+        "ImageTags": { "Primary": "45ff5f4520bf2b3e9e7410e4c8766cb1" }
+    }"#;
+
+    const ARTIST: &str = r#"{
+        "Name": "Binaerpilot",
+        "Id": "9ebcc113abb3ee375dbf1d68c9576ed5",
+        "ChannelId": null,
+        "Type": "MusicArtist",
+        "ImageTags": { "Primary": "ac570184d1dceb91f6c47de54126557a" }
+    }"#;
+
+    const PLAYLIST: &str = r#"{
+        "Name": "Binaerpilot",
+        "Id": "d970eee82134b487f1df37d753fab1f9",
+        "Type": "Playlist",
+        "ChildCount": 3,
+        "ImageTags": { "Primary": "791bb36966b5c10ddab20a73c25963fd" },
+        "MediaType": "Audio"
+    }"#;
+
+    /// The demo's `/Users/AuthenticateByName` answer, trimmed, with a made-up token.
+    const AUTHENTICATED: &str = r#"{
+        "User": { "Name": "demo", "Id": "4ed1b8b42a7c4ea682f0fe5d08d4e278" },
+        "SessionInfo": {},
+        "AccessToken": "not-a-real-token",
+        "ServerId": "f0b3381645f04afb9a0e392e74b6a1b0"
+    }"#;
+
+    fn item(json: &str) -> Item {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn an_audio_item_becomes_a_track() {
+        let track = track(item(AUDIO), SERVER);
+        assert_eq!(
+            track.id.as_deref(),
+            Some("a794b7c125d436df8dc2d870ad7b7e1e")
+        );
+        assert_eq!(track.name, "Bend");
+        assert!(track.playable);
+        assert_eq!(track.duration, Duration::from_nanos(267_546_122_000));
+        assert_eq!(track.artists, "Binaerpilot");
+        assert_eq!(track.artist_refs.len(), 1);
+        assert_eq!(
+            track.artist_refs[0].id.as_deref(),
+            Some("9ebcc113abb3ee375dbf1d68c9576ed5")
+        );
+        assert_eq!(track.album, "You Can't Stop Da Funk");
+        assert_eq!(
+            track.album_id.as_deref(),
+            Some("f21ea9ece4e6e26ec26ebfb81b82ad78")
+        );
+        assert_eq!(
+            track.cover.as_deref(),
+            Some(
+                "https://demo.jellyfin.org/stable/Items/f21ea9ece4e6e26ec26ebfb81b82ad78/Images/Primary?maxHeight=300&tag=95b159065964e1210d8c39d255920ebc"
+            )
+        );
+        assert_eq!(track.track_number, 1);
+        assert_eq!(track.disc_number, 1);
+        assert_eq!(track.playcount, Some(3));
+        assert!(track.added_at.is_some());
+    }
+
+    #[test]
+    fn the_normalization_gain_reads_as_replay_gain() {
+        let loudness = loudness(&item(AUDIO)).unwrap();
+        assert!((loudness.lufs - (-18.0 + 6.6)).abs() < 0.01);
+        assert_eq!(loudness.peak, None);
+        assert_eq!(loudness_of_nothing(), None);
+    }
+
+    fn loudness_of_nothing() -> Option<crate::engine::Loudness> {
+        loudness(&item(ARTIST))
+    }
+
+    #[test]
+    fn a_music_album_becomes_an_album() {
+        let album = album(item(ALBUM), SERVER);
+        assert_eq!(album.id, "f7e6d83954e06a0d46724a6068fa21ff");
+        assert_eq!(album.name, "Nemesis");
+        assert_eq!(album.artists, "Leap Fidei");
+        assert_eq!(
+            album.artist_refs[0].id.as_deref(),
+            Some("78e6763b3d9b58c349a58ce5eb7877c1")
+        );
+        assert_eq!(album.year, 2024);
+        assert_eq!(album.release_date, "2024");
+        assert_eq!(album.track_count, 1);
+        assert_eq!(
+            album.cover.as_deref(),
+            Some(
+                "https://demo.jellyfin.org/stable/Items/f7e6d83954e06a0d46724a6068fa21ff/Images/Primary?maxHeight=300&tag=45ff5f4520bf2b3e9e7410e4c8766cb1"
+            )
+        );
+        assert!(album.cover_large.unwrap().contains("maxHeight=600"));
+    }
+
+    #[test]
+    fn a_music_artist_becomes_an_artist() {
+        let artist = artist(&item(ARTIST), SERVER);
+        assert_eq!(artist.id, "9ebcc113abb3ee375dbf1d68c9576ed5");
+        assert_eq!(artist.name, "Binaerpilot");
+        assert!(
+            artist
+                .cover
+                .unwrap()
+                .ends_with("tag=ac570184d1dceb91f6c47de54126557a")
+        );
+    }
+
+    #[test]
+    fn a_playlist_item_becomes_a_playlist_the_listener_cannot_edit_yet() {
+        let playlist = playlist(item(PLAYLIST), SERVER);
+        assert_eq!(playlist.id, "d970eee82134b487f1df37d753fab1f9");
+        assert_eq!(playlist.name, "Binaerpilot");
+        assert_eq!(playlist.track_count, 3);
+        assert!(!playlist.owned);
+        assert!(playlist.cover.is_some());
+    }
+
+    #[test]
+    fn an_item_without_a_picture_has_no_cover() {
+        let mut bare = item(AUDIO);
+        bare.album_primary_image_tag = None;
+        assert_eq!(track(bare, SERVER).cover, None);
+    }
+
+    #[test]
+    fn the_sign_in_answer_becomes_the_stored_credentials() {
+        let answer: Authenticated = serde_json::from_str(AUTHENTICATED).unwrap();
+        let stored = credentials(answer, SERVER, "device-1");
+        assert_eq!(stored.server, SERVER);
+        assert_eq!(stored.user_id, "4ed1b8b42a7c4ea682f0fe5d08d4e278");
+        assert_eq!(stored.username, "demo");
+        assert_eq!(stored.device_id, "device-1");
+        assert_eq!(stored.token, "not-a-real-token");
+    }
+
+    #[test]
+    fn a_listing_reads_its_items_and_total() {
+        let json = format!(r#"{{"Items":[{AUDIO}],"TotalRecordCount":5,"StartIndex":0}}"#);
+        let listing: Items = serde_json::from_str(&json).unwrap();
+        assert_eq!(listing.items.len(), 1);
+        assert_eq!(listing.total_record_count, Some(5));
+    }
+}
