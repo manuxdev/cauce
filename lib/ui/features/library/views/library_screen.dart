@@ -33,6 +33,16 @@ const _playlists = 'playlists';
 /// How far the list scrolls before the chips are gone and play sits by the title.
 const _collapseDistance = 56.0;
 
+/// Picks `slug` in the library and returns the library's own section to show, or null to show
+/// the shared provider. Only a provider is written to the selection Home and the other screens
+/// share: Playlists, Downloads and Files are the library's own and never replace it.
+@visibleForTesting
+String? pickLibrarySection(String slug, List<String> providers) {
+  if (!providers.contains(slug)) return slug;
+  selectedService.select(slug);
+  return null;
+}
+
 /// The starred tracks of each connected service, the downloads, and the files on the phone.
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -140,12 +150,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   void _choose(String source) {
     _collapse.value = 0;
-    if (source != _files && source != _downloads && source != _playlists) _lastProvider = source;
-    selectedService.select(source);
-    if (source != _files && source != _downloads && source != _playlists && widget.favorites.tracks(source).isEmpty) {
-      widget.favorites.load(source);
-    }
+    final section = pickLibrarySection(source, [for (final service in widget.accounts.connected) service.slug]);
+    setState(() => _section = section);
+    if (section == null && widget.favorites.tracks(source).isEmpty) widget.favorites.load(source);
   }
+
+  /// Playlists, Downloads or Files when one is open, null while the provider's likes show.
+  String? _section;
 
   @override
   Widget build(BuildContext context) {
@@ -160,14 +171,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ]),
       builder: (context, _) {
         final connected = widget.accounts.connected;
-        final sources = [
-          ...connected,
-          if (connected.isNotEmpty) StreamingService(_playlists, context.t('library.playlists')),
-          StreamingService(_downloads, context.t('downloads.title')),
-          StreamingService(_files, context.t('library.files')),
-        ];
-        final source = selectedService.among([for (final service in sources) service.slug])!;
-        final provider = connected.any((service) => service.slug == source) ? source : selectedProvider(connected);
+        final provider = selectedService.among([for (final service in connected) service.slug]);
+        final section = _section == _playlists && connected.isEmpty ? null : _section;
+        final source = section ?? provider ?? _downloads;
         final play = _playAll(source);
         final still = MediaQuery.disableAnimationsOf(context);
         return Scaffold(
@@ -291,15 +297,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       },
     );
   }
-
-  /// The provider the library shows when one of the others is picked: the one used last.
-  String? selectedProvider(List<StreamingService> connected) => connected.isEmpty
-      ? null
-      : (_lastProvider != null && connected.any((service) => service.slug == _lastProvider)
-            ? _lastProvider
-            : connected.first.slug);
-
-  String? _lastProvider;
 
   static const _connectOther = 'connect-other';
 
