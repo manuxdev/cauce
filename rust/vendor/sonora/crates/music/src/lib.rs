@@ -650,6 +650,19 @@ pub trait Player: Send + Sync {
         Box::pin(async { Err(anyhow::anyhow!("this player cannot download")) })
     }
 
+    /// Fetches all of a track into the cache without playing it, the way a play would, so that
+    /// playing it next needs no network. Dropping the future stops the fetch. A player that
+    /// keeps nothing says so at once.
+    fn prefetch(&self, _track_id: &str) -> futures::future::BoxFuture<'static, Result<()>> {
+        Box::pin(async { Err(anyhow::anyhow!("this player cannot prefetch")) })
+    }
+
+    /// Whether a track is on disk as this player would play it: downloaded, or in the cache at
+    /// the variant this player streams.
+    fn kept(&self, _track_id: &str) -> bool {
+        false
+    }
+
     /// Whether a track has been downloaded.
     fn downloaded(&self, _track_id: &str) -> bool {
         false

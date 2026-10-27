@@ -415,6 +415,18 @@ impl Shelf {
             .is_some_and(|(_, path)| path.is_file())
     }
 
+    /// Whether track `id` is in the cache as `variant`, so playing it needs no network. Like
+    /// [`holds`](Self::holds), it answers no while the vault is still unlocking.
+    pub(crate) fn caches(&self, id: &str, variant: &str) -> bool {
+        let Some(prk) = self.vault.keys.get() else {
+            return false;
+        };
+        self.vault.caching.load(Ordering::Relaxed)
+            && self
+                .spot(prk, Place::Cache, id, variant)
+                .is_some_and(|(_, path)| path.is_file())
+    }
+
     /// What the download of track `id` takes on disk, in bytes, when there is one.
     pub(crate) fn size(&self, id: &str) -> Option<u64> {
         let prk = self.vault.keys.get()?;
@@ -954,4 +966,53 @@ fn abandoned(root: &Path) -> Vec<(PathBuf, SystemTime, u64)> {
         }
     }
     entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A source that yields one chunk and ends.
+    struct Once(Option<Bytes>);
+
+    impl Source for Once {
+        async fn chunk(&mut self) -> Result<Option<Bytes>> {
+            Ok(self.0.take())
+        }
+    }
+
+    fn vault(name: &str) -> (Arc<Vault>, PathBuf) {
+        let root = std::env::temp_dir().join(format!("cauce-vault-{name}-{}", std::process::id()));
+        fs::remove_dir_all(&root).ok();
+        let vault = Arc::new(Vault::new(root.join("cache"), root.join("pinned"), 1 << 30));
+        vault.unlock(&Vault::new_master().unwrap());
+        (vault, root)
+    }
+
+    /// Plays `id` through `shelf` to its end, as a stream that reaches its last byte does.
+    fn play(shelf: &Shelf, id: &str, variant: &str) {
+        let facts = || Some(b"{}".to_vec());
+        let mut recording =
+            shelf.keep(id, variant, facts, Once(Some(Bytes::from_static(b"audio"))));
+        futures::executor::block_on(async { while recording.chunk().await.unwrap().is_some() {} });
+    }
+
+    #[test]
+    fn a_track_that_played_is_found_in_the_cache_at_its_variant_only() {
+        let (vault, root) = vault("cached");
+        let shelf = vault.shelf("test");
+        assert!(!shelf.caches("1", "high"));
+        play(&shelf, "1", "high");
+        assert!(shelf.caches("1", "high"));
+        assert!(!shelf.caches("1", "low"));
+        assert!(!shelf.holds("1"), "a played track is not a download");
+        let kept = futures::executor::block_on(shelf.find("1", "high"));
+        assert_eq!(kept.map(|kept| kept.length), Some(5));
+        // Offline, the same lookup is what plays it.
+        vault.set_offline(true);
+        assert!(futures::executor::block_on(shelf.find("1", "high")).is_some());
+        vault.set_caching(false);
+        assert!(!shelf.caches("1", "high"));
+        fs::remove_dir_all(root).ok();
+    }
 }

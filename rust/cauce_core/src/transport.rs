@@ -192,6 +192,17 @@ impl Transport {
         Some(self.begin(item, false))
     }
 
+    /// What to fetch into the cache ahead of playing it: of the next `depth` items a run of
+    /// "next" would play, nearest first, the ones `kept` says are not on disk already.
+    pub fn prefetch(&self, depth: usize, kept: impl Fn(&Item) -> bool) -> Vec<Item> {
+        self.queue
+            .ahead(depth)
+            .into_iter()
+            .filter(|item| !kept(item))
+            .cloned()
+            .collect()
+    }
+
     pub fn set_repeat(&mut self, repeat: Repeat) {
         self.queue.repeat = repeat;
     }
@@ -325,6 +336,7 @@ impl Transport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::PlaybackSettings;
 
     #[test]
     fn clearing_leaves_nothing_to_play_and_keeps_continue_similar() {
@@ -703,5 +715,117 @@ mod tests {
         assert_eq!(transport.append(vec![item("b")]), None);
         assert_eq!(transport.snapshot().status, Status::Paused);
         assert_eq!(transport.snapshot().items.len(), 2);
+    }
+
+    /// What a prefetch fetches from the queue `ids` playing at `at`, by id.
+    fn prefetched(
+        ids: &[&str],
+        at: usize,
+        repeat: Repeat,
+        settings: &PlaybackSettings,
+        (cellular, offline): (bool, bool),
+        kept: &[&str],
+    ) -> Vec<String> {
+        let mut transport = Transport::default();
+        transport.start(ids.iter().map(|id| item(id)).collect(), at);
+        transport.set_repeat(repeat);
+        let depth = settings.prefetch_depth(cellular, offline);
+        transport
+            .prefetch(depth, |item| kept.contains(&item.id.as_str()))
+            .into_iter()
+            .map(|item| item.id)
+            .collect()
+    }
+
+    const WIFI: (bool, bool) = (false, false);
+    const CELLULAR: (bool, bool) = (true, false);
+    const QUEUE: [&str; 5] = ["a", "b", "c", "d", "e"];
+
+    #[test]
+    fn wifi_prefetches_the_next_two_in_order() {
+        let settings = PlaybackSettings::default();
+        assert_eq!(
+            prefetched(&QUEUE, 1, Repeat::Off, &settings, WIFI, &[]),
+            ["c", "d"]
+        );
+    }
+
+    #[test]
+    fn mobile_data_prefetches_only_the_next_one() {
+        let settings = PlaybackSettings::default();
+        assert_eq!(
+            prefetched(&QUEUE, 1, Repeat::Off, &settings, CELLULAR, &[]),
+            ["c"]
+        );
+    }
+
+    #[test]
+    fn saving_data_prefetches_nothing_on_mobile_data_only() {
+        let settings = PlaybackSettings {
+            data_saver: true,
+            ..PlaybackSettings::default()
+        };
+        assert!(prefetched(&QUEUE, 1, Repeat::Off, &settings, CELLULAR, &[]).is_empty());
+        assert_eq!(
+            prefetched(&QUEUE, 1, Repeat::Off, &settings, WIFI, &[]),
+            ["c", "d"]
+        );
+    }
+
+    #[test]
+    fn offline_prefetches_nothing() {
+        let settings = PlaybackSettings::default();
+        for cellular in [false, true] {
+            assert!(
+                prefetched(&QUEUE, 1, Repeat::Off, &settings, (cellular, true), &[]).is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn not_keeping_tracks_prefetches_nothing() {
+        let settings = PlaybackSettings {
+            keep_tracks: false,
+            ..PlaybackSettings::default()
+        };
+        assert!(prefetched(&QUEUE, 1, Repeat::Off, &settings, WIFI, &[]).is_empty());
+    }
+
+    #[test]
+    fn kept_tracks_are_not_fetched_again() {
+        let settings = PlaybackSettings::default();
+        assert_eq!(
+            prefetched(&QUEUE, 1, Repeat::Off, &settings, WIFI, &["c"]),
+            ["d"]
+        );
+        assert!(prefetched(&QUEUE, 1, Repeat::Off, &settings, WIFI, &["c", "d"]).is_empty());
+    }
+
+    #[test]
+    fn prefetching_stops_at_the_end_of_the_queue() {
+        let settings = PlaybackSettings::default();
+        assert_eq!(
+            prefetched(&QUEUE, 3, Repeat::Off, &settings, WIFI, &[]),
+            ["e"]
+        );
+        assert!(prefetched(&QUEUE, 4, Repeat::Off, &settings, WIFI, &[]).is_empty());
+    }
+
+    #[test]
+    fn repeating_all_prefetches_round_the_start_but_never_the_current_track() {
+        let settings = PlaybackSettings::default();
+        assert_eq!(
+            prefetched(&QUEUE, 4, Repeat::All, &settings, WIFI, &[]),
+            ["a", "b"]
+        );
+        assert_eq!(
+            prefetched(&["a", "b"], 1, Repeat::All, &settings, WIFI, &[]),
+            ["a"]
+        );
+        // Repeating one track still prefetches what a skip plays.
+        assert_eq!(
+            prefetched(&QUEUE, 1, Repeat::One, &settings, WIFI, &[]),
+            ["c", "d"]
+        );
     }
 }

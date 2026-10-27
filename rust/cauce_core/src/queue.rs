@@ -90,6 +90,21 @@ impl<T> Queue<T> {
         self.items.get(self.after(true)?)
     }
 
+    /// Up to `n` items after the current one, in the order a run of "next" plays them: round to
+    /// the start under `Repeat::All`, but never back to the current item.
+    pub fn ahead(&self, n: usize) -> Vec<&T> {
+        let Some(index) = self.current else {
+            return Vec::new();
+        };
+        let len = self.items.len();
+        let wraps = self.repeat == Repeat::All;
+        (index + 1..index + len)
+            .take_while(|at| wraps || *at < len)
+            .take(n)
+            .map(|at| &self.items[at % len])
+            .collect()
+    }
+
     /// The user's "previous" at `position` into the current item.
     pub fn back(&mut self, position: Duration) -> Option<Back<'_, T>> {
         let index = self.current?;

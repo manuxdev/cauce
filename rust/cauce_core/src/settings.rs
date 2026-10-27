@@ -99,6 +99,19 @@ impl PlaybackSettings {
         !(cellular && self.data_saver)
     }
 
+    /// How many upcoming tracks are fetched into the cache ahead of playing them: two on Wi-Fi,
+    /// only the one the preload fetches on mobile data, and none saving data, offline, or with
+    /// nothing kept to fetch into.
+    pub fn prefetch_depth(&self, cellular: bool, offline: bool) -> usize {
+        if offline || !self.keep_tracks || !self.preloads(cellular) {
+            0
+        } else if cellular {
+            1
+        } else {
+            2
+        }
+    }
+
     pub fn curve(&self) -> Curve {
         Curve::bands(&self.bands)
     }
