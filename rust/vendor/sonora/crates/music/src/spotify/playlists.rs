@@ -112,11 +112,16 @@ pub async fn add_track(session: &Session, playlist_id: &str, track_id: &str) -> 
     Ok(())
 }
 
-pub async fn remove_track(session: &Session, playlist_id: &str, track_id: &str) -> Result<()> {
+pub async fn remove_track(
+    session: &Session,
+    playlist_id: &str,
+    track_id: &str,
+    copy: usize,
+) -> Result<()> {
     let uri = format!("{TRACK_PREFIX}{track_id}");
     let content = snapshot(session, playlist_id).await?;
-    let index =
-        position(&content, &uri).ok_or_else(|| anyhow!("cannot find the track in the playlist"))?;
+    let index = copy_position(&content, &uri, copy)
+        .ok_or_else(|| anyhow!("cannot find the track in the playlist"))?;
 
     let body = changes(content.revision.as_deref(), remove_op(&uri, index));
     edit(session, playlist_id, &body)
@@ -489,8 +494,13 @@ fn visibility_op(index: i32, public: bool) -> Op {
 }
 
 fn position(content: &SelectedListContent, uri: &str) -> Option<i32> {
+    copy_position(content, uri, 0)
+}
+
+/// Where the `copy`-th entry of `uri` (from 0) sits in the playlist.
+fn copy_position(content: &SelectedListContent, uri: &str, copy: usize) -> Option<i32> {
     let contents = &content.contents;
-    let offset = contents.items.iter().position(|item| item.uri() == uri)? as i32;
+    let offset = crate::entry_index(contents.items.iter().map(|item| item.uri()), uri, copy)? as i32;
     Some(contents.pos() + offset)
 }
 
@@ -530,6 +540,18 @@ mod tests {
         assert_eq!(position(&content, "spotify:track:a"), Some(100));
         assert_eq!(position(&content, "spotify:track:b"), Some(101));
         assert_eq!(position(&content, "spotify:track:c"), None);
+    }
+
+    #[test]
+    fn a_copy_is_found_by_its_place_among_the_copies() {
+        let content = listing(
+            &["spotify:track:a", "spotify:track:b", "spotify:track:a"],
+            10,
+        );
+
+        assert_eq!(copy_position(&content, "spotify:track:a", 0), Some(10));
+        assert_eq!(copy_position(&content, "spotify:track:a", 1), Some(12));
+        assert_eq!(copy_position(&content, "spotify:track:a", 2), None);
     }
 
     #[test]

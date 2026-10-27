@@ -247,8 +247,13 @@ impl MusicApi for LibrespotClient {
         playlists::add_track(&self.session, playlist_id, track_id).await
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
-        playlists::remove_track(&self.session, playlist_id, track_id).await
+    async fn remove_track_from_playlist(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+        copy: usize,
+    ) -> Result<()> {
+        playlists::remove_track(&self.session, playlist_id, track_id, copy).await
     }
 
     async fn set_pinned(&self, uri: &str, pinned: bool) -> Result<crate::PinOutcome> {

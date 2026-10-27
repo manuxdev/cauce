@@ -49,6 +49,16 @@ use time::parsing::Parsed;
 use time::{Month, OffsetDateTime};
 
 pub use audio::Meter;
+
+/// Where the `copy`-th entry of `track_id` (from 0) sits among `ids`, a playlist's entries in
+/// order.
+pub fn entry_index<'a>(ids: impl IntoIterator<Item = &'a str>, track_id: &str, copy: usize) -> Option<usize> {
+    ids.into_iter()
+        .enumerate()
+        .filter(|(_, id)| *id == track_id)
+        .nth(copy)
+        .map(|(index, _)| index)
+}
 pub use equalizer::Equalizer;
 pub use models::{
     Album, AlbumCatalogue, AlbumDetail, Artist, ArtistCatalogue, ArtistProfile, ArtistRef,
@@ -276,7 +286,9 @@ pub trait MusicApi: Send + Sync {
         }
         Ok(())
     }
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
+    /// Removes the `copy`-th entry of `track_id` (from 0), so one copy of a track the playlist
+    /// has twice goes rather than the first.
+    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str, copy: usize) -> Result<()>;
     async fn saved_albums(&self) -> Result<Vec<Album>>;
 
     /// Every album the provider has. Only a `Shape::Catalog` provider answers.

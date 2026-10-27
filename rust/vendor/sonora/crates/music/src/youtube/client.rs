@@ -226,11 +226,20 @@ impl MusicApi for YouTubeClient {
         self.api.add_playlist_track(playlist_id, track_id).await
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    async fn remove_track_from_playlist(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+        copy: usize,
+    ) -> Result<()> {
         let tracks = self.api.playlist(playlist_id).await?.tracks;
         let seat = |list: &[ytmusic::Track]| {
-            list.iter()
-                .position(|track| track.video_id.as_deref() == Some(track_id))
+            crate::entry_index(
+                list.iter()
+                    .map(|track| track.video_id.as_deref().unwrap_or_default()),
+                track_id,
+                copy,
+            )
         };
         let index = match seat(&tracks) {
             Some(index) => index,

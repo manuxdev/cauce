@@ -530,7 +530,7 @@ impl TidalClient {
     /// Tidal's reads lag a moment behind a change too, so a track the listing does not show is
     /// taken for a stale listing. When the edit gives up on it, that is an error rather than a
     /// removal, since the playlist may hold the track all the same.
-    async fn remove_copies(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    async fn remove_copy(&self, playlist_id: &str, track_id: &str, copy: usize) -> Result<()> {
         let path = format!("/playlists/{}/items", escape::component(playlist_id));
         let rows = self
             .all(&path, &[], PAGE, |page| {
@@ -543,13 +543,11 @@ impl TidalClient {
             })
             .await
             .context("cannot read the playlist")?;
-        if rows.is_empty() {
+        // Each copy has its own item id, in the playlist's order.
+        let Some(row) = rows.get(copy) else {
             return Err(Stale).context("the track is not in the playlist listing");
-        }
-        let data: Vec<Value> = rows
-            .iter()
-            .map(|row| json!({ "id": track_id, "type": "tracks", "meta": { "itemId": row } }))
-            .collect();
+        };
+        let data = [json!({ "id": track_id, "type": "tracks", "meta": { "itemId": row } })];
         self.call(
             Method::DELETE,
             &format!(
@@ -1264,8 +1262,13 @@ impl MusicApi for TidalClient {
         Ok(())
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
-        self.edit_playlist(|| self.remove_copies(playlist_id, track_id))
+    async fn remove_track_from_playlist(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+        copy: usize,
+    ) -> Result<()> {
+        self.edit_playlist(|| self.remove_copy(playlist_id, track_id, copy))
             .await
             .context("cannot remove the track from the playlist")
     }

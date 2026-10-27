@@ -17,6 +17,11 @@ import '../../track/track_options.dart';
 import '../../../core/toast.dart';
 import '../../../core/error_text.dart';
 
+/// Which copy of its track, from 0, the row at `index` holds: how many rows before it hold the
+/// same track. A playlist removes a row by it, so a track it has twice loses the right one.
+int copyOf(List<core.TrackItem> tracks, int index) =>
+    tracks.take(index).where((track) => track.id == tracks[index].id).length;
+
 /// What can be done to one of the listener's own playlists.
 enum PlaylistEdit { playNext, addToQueue, add, rename, delete }
 

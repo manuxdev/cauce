@@ -784,7 +784,13 @@ impl MusicApi for DeezerClient {
         Ok(())
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    /// Deezer removes by song id, so every copy of a track the playlist has twice goes.
+    async fn remove_track_from_playlist(
+        &self,
+        playlist_id: &str,
+        track_id: &str,
+        _copy: usize,
+    ) -> Result<()> {
         self.gw(
             "playlist.deleteSongs",
             json!({ "playlist_id": playlist_id, "songs": [[track_id, 0]] }),

@@ -377,6 +377,12 @@ pub fn add_to_playlist(slug: String, playlist_id: String, track_id: String) -> R
     core()?.add_to_playlist(&slug, playlist_id, track_id)
 }
 
+/// Removes the `copy`-th entry of `track_id` (from 0) from the playlist, so one copy of a
+/// track it has twice goes rather than the first.
+pub fn remove_from_playlist(slug: String, playlist_id: String, track_id: String, copy: u32) -> Result<()> {
+    core()?.remove_from_playlist(&slug, playlist_id, track_id, copy as usize)
+}
+
 pub fn rename_playlist(slug: String, playlist_id: String, name: String) -> Result<()> {
     core()?.rename_playlist(&slug, playlist_id, name)
 }

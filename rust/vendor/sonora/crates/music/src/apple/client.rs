@@ -1754,7 +1754,8 @@ impl MusicApi for AppleClient {
     /// Removing takes the playlist's own row id rather than the catalog id, so the playlist is
     /// read first to find which row carries this track. A row matches on its reporting id too,
     /// which is the id a song Apple delivered again is listed under.
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    /// Apple Music removes by library song, so every copy of a track the playlist has twice goes.
+    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str, _copy: usize) -> Result<()> {
         let limit = PAGE.to_string();
         let mut row = None;
         for page in 0..PAGES {

@@ -25,6 +25,7 @@ class TrackTile extends StatelessWidget {
     this.trailing,
     this.mixed = false,
     this.note,
+    this.onRemove,
   });
 
   final TrackItem track;
@@ -45,6 +46,9 @@ class TrackTile extends StatelessWidget {
   /// still calls [onTap], which can mend it.
   final String? note;
 
+  /// Takes the row out of the playlist it is in, offered among its options.
+  final VoidCallback? onRemove;
+
   @override
   Widget build(BuildContext context) {
     final subtitle = note ?? [track.artists, if (showAlbum) track.album].where((part) => part.isNotEmpty).join(' · ');
@@ -58,7 +62,7 @@ class TrackTile extends StatelessWidget {
       child: InkWell(
         // One the provider cannot play may still be found in another.
         onTap: track.playable || appPrefs.substitute ? onTap : null,
-        onLongPress: appPrefs.holdForOptions ? () => showTrackOptions(context, track) : null,
+        onLongPress: appPrefs.holdForOptions ? () => showTrackOptions(context, track, onRemove: onRemove) : null,
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: height),
           child: Padding(
@@ -146,7 +150,7 @@ class TrackTile extends StatelessWidget {
                           height: 44,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: () => showTrackOptions(context, track),
+                            onTap: () => showTrackOptions(context, track, onRemove: onRemove),
                             child: Center(
                               child: CauceIcon(CauceGlyph.more, size: 20, color: CauceColors.mutedForeground),
                             ),

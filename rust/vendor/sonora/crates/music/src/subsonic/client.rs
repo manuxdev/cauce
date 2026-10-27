@@ -563,17 +563,14 @@ impl MusicApi for SubsonicClient {
             .context("cannot add the track to the playlist")
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str, copy: usize) -> Result<()> {
         let detail = self
             .client
             .get_playlist(playlist_id)
             .await
             .map_err(scrub)
             .context("cannot load the playlist")?;
-        let index = detail
-            .entry
-            .iter()
-            .position(|song| song.id == track_id)
+        let index = crate::entry_index(detail.entry.iter().map(|song| song.id.as_str()), track_id, copy)
             .context("track is not in the playlist")? as i32;
         self.client
             .update_playlist(playlist_id, None, None, None, &[], &[index])

@@ -459,6 +459,12 @@ impl Core {
         self.run(async move { api.add_track_to_playlist(&playlist_id, &track_id).await })
     }
 
+    /// Removes the `copy`-th entry of `track_id` (from 0) from the playlist.
+    pub fn remove_from_playlist(&self, slug: &str, playlist_id: String, track_id: String, copy: usize) -> Result<()> {
+        let api = self.inner.api(slug)?;
+        self.run(async move { api.remove_track_from_playlist(&playlist_id, &track_id, copy).await })
+    }
+
     pub fn rename_playlist(&self, slug: &str, playlist_id: String, name: String) -> Result<()> {
         let api = self.inner.api(slug)?;
         self.run(async move { api.rename_playlist(&playlist_id, &name).await })
@@ -1851,6 +1857,17 @@ p{{margin:0;max-width:300px;font-size:16px;line-height:1.45;color:#a79da8}}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_playlist_entry_is_found_by_its_copy_of_the_track() {
+        let ids = ["a", "b", "a", "c", "a"];
+        assert_eq!(music::entry_index(ids, "a", 0), Some(0));
+        assert_eq!(music::entry_index(ids, "a", 1), Some(2));
+        assert_eq!(music::entry_index(ids, "a", 2), Some(4));
+        assert_eq!(music::entry_index(ids, "c", 0), Some(3));
+        assert_eq!(music::entry_index(ids, "a", 3), None);
+        assert_eq!(music::entry_index(ids, "z", 0), None);
+    }
 
     #[test]
     fn nothing_downloads_while_offline_whatever_the_network() {
