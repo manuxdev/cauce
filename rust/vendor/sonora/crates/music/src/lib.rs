@@ -695,6 +695,11 @@ pub trait Player: Send + Sync {
         self.downloaded(track_id)
     }
 
+    /// What the download of a track takes on disk, in bytes, when there is one.
+    fn download_size(&self, _track_id: &str) -> Option<u64> {
+        None
+    }
+
     /// Removes the download of a track.
     fn discard(&self, _track_id: &str) {}
 }

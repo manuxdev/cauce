@@ -928,13 +928,15 @@ impl Core {
     }
 
     /// Keeps an album or playlist downloaded with the `tracks` it has now, and asks for those
-    /// not listed yet.
+    /// not listed yet. With a `name`, notes it and the `cover` for the downloads list.
     pub fn keep_collection(
         &self,
         source: &str,
         album: bool,
         id: &str,
         tracks: Vec<Track>,
+        name: Option<&str>,
+        cover: Option<&str>,
     ) -> Result<()> {
         self.download_missing(source, tracks.clone())?;
         let mut downloads = lock(&self.inner.downloads);
@@ -944,8 +946,62 @@ impl Core {
             id,
             tracks.into_iter().filter_map(|track| track.id).collect(),
         );
+        if let Some(name) = name {
+            downloads.title(source, album, id, name, cover);
+        }
         downloads.save(&self.inner.data);
         Ok(())
+    }
+
+    /// Stops keeping an album or playlist downloaded and removes its downloads, but for those
+    /// another kept collection holds and, while likes download, the `liked` ones: removing
+    /// them would only fetch them again.
+    pub fn remove_kept_collection(&self, source: &str, album: bool, id: &str, liked: Vec<String>) {
+        let spared = match lock(&self.inner.settings).download_likes {
+            true => liked,
+            false => Vec::new(),
+        };
+        let removed = {
+            let mut downloads = lock(&self.inner.downloads);
+            let removed = downloads.drop_collection(source, album, id, &spared);
+            downloads.save(&self.inner.data);
+            removed
+        };
+        for id in removed {
+            self.inner.discard(source, &id);
+            self.inner.shelf.drop(source, &id);
+        }
+    }
+
+    /// The finished downloads by kept collection, largest first, then the others, with what
+    /// each takes on disk, and what they take together. It reads every file's size, so call it
+    /// off the main thread. A provider that cannot be reached counts its tracks as nothing.
+    pub fn download_groups(&self) -> (Vec<downloads::Group>, u64) {
+        let done: Vec<(String, String)> = lock(&self.inner.downloads)
+            .entries()
+            .iter()
+            .filter(|entry| entry.done)
+            .map(|entry| (entry.source.clone(), entry.id.clone()))
+            .collect();
+        let mut sizes = HashMap::new();
+        for (source, id) in done {
+            let size = self
+                .inner
+                .with_downloader(&source, |player| Ok(player.download_size(&id)))
+                .ok()
+                .flatten()
+                .unwrap_or(0);
+            sizes.insert((source, id), size);
+        }
+        if !lock(&self.inner.downloads).running() {
+            lock(&self.inner.downloaders).clear();
+        }
+        lock(&self.inner.downloads).groups(|entry| {
+            sizes
+                .get(&(entry.source.clone(), entry.id.clone()))
+                .copied()
+                .unwrap_or(0)
+        })
     }
 
     pub fn unkeep_collection(&self, source: &str, album: bool, id: &str) {

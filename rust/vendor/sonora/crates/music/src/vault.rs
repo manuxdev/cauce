@@ -516,6 +516,13 @@ impl Shelf {
             .is_some_and(|(_, path)| path.is_file())
     }
 
+    /// What the download of track `id` takes on disk, in bytes, when there is one.
+    pub(crate) fn size(&self, id: &str) -> Option<u64> {
+        let prk = self.vault.keys.get()?;
+        let (_, path) = self.spot(prk, Place::Pinned, id, "")?;
+        fs::metadata(path).ok().map(|meta| meta.len())
+    }
+
     /// Whether track `id` has been downloaded, or may have been since the vault is still
     /// unlocking and cannot tell yet.
     pub(crate) fn may_hold(&self, id: &str) -> bool {

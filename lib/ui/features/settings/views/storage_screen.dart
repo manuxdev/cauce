@@ -5,6 +5,7 @@ import '../../../core/l10n.dart';
 import '../../../core/motion.dart';
 import '../../../core/theme.dart';
 import '../view_models/playback_settings_view_model.dart';
+import 'manage_downloads_screen.dart';
 import 'settings_widgets.dart';
 import '../../../core/icons.dart';
 import '../../../core/toast.dart';
@@ -139,6 +140,12 @@ class _StorageScreenState extends State<StorageScreen> {
             SettingsGroup(
               title: context.t('storage.downloads'),
               children: [
+                SettingsRow(
+                  title: context.t('storage.manage'),
+                  onTap: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: (_) => ManageDownloadsScreen(playback: playback))),
+                ),
                 SettingsSwitch(
                   title: context.t('storage.wifiOnly'),
                   value: settings.downloadsWifiOnly,

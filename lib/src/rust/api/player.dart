@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `native_command`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
+// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `kept_collection`, `native_command`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
 
 /// Starts the core once. Await it before any other call: everything else needs the core.
@@ -178,13 +178,36 @@ Future<void> downloadMissing({required List<TrackItem> tracks}) =>
     RustLib.instance.api.crateApiPlayerDownloadMissing(tracks: tracks);
 
 /// Keeps an album or playlist downloaded with the `tracks` it has now, downloading those not
-/// listed yet. Asked again whenever it opens.
+/// listed yet. Asked again whenever it opens. A `name` and `cover` are kept for the downloads
+/// list; without a name, the ones noted before stay.
 Future<void> keepCollection({
   required String slug,
   required CardKind kind,
   required String id,
   required List<TrackItem> tracks,
-}) => RustLib.instance.api.crateApiPlayerKeepCollection(slug: slug, kind: kind, id: id, tracks: tracks);
+  String? name,
+  String? cover,
+}) => RustLib.instance.api.crateApiPlayerKeepCollection(
+  slug: slug,
+  kind: kind,
+  id: id,
+  tracks: tracks,
+  name: name,
+  cover: cover,
+);
+
+/// Stops keeping an album or playlist downloaded and removes its downloads, but for those
+/// another kept collection holds and, while likes download, the `liked` ids.
+Future<void> removeKeptCollection({
+  required String slug,
+  required CardKind kind,
+  required String id,
+  required List<String> liked,
+}) => RustLib.instance.api.crateApiPlayerRemoveKeptCollection(slug: slug, kind: kind, id: id, liked: liked);
+
+/// The downloads by kept collection, largest first, then the others, and the bytes they take
+/// together, a track in two collections counted once. It reads every file's size.
+Future<(List<DownloadGroup>, BigInt)> downloadGroups() => RustLib.instance.api.crateApiPlayerDownloadGroups();
 
 /// Stops keeping it downloaded; what is downloaded stays.
 Future<void> unkeepCollection({required String slug, required CardKind kind, required String id}) =>
@@ -301,6 +324,33 @@ class ArtistPage {
 
 enum CardKind { track, album, playlist, artist }
 
+/// The downloads of one kept collection, or with no `collection` those in none.
+class DownloadGroup {
+  final KeptCollection? collection;
+
+  /// Empty for a playlist kept before names were noted.
+  final String name;
+  final String? cover;
+  final List<DownloadedTrack> tracks;
+  final BigInt bytes;
+
+  const DownloadGroup({this.collection, required this.name, this.cover, required this.tracks, required this.bytes});
+
+  @override
+  int get hashCode => collection.hashCode ^ name.hashCode ^ cover.hashCode ^ tracks.hashCode ^ bytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DownloadGroup &&
+          runtimeType == other.runtimeType &&
+          collection == other.collection &&
+          name == other.name &&
+          cover == other.cover &&
+          tracks == other.tracks &&
+          bytes == other.bytes;
+}
+
 /// One listed download. `progress` runs from 0 to 1 while it downloads, once the player can tell.
 class DownloadItem {
   final TrackItem track;
@@ -323,6 +373,22 @@ class DownloadItem {
 }
 
 enum DownloadState { queued, running, done, failed }
+
+/// A downloaded track and the bytes it takes on disk.
+class DownloadedTrack {
+  final TrackItem track;
+  final BigInt bytes;
+
+  const DownloadedTrack({required this.track, required this.bytes});
+
+  @override
+  int get hashCode => track.hashCode ^ bytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DownloadedTrack && runtimeType == other.runtimeType && track == other.track && bytes == other.bytes;
+}
 
 class EqualizerPreset {
   final String id;

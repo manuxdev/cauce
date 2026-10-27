@@ -49,6 +49,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreTitles dco_decode_box_autoadd_genre_titles(dynamic raw);
 
   @protected
+  KeptCollection dco_decode_box_autoadd_kept_collection(dynamic raw);
+
+  @protected
   LyricsView dco_decode_box_autoadd_lyrics_view(dynamic raw);
 
   @protected
@@ -73,10 +76,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CardKind dco_decode_card_kind(dynamic raw);
 
   @protected
+  DownloadGroup dco_decode_download_group(dynamic raw);
+
+  @protected
   DownloadItem dco_decode_download_item(dynamic raw);
 
   @protected
   DownloadState dco_decode_download_state(dynamic raw);
+
+  @protected
+  DownloadedTrack dco_decode_downloaded_track(dynamic raw);
 
   @protected
   EqualizerPreset dco_decode_equalizer_preset(dynamic raw);
@@ -109,7 +118,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArtistLink> dco_decode_list_artist_link(dynamic raw);
 
   @protected
+  List<DownloadGroup> dco_decode_list_download_group(dynamic raw);
+
+  @protected
   List<DownloadItem> dco_decode_list_download_item(dynamic raw);
+
+  @protected
+  List<DownloadedTrack> dco_decode_list_downloaded_track(dynamic raw);
 
   @protected
   List<EqualizerPreset> dco_decode_list_equalizer_preset(dynamic raw);
@@ -178,6 +193,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
+  KeptCollection? dco_decode_opt_box_autoadd_kept_collection(dynamic raw);
+
+  @protected
   LyricsView? dco_decode_opt_box_autoadd_lyrics_view(dynamic raw);
 
   @protected
@@ -206,6 +224,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QualityOption dco_decode_quality_option(dynamic raw);
+
+  @protected
+  (List<DownloadGroup>, BigInt) dco_decode_record_list_download_group_u_64(dynamic raw);
 
   @protected
   (List<ScrobbleRow>, bool) dco_decode_record_list_scrobble_row_bool(dynamic raw);
@@ -280,6 +301,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreTitles sse_decode_box_autoadd_genre_titles(SseDeserializer deserializer);
 
   @protected
+  KeptCollection sse_decode_box_autoadd_kept_collection(SseDeserializer deserializer);
+
+  @protected
   LyricsView sse_decode_box_autoadd_lyrics_view(SseDeserializer deserializer);
 
   @protected
@@ -304,10 +328,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CardKind sse_decode_card_kind(SseDeserializer deserializer);
 
   @protected
+  DownloadGroup sse_decode_download_group(SseDeserializer deserializer);
+
+  @protected
   DownloadItem sse_decode_download_item(SseDeserializer deserializer);
 
   @protected
   DownloadState sse_decode_download_state(SseDeserializer deserializer);
+
+  @protected
+  DownloadedTrack sse_decode_downloaded_track(SseDeserializer deserializer);
 
   @protected
   EqualizerPreset sse_decode_equalizer_preset(SseDeserializer deserializer);
@@ -340,7 +370,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArtistLink> sse_decode_list_artist_link(SseDeserializer deserializer);
 
   @protected
+  List<DownloadGroup> sse_decode_list_download_group(SseDeserializer deserializer);
+
+  @protected
   List<DownloadItem> sse_decode_list_download_item(SseDeserializer deserializer);
+
+  @protected
+  List<DownloadedTrack> sse_decode_list_downloaded_track(SseDeserializer deserializer);
 
   @protected
   List<EqualizerPreset> sse_decode_list_equalizer_preset(SseDeserializer deserializer);
@@ -409,6 +445,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
+  KeptCollection? sse_decode_opt_box_autoadd_kept_collection(SseDeserializer deserializer);
+
+  @protected
   LyricsView? sse_decode_opt_box_autoadd_lyrics_view(SseDeserializer deserializer);
 
   @protected
@@ -437,6 +476,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QualityOption sse_decode_quality_option(SseDeserializer deserializer);
+
+  @protected
+  (List<DownloadGroup>, BigInt) sse_decode_record_list_download_group_u_64(SseDeserializer deserializer);
 
   @protected
   (List<ScrobbleRow>, bool) sse_decode_record_list_scrobble_row_bool(SseDeserializer deserializer);
@@ -511,6 +553,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_genre_titles(GenreTitles self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_kept_collection(KeptCollection self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_lyrics_view(LyricsView self, SseSerializer serializer);
 
   @protected
@@ -535,10 +580,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_card_kind(CardKind self, SseSerializer serializer);
 
   @protected
+  void sse_encode_download_group(DownloadGroup self, SseSerializer serializer);
+
+  @protected
   void sse_encode_download_item(DownloadItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_download_state(DownloadState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_downloaded_track(DownloadedTrack self, SseSerializer serializer);
 
   @protected
   void sse_encode_equalizer_preset(EqualizerPreset self, SseSerializer serializer);
@@ -571,7 +622,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_artist_link(List<ArtistLink> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_download_group(List<DownloadGroup> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_download_item(List<DownloadItem> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_downloaded_track(List<DownloadedTrack> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_equalizer_preset(List<EqualizerPreset> self, SseSerializer serializer);
@@ -640,6 +697,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_kept_collection(KeptCollection? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_lyrics_view(LyricsView? self, SseSerializer serializer);
 
   @protected
@@ -668,6 +728,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_quality_option(QualityOption self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_record_list_download_group_u_64((List<DownloadGroup>, BigInt) self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_list_scrobble_row_bool((List<ScrobbleRow>, bool) self, SseSerializer serializer);

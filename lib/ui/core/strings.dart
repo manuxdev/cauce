@@ -294,6 +294,8 @@ const english = <String, String>{
   'storage.downloads.clear': 'Remove all',
   'storage.cleared': 'Cache cleared',
   'storage.downloads.cleared': 'Downloads removed',
+  'storage.manage': 'Manage downloads',
+  'storage.others': 'Other tracks',
 
   'equalizer.title': 'Equalizer',
   'equalizer.enabled': 'Turn on equalizer',
@@ -829,6 +831,8 @@ const spanish = <String, String>{
   'storage.downloads.clear': 'Borrar todo',
   'storage.cleared': 'Caché borrada',
   'storage.downloads.cleared': 'Descargas borradas',
+  'storage.manage': 'Gestionar descargas',
+  'storage.others': 'Otros temas',
 
   'equalizer.title': 'Ecualizador',
   'equalizer.enabled': 'Activar ecualizador',

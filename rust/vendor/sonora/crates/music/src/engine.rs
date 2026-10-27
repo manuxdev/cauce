@@ -335,6 +335,10 @@ impl Player for Handle {
                 .is_some_and(|shelf| shelf.may_hold(track_id))
     }
 
+    fn download_size(&self, track_id: &str) -> Option<u64> {
+        self.shelf.as_ref()?.size(track_id)
+    }
+
     fn discard(&self, track_id: &str) {
         if let Some(shelf) = &self.shelf {
             shelf.discard(track_id);
