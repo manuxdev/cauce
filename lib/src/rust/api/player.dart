@@ -77,7 +77,7 @@ Future<List<TrackItem>> collectionTracks({required String slug, required CardKin
 Future<ArtistPage> artistPage({required String slug, required String id}) =>
     RustLib.instance.api.crateApiPlayerArtistPage(slug: slug, id: id);
 
-/// Lyrics for `track`, the sources tried in the order of `sources` (`provider`, `lrclib`, `lrc`).
+/// Lyrics for `track`, the sources tried in the order of `sources` (`lrclib`, `lrc`).
 Future<LyricsView?> lyrics({required TrackItem track, required List<String> sources}) =>
     RustLib.instance.api.crateApiPlayerLyrics(track: track, sources: sources);
 

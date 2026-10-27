@@ -119,7 +119,7 @@ class AppPrefs extends ChangeNotifier {
   /// The full player opens on the lyrics.
   bool openLyrics = false;
 
-  /// The lyrics source groups in the order tried: `provider`, `lrclib` and `lrc`.
+  /// The lyrics source groups in the order tried: `lrclib` and `lrc`.
   List<String> lyricsSources = lyricsSourceGroups;
 
   /// Downloads keep their lyrics, so they show offline.
@@ -245,7 +245,7 @@ final appPrefs = AppPrefs();
 
 const minLyricsScale = 0.8;
 const maxLyricsScale = 1.3;
-const lyricsSourceGroups = ['provider', 'lrclib', 'lrc'];
+const lyricsSourceGroups = ['lrclib', 'lrc'];
 
 /// A light tick, as a selection makes, when touch feedback is on.
 void tick() {

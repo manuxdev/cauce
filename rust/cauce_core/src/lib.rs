@@ -160,10 +160,7 @@ impl Core {
             vec![Arc::new(music::subsonic::SubsonicProvider::new())];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
-            Arc::new(music::musixmatch::Musixmatch::new()),
             Arc::new(music::lrclib::LrcLib::new()),
-            Arc::new(music::kugou::Kugou::new()),
-            Arc::new(music::netease::NetEase::new()),
         ];
         let settings = PlaybackSettings::load(&paths.data);
         let vault = Arc::new(Vault::new(

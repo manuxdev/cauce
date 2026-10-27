@@ -50,7 +50,7 @@ void main() {
     expect(defaults.wordByWord, isTrue);
     expect(defaults.lyricsOffset, Duration.zero);
     expect(defaults.openLyrics, isFalse);
-    expect(defaults.lyricsSources, ['provider', 'lrclib', 'lrc']);
+    expect(defaults.lyricsSources, ['lrclib', 'lrc']);
     expect(defaults.saveLyrics, isTrue);
 
     final prefs = AppPrefs()
@@ -69,9 +69,17 @@ void main() {
     expect(again.wordByWord, isFalse);
     expect(again.lyricsOffset, const Duration(milliseconds: -500));
     expect(again.openLyrics, isTrue);
-    expect(again.lyricsSources, ['lrc', 'provider', 'lrclib']);
+    expect(again.lyricsSources, ['lrc', 'lrclib']);
     expect(again.saveLyrics, isFalse);
     expect((AppPrefs()..read({'lyricsScale': 9.0})).lyricsScale, 1.3);
+  });
+
+  test('a saved source list naming a removed source loads without it', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSources': ['lrc', 'provider', 'lrclib'],
+      });
+    expect(prefs.lyricsSources, ['lrc', 'lrclib']);
   });
 
   test('the cover colour sets how strongly pages take the cover hue', () {

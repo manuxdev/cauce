@@ -172,8 +172,10 @@ Complaints to turn into strengths:
 
 ## Before publishing
 
-- [ ] Check the licence of each lyrics source. LRCLIB and lyrics embedded in the files are safe; others may need a
-      licence
+- [x] Check the licence of each lyrics source. LRCLIB and lyrics embedded in the files are safe; others may need a
+      licence. Kept LRCLIB and embedded and .lrc lyrics; removed Musixmatch, Kugou and NetEase
+- [ ] Use the Subsonic server's lyrics. `SubsonicLyrics` exists (structured OpenSubsonic lyrics, with a plain-text
+      fallback) but isn't in the lyrics service list yet
 - [x] Build the store flavour without the unofficial providers
 - [ ] Ask to be listed in Navidrome's catalog of Subsonic/OpenSubsonic clients
       (https://x.com/navidrome/status/2002413209488433306)

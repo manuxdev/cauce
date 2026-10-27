@@ -319,7 +319,7 @@ pub fn artist_page(slug: String, id: String) -> Result<ArtistPage> {
     })
 }
 
-/// Lyrics for `track`, the sources tried in the order of `sources` (`provider`, `lrclib`, `lrc`).
+/// Lyrics for `track`, the sources tried in the order of `sources` (`lrclib`, `lrc`).
 pub fn lyrics(track: TrackItem, sources: Vec<String>) -> Result<Option<LyricsView>> {
     let Some(lyrics) = core()?.lyrics(&item(track), &sources)? else {
         return Ok(None);
