@@ -23,10 +23,8 @@ use crate::{
 /// The name the provider goes by. It is saved in settings, so it must not change.
 pub(crate) const NAME: &str = "Jellyfin";
 
-/// What part 1 offers: listing, playing, converting, keeping and downloading. No follows (likes
-/// come in part 2) and no stations.
+/// Everything but stations, plus converting on request. Following an artist is liking it.
 const CAPABILITIES: Capabilities = Capabilities {
-    follow_artists: false,
     radio: false,
     transcode: true,
     ..Capabilities::ALL
