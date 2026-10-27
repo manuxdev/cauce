@@ -21,10 +21,11 @@ void main() {
     expect(radioQuery(typed: '', browse: RadioBrowse.genre), isNull);
   });
 
-  test('a typed name searches by name alone', () {
+  test('a typed name searches within the picked filter', () {
     final query = radioQuery(typed: ' jazz ', browse: RadioBrowse.country, facet: 'US')!;
     expect(query.name, 'jazz');
-    expect(query.countryCode, isNull);
+    expect(query.countryCode, 'US');
+    expect(radioQuery(typed: 'jazz', browse: RadioBrowse.top)!.countryCode, isNull);
   });
 
   test('a picked facet searches by its own filter', () {
@@ -33,6 +34,13 @@ void main() {
     final language = radioQuery(typed: '', browse: RadioBrowse.language, facet: 'spanish')!;
     expect(language.language, 'spanish');
     expect(language.countryCode, isNull);
+  });
+
+  test('a country code reads as its flag', () {
+    expect(flagOf('ar'), '🇦🇷');
+    expect(flagOf('US'), '🇺🇸');
+    expect(flagOf(null), '');
+    expect(flagOf('X1'), '');
   });
 
   test('a station is live and cannot be downloaded or added to a playlist', () {
