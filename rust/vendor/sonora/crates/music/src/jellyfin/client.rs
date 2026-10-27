@@ -10,8 +10,9 @@ use crate::engine::Loudness;
 use crate::jellyfin::auth::{self, Credentials};
 use crate::jellyfin::wire::{self, Authenticated, Item, Items, User};
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Codec, MediaKind, MusicApi, Playlist,
-    PlaylistDetail, SavedArtist, Track, Transcode, UserProfile, distinct_covers,
+    Album, AlbumDetail, Artist, ArtistProfile, Codec, Genre, GenreDetail, GenreItem, GenreSection,
+    HomeFeed, MediaKind, MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, Transcode,
+    UserProfile, distinct_covers,
 };
 
 /// What part 1 of the Jellyfin provider answers for likes and playlist edits, which come in
@@ -21,6 +22,12 @@ const PAGE: usize = 500;
 /// How many ids one `Ids=` lookup carries, so the url stays short.
 const IDS_PER_LOOKUP: usize = 100;
 const TOP_TRACKS: usize = 20;
+/// The home shelves' sizes, as Subsonic's.
+const HOME_SONGS: usize = 25;
+const HOME_ALBUMS: usize = 12;
+/// How many of the most played tracks are read to find the most played albums.
+const PLAYED_TRACKS: usize = 100;
+const GENRE_ALBUMS: usize = 50;
 const FIELDS: &str = "DateCreated,ChildCount";
 /// What the engine decodes as it comes, so the server sends these files untouched.
 const DIRECT: &str = "mp3,flac,aac,m4a,mp4,alac,ogg,oga,opus,webm,wav,aiff";
@@ -602,6 +609,96 @@ impl MusicApi for JellyfinClient {
     async fn search_playlists(&self, query: &str) -> Result<Vec<Playlist>> {
         Ok(self.playlists_of(self.search_kind(query, "Playlist", 30).await?))
     }
+
+    /// Jellyfin keeps play counts on tracks, not albums, so the most played albums are the ones
+    /// the most played tracks come from.
+    async fn home(&self) -> Result<HomeFeed> {
+        let random = [
+            ("Recursive", "true"),
+            ("IncludeItemTypes", "Audio"),
+            ("SortBy", "Random"),
+        ];
+        let newest = [
+            ("Recursive", "true"),
+            ("IncludeItemTypes", "MusicAlbum"),
+            ("SortBy", "DateCreated"),
+            ("SortOrder", "Descending"),
+        ];
+        let played = [
+            ("Recursive", "true"),
+            ("IncludeItemTypes", "Audio"),
+            ("Filters", "IsPlayed"),
+            ("SortBy", "PlayCount"),
+            ("SortOrder", "Descending"),
+        ];
+        let (random, newest, played) = tokio::join!(
+            self.page("/Items", &random, 0, HOME_SONGS),
+            self.page("/Items", &newest, 0, HOME_ALBUMS),
+            self.page("/Items", &played, 0, PLAYED_TRACKS),
+        );
+        // Nothing read at all is an error rather than an empty home, so it is asked again.
+        if let (Err(error), Err(_), Err(_)) = (&random, &newest, &played) {
+            anyhow::bail!("cannot load the home feed: {error:#}");
+        }
+        let shelf = |read: Result<Items>| {
+            read.map(|page| page.items)
+                .inspect_err(|error| log::warn!("jellyfin: a home shelf failed: {error:#}"))
+                .unwrap_or_default()
+        };
+        let ids = wire::album_ids(&shelf(played), HOME_ALBUMS);
+        let mut most_played = self.by_ids(&ids).await.unwrap_or_default();
+        // a lookup by ids answers in its own order; the shelf keeps the play count's
+        most_played.sort_by_key(|album| ids.iter().position(|id| *id == album.id));
+        Ok(wire::home(
+            self.tracks(shelf(random)),
+            self.albums(shelf(newest)),
+            self.albums(most_played),
+        ))
+    }
+
+    async fn genres(&self) -> Result<Vec<Genre>> {
+        let genres = self
+            .all("/MusicGenres", &[("SortBy", "SortName")])
+            .await
+            .context("cannot load the genres")?;
+        Ok(genres
+            .into_iter()
+            .map(|item| wire::genre(item, &self.server))
+            .collect())
+    }
+
+    async fn genre(&self, genre_id: &str) -> Result<GenreDetail> {
+        let query = [
+            ("Recursive", "true"),
+            ("IncludeItemTypes", "MusicAlbum"),
+            ("GenreIds", genre_id),
+            ("SortBy", "SortName"),
+        ];
+        let (item, albums) = tokio::join!(
+            self.item(genre_id),
+            self.page("/Items", &query, 0, GENRE_ALBUMS)
+        );
+        let albums = albums.with_context(|| format!("cannot load the genre {genre_id}"))?;
+        let name = item
+            .ok()
+            .and_then(|item| item.name)
+            .unwrap_or_else(|| genre_id.to_owned());
+        let items: Vec<GenreItem> = self
+            .albums(albums.items)
+            .into_iter()
+            .map(GenreItem::Album)
+            .collect();
+        Ok(GenreDetail {
+            sections: match items.is_empty() {
+                true => Vec::new(),
+                false => vec![GenreSection {
+                    title: name.clone(),
+                    items,
+                }],
+            },
+            name,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -703,6 +800,23 @@ mod demo {
             track.name,
             response.headers().get("content-type"),
             &chunk[..4]
+        );
+        let home = client.home().await.unwrap();
+        println!(
+            "home: {} to listen again, shelves {:?}",
+            home.listen_again.len(),
+            home.sections
+                .iter()
+                .map(|section| (section.title.as_str(), section.items.len()))
+                .collect::<Vec<_>>()
+        );
+        let genres = client.genres().await.unwrap();
+        let genre = client.genre(&genres[0].id).await.unwrap();
+        println!(
+            "genres: {}, {}: {} shelves",
+            genres.len(),
+            genre.name,
+            genre.sections.len()
         );
         let details = client.details(&id).await;
         println!("details: {details:?}");
