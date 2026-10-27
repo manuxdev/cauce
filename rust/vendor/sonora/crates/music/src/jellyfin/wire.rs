@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 use crate::engine::Loudness;
 use crate::escape;
+use crate::jellyfin::Flavor;
 use crate::jellyfin::auth::Credentials;
 use crate::{
     Album, ArtistRef, Genre, GenreItem, GenreSection, HomeFeed, Playlist, ReleaseType, SavedArtist,
@@ -313,13 +314,19 @@ pub fn iso_8601(at: std::time::SystemTime) -> String {
     )
 }
 
-pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Credentials {
+pub fn credentials(
+    answer: Authenticated,
+    server: &str,
+    device_id: &str,
+    flavor: Flavor,
+) -> Credentials {
     Credentials {
         server: server.to_owned(),
         user_id: answer.user.id,
         username: answer.user.name,
         device_id: device_id.to_owned(),
         token: answer.access_token,
+        flavor,
     }
 }
 
@@ -621,7 +628,7 @@ mod tests {
     #[test]
     fn the_sign_in_answer_becomes_the_stored_credentials() {
         let answer: Authenticated = serde_json::from_str(AUTHENTICATED).unwrap();
-        let stored = credentials(answer, SERVER, "device-1");
+        let stored = credentials(answer, SERVER, "device-1", Flavor::Jellyfin);
         assert_eq!(stored.server, SERVER);
         assert_eq!(stored.user_id, "4ed1b8b42a7c4ea682f0fe5d08d4e278");
         assert_eq!(stored.username, "demo");

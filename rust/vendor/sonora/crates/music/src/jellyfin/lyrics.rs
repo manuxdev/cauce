@@ -6,11 +6,9 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::jellyfin::auth::{self, Credentials};
-use crate::jellyfin::{JellyfinClient, NAME};
+use crate::jellyfin::{Flavor, JellyfinClient};
 use crate::lyrics::lrc;
 use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, Voice};
-
-const SLUG: &str = "jellyfin";
 
 /// The same tier as lyrics read from a local file, since these are most often the user's own.
 const TRUST: u32 = 100;
@@ -77,12 +75,14 @@ type Identity = (String, String, String);
 /// Asks the signed-in Jellyfin server for the lyrics of one of its tracks. Any other track, or no
 /// stored sign-in, gets no answer and makes no request.
 pub struct JellyfinLyrics {
+    flavor: Flavor,
     client: Mutex<Option<(Identity, JellyfinClient)>>,
 }
 
 impl JellyfinLyrics {
     pub fn new() -> Self {
         Self {
+            flavor: Flavor::Jellyfin,
             client: Mutex::new(None),
         }
     }
@@ -117,7 +117,7 @@ impl JellyfinLyrics {
         query: &LyricsQuery,
         stored: impl FnOnce() -> Option<Credentials>,
     ) -> Result<Vec<LyricsHit>> {
-        let Some(id) = query.id_for(SLUG) else {
+        let Some(id) = query.id_for(self.flavor.slug()) else {
             return Ok(Vec::new());
         };
         let Some(client) = self.client(stored())? else {
@@ -127,7 +127,7 @@ impl JellyfinLyrics {
         Ok(found
             .into_iter()
             .map(|lyrics| LyricsHit {
-                source: NAME,
+                source: self.flavor.name(),
                 trust: TRUST,
                 lyrics,
                 instrumental: false,
@@ -150,11 +150,11 @@ impl Default for JellyfinLyrics {
 #[async_trait]
 impl LyricsProvider for JellyfinLyrics {
     fn name(&self) -> &'static str {
-        NAME
+        self.flavor.name()
     }
 
     async fn search(&self, query: &LyricsQuery) -> Result<Vec<LyricsHit>> {
-        self.search_with(query, auth::load).await
+        self.search_with(query, || auth::load(self.flavor)).await
     }
 }
 
@@ -217,6 +217,7 @@ mod tests {
             username: "demo".into(),
             device_id: "d".into(),
             token: "t".into(),
+            flavor: Flavor::Jellyfin,
         }
     }
 

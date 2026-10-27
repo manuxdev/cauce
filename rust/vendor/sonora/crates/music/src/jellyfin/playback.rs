@@ -41,10 +41,11 @@ impl PlaybackFactory for Factory {
             Jellyfin {
                 client: self.client.clone(),
                 transcode: config.transcode,
-                shelf: config
-                    .vault
-                    .as_ref()
-                    .map(|vault| vault.shelf("jellyfin").within(self.client.identity())),
+                shelf: config.vault.as_ref().map(|vault| {
+                    vault
+                        .shelf(self.client.flavor().slug())
+                        .within(self.client.identity())
+                }),
             },
             config,
         )
@@ -108,7 +109,7 @@ impl Fetch for Jellyfin {
     type Source = rodio::Decoder<Reader>;
 
     fn name(&self) -> &'static str {
-        "jellyfin"
+        self.client.flavor().slug()
     }
 
     fn shelf(&self) -> Option<&Shelf> {
@@ -195,7 +196,10 @@ impl Fetch for Jellyfin {
         let mut decoder = match builder.build() {
             Ok(decoder) => decoder,
             Err(error) => {
-                log::warn!("playback: cannot decode the jellyfin track {id}: {error}");
+                log::warn!(
+                    "playback: cannot decode the {} track {id}: {error}",
+                    self.name()
+                );
                 return None;
             }
         };
@@ -203,7 +207,8 @@ impl Fetch for Jellyfin {
             && let Err(error) = rodio::Source::try_seek(&mut decoder, at)
         {
             log::warn!(
-                "playback: cannot start the jellyfin track {id} at {}s: {error}",
+                "playback: cannot start the {} track {id} at {}s: {error}",
+                self.name(),
                 at.as_secs()
             );
         }
