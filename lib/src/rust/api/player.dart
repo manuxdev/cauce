@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `kept_collection`, `quality`, `secret`, `shelves`, `snapshot`, `track_item`
+// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `kept_collection`, `quality`, `secret`, `shelves`, `snapshot`, `stations`, `track_item`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
 
 /// Starts the core once. Await it before any other call: everything else needs the core.
@@ -83,6 +83,21 @@ Future<List<TrackItem>> savedTracks({required String slug}) =>
 
 Future<void> setSaved({required String slug, required String trackId, required bool saved}) =>
     RustLib.instance.api.crateApiPlayerSetSaved(slug: slug, trackId: trackId, saved: saved);
+
+/// Stations as tracks of source `radio`: the name as the title, country and tags as the
+/// artists, the logo as the cover, and no length.
+Future<List<TrackItem>> radioSearch({required RadioQuery query}) =>
+    RustLib.instance.api.crateApiPlayerRadioSearch(query: query);
+
+Future<List<TrackItem>> radioTop({required int limit}) => RustLib.instance.api.crateApiPlayerRadioTop(limit: limit);
+
+Future<List<RadioFacet>> radioBrowse({required RadioBrowse kind}) =>
+    RustLib.instance.api.crateApiPlayerRadioBrowse(kind: kind);
+
+/// Keeps a station as a favourite, or stops keeping it. Favourites list through
+/// `saved_tracks("radio")`.
+Future<void> setRadioFavourite({required TrackItem track, required bool favourite}) =>
+    RustLib.instance.api.crateApiPlayerSetRadioFavourite(track: track, favourite: favourite);
 
 /// The tracks behind an album, playlist or artist card.
 Future<List<TrackItem>> collectionTracks({required String slug, required CardKind kind, required String id}) =>
@@ -746,6 +761,60 @@ class QualityOption {
           id == other.id &&
           encoding == other.encoding &&
           upTo == other.upTo;
+}
+
+/// What stations are browsed by.
+enum RadioBrowse { countries, tags, languages }
+
+/// A country, tag or language and how many stations it has. `code` is the country's ISO 3166-1
+/// or the language's ISO 639 code, which is what a search by it takes; a tag has none.
+class RadioFacet {
+  final String name;
+  final String? code;
+  final int stations;
+
+  const RadioFacet({required this.name, this.code, required this.stations});
+
+  @override
+  int get hashCode => name.hashCode ^ code.hashCode ^ stations.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioFacet &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          code == other.code &&
+          stations == other.stations;
+}
+
+/// A station search: every filter is optional and blank ones are left out. `country_code` is
+/// ISO 3166-1, `language` is its name as Radio Browser lists it, such as "spanish".
+class RadioQuery {
+  final String? name;
+  final String? countryCode;
+  final String? tag;
+  final String? language;
+  final int offset;
+  final int limit;
+
+  const RadioQuery({this.name, this.countryCode, this.tag, this.language, required this.offset, required this.limit});
+
+  @override
+  int get hashCode =>
+      name.hashCode ^ countryCode.hashCode ^ tag.hashCode ^ language.hashCode ^ offset.hashCode ^ limit.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioQuery &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          countryCode == other.countryCode &&
+          tag == other.tag &&
+          language == other.language &&
+          offset == other.offset &&
+          limit == other.limit;
 }
 
 enum RepeatMode { off, all, one }

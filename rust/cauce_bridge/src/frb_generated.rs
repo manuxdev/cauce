@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -83161721;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2062054364;
 
 // Section: executor
 
@@ -1412,6 +1412,111 @@ fn wire__crate__api__player__qualities_impl(
         },
     )
 }
+fn wire__crate__api__player__radio_browse_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "radio_browse",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_kind = <crate::api::player::RadioBrowse>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::player::radio_browse(api_kind)?;
+                        std::result::Result::Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__player__radio_search_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "radio_search",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_query = <crate::api::player::RadioQuery>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::player::radio_search(api_query)?;
+                        std::result::Result::Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__player__radio_top_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "radio_top",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_limit = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::player::radio_top(api_limit)?;
+                        std::result::Result::Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__player__remove_download_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2283,6 +2388,43 @@ fn wire__crate__api__player__set_playback_settings_impl(
         },
     )
 }
+fn wire__crate__api__player__set_radio_favourite_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_radio_favourite",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_track = <crate::api::player::TrackItem>::sse_decode(&mut deserializer);
+            let api_favourite = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok =
+                            crate::api::player::set_radio_favourite(api_track, api_favourite)?;
+                        std::result::Result::Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__player__set_repeat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3067,6 +3209,18 @@ impl SseDecode for Vec<crate::api::player::QualityOption> {
     }
 }
 
+impl SseDecode for Vec<crate::api::player::RadioFacet> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::player::RadioFacet>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::player::ScrobbleRow> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3346,6 +3500,53 @@ impl SseDecode for crate::api::player::QualityOption {
     }
 }
 
+impl SseDecode for crate::api::player::RadioBrowse {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::player::RadioBrowse::Countries,
+            1 => crate::api::player::RadioBrowse::Tags,
+            2 => crate::api::player::RadioBrowse::Languages,
+            _ => unreachable!("Invalid variant for RadioBrowse: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::player::RadioFacet {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_code = <Option<String>>::sse_decode(deserializer);
+        let mut var_stations = <u32>::sse_decode(deserializer);
+        return crate::api::player::RadioFacet {
+            name: var_name,
+            code: var_code,
+            stations: var_stations,
+        };
+    }
+}
+
+impl SseDecode for crate::api::player::RadioQuery {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <Option<String>>::sse_decode(deserializer);
+        let mut var_countryCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_tag = <Option<String>>::sse_decode(deserializer);
+        let mut var_language = <Option<String>>::sse_decode(deserializer);
+        let mut var_offset = <u32>::sse_decode(deserializer);
+        let mut var_limit = <u32>::sse_decode(deserializer);
+        return crate::api::player::RadioQuery {
+            name: var_name,
+            country_code: var_countryCode,
+            tag: var_tag,
+            language: var_language,
+            offset: var_offset,
+            limit: var_limit,
+        };
+    }
+}
+
 impl SseDecode for (Vec<crate::api::player::DownloadGroup>, u64) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3533,51 +3734,55 @@ fn pde_ffi_dispatcher_primary_impl(
         37 => wire__crate__api__player__player_states_impl(port, ptr, rust_vec_len, data_len),
         38 => wire__crate__api__player__previous_impl(port, ptr, rust_vec_len, data_len),
         39 => wire__crate__api__player__qualities_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__player__remove_download_impl(port, ptr, rust_vec_len, data_len),
-        41 => {
+        40 => wire__crate__api__player__radio_browse_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__player__radio_search_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__player__radio_top_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__player__remove_download_impl(port, ptr, rust_vec_len, data_len),
+        44 => {
             wire__crate__api__player__remove_from_playlist_impl(port, ptr, rust_vec_len, data_len)
         }
-        42 => {
+        45 => {
             wire__crate__api__player__remove_kept_collection_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => wire__crate__api__player__remove_queued_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__player__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__player__reopen_output_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__player__restore_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__player__save_session_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__player__saved_tracks_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__player__scrobble_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__player__scrobble_approval_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__player__scrobble_cancel_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__player__scrobble_connect_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__player__scrobble_disconnect_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__player__scrobble_enable_impl(port, ptr, rust_vec_len, data_len),
-        55 => {
+        46 => wire__crate__api__player__remove_queued_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__player__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__player__reopen_output_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__player__restore_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__player__save_session_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__player__saved_tracks_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__player__scrobble_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__player__scrobble_approval_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__player__scrobble_cancel_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__player__scrobble_connect_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__player__scrobble_disconnect_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__player__scrobble_enable_impl(port, ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__player__scrobble_local_files_impl(port, ptr, rust_vec_len, data_len)
         }
-        56 => {
+        59 => {
             wire__crate__api__player__scrobble_now_playing_impl(port, ptr, rust_vec_len, data_len)
         }
-        57 => wire__crate__api__player__scrobbling_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__player__search_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__player__search_albums_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__player__seek_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__player__set_cellular_impl(port, ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__player__set_offline_impl(port, ptr, rust_vec_len, data_len),
-        63 => {
+        60 => wire__crate__api__player__scrobbling_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__player__search_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__player__search_albums_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__player__seek_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__player__set_cellular_impl(port, ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__player__set_offline_impl(port, ptr, rust_vec_len, data_len),
+        66 => {
             wire__crate__api__player__set_playback_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        64 => wire__crate__api__player__set_repeat_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__player__set_return_page_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__player__set_saved_impl(port, ptr, rust_vec_len, data_len),
-        67 => {
+        67 => wire__crate__api__player__set_radio_favourite_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__player__set_repeat_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__player__set_return_page_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__player__set_saved_impl(port, ptr, rust_vec_len, data_len),
+        71 => {
             wire__crate__api__player__set_stop_after_current_impl(port, ptr, rust_vec_len, data_len)
         }
-        68 => wire__crate__api__player__shuffle_upcoming_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__player__sign_in_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__player__sign_out_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__player__storage_usage_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__player__unkeep_collection_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__player__shuffle_upcoming_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__player__sign_in_impl(port, ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__player__sign_out_impl(port, ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__player__storage_usage_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__player__unkeep_collection_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3593,7 +3798,7 @@ fn pde_ffi_dispatcher_sync_impl(
         4 => wire__crate__api__player__cache_gb_range_impl(ptr, rust_vec_len, data_len),
         15 => wire__crate__api__player__equalizer_presets_impl(ptr, rust_vec_len, data_len),
         25 => wire__crate__api__player__levels_impl(ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__player__stored_impl(ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__player__stored_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4046,6 +4251,75 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::player::QualityOption>
     for crate::api::player::QualityOption
 {
     fn into_into_dart(self) -> crate::api::player::QualityOption {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::player::RadioBrowse {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Countries => 0.into_dart(),
+            Self::Tags => 1.into_dart(),
+            Self::Languages => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::player::RadioBrowse
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::player::RadioBrowse>
+    for crate::api::player::RadioBrowse
+{
+    fn into_into_dart(self) -> crate::api::player::RadioBrowse {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::player::RadioFacet {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.code.into_into_dart().into_dart(),
+            self.stations.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::player::RadioFacet
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::player::RadioFacet>
+    for crate::api::player::RadioFacet
+{
+    fn into_into_dart(self) -> crate::api::player::RadioFacet {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::player::RadioQuery {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.country_code.into_into_dart().into_dart(),
+            self.tag.into_into_dart().into_dart(),
+            self.language.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.limit.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::player::RadioQuery
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::player::RadioQuery>
+    for crate::api::player::RadioQuery
+{
+    fn into_into_dart(self) -> crate::api::player::RadioQuery {
         self
     }
 }
@@ -4504,6 +4778,16 @@ impl SseEncode for Vec<crate::api::player::QualityOption> {
     }
 }
 
+impl SseEncode for Vec<crate::api::player::RadioFacet> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::player::RadioFacet>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::player::ScrobbleRow> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4706,6 +4990,44 @@ impl SseEncode for crate::api::player::QualityOption {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.encoding, serializer);
         <bool>::sse_encode(self.up_to, serializer);
+    }
+}
+
+impl SseEncode for crate::api::player::RadioBrowse {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::player::RadioBrowse::Countries => 0,
+                crate::api::player::RadioBrowse::Tags => 1,
+                crate::api::player::RadioBrowse::Languages => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::player::RadioFacet {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.code, serializer);
+        <u32>::sse_encode(self.stations, serializer);
+    }
+}
+
+impl SseEncode for crate::api::player::RadioQuery {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.country_code, serializer);
+        <Option<String>>::sse_encode(self.tag, serializer);
+        <Option<String>>::sse_encode(self.language, serializer);
+        <u32>::sse_encode(self.offset, serializer);
+        <u32>::sse_encode(self.limit, serializer);
     }
 }
 

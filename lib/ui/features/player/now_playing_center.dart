@@ -55,7 +55,8 @@ class NowPlayingCenter {
       _track = null;
       return;
     }
-    final key = '${track.source}:${track.id}';
+    // A station's song title changes under the same id, and the lock screen shows it.
+    final key = '${track.source}:${track.id}:${track.artists}';
     final playing = _player.playing;
     final expected = _sentPosition + (_playing == true ? DateTime.now().difference(_sentAt) : Duration.zero);
     final drifted = (_player.position - expected).abs() > _drift;
@@ -72,6 +73,7 @@ class NowPlayingCenter {
       'duration': _player.duration.inMilliseconds / 1000,
       'position': _player.position.inMilliseconds / 1000,
       'playing': playing,
+      'live': track.source == 'radio',
     });
   }
 

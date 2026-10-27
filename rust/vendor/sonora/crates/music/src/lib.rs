@@ -7,6 +7,7 @@ pub mod escape;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
+pub mod radio;
 mod models;
 pub mod output;
 pub mod progress;

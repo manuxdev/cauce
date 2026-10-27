@@ -21,6 +21,7 @@ import '../../downloads/downloads_view_model.dart';
 import '../../home/views/collection_screen.dart';
 import '../../player/view_models/player_view_model.dart';
 import '../device_library.dart';
+import '../../radio/radio_section.dart';
 import '../view_models/favorites_view_model.dart';
 import '../../../core/toast.dart';
 import '../../../core/status_band.dart';
@@ -29,6 +30,7 @@ const _audioExtensions = {'.mp3', '.m4a', '.flac', '.ogg', '.opus', '.wav', '.ai
 const _files = 'files';
 const _downloads = 'downloads';
 const _playlists = 'playlists';
+const _radio = radioSource;
 
 /// How far the list scrolls before the chips are gone and play sits by the title.
 const _collapseDistance = 56.0;
@@ -133,7 +135,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// What the play button by the title plays for `source`, or nothing when it has no songs.
   VoidCallback? _playAll(String source) {
     switch (source) {
-      case _playlists:
+      case _playlists || _radio:
         return null;
       case _downloads:
         final tracks = downloads.done;
@@ -252,6 +254,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               if (connected.isNotEmpty) (_playlists, context.t('library.playlists')),
                               (_downloads, context.t('downloads.title')),
                               (_files, context.t('library.files')),
+                              (_radio, context.t('library.radio')),
                             ])
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
@@ -270,7 +273,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     onHorizontalDragEnd: (details) {
                       final velocity = details.primaryVelocity ?? 0;
                       if (velocity.abs() < 300) return;
-                      final order = [?provider, if (connected.isNotEmpty) _playlists, _downloads, _files];
+                      final order = [?provider, if (connected.isNotEmpty) _playlists, _downloads, _files, _radio];
                       final next = order.indexOf(source) + (velocity < 0 ? 1 : -1);
                       if (next >= 0 && next < order.length) _choose(order[next]);
                     },
@@ -283,6 +286,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       },
                       child: switch (source) {
                         _files => _filesList(),
+                        _radio => RadioSection(player: widget.player, favorites: widget.favorites),
                         _downloads => _downloadsList(),
                         _playlists => _playlistsList(connected),
                         _ => _favoritesList(source),

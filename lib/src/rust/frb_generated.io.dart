@@ -49,6 +49,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaybackSettings dco_decode_box_autoadd_playback_settings(dynamic raw);
 
   @protected
+  RadioQuery dco_decode_box_autoadd_radio_query(dynamic raw);
+
+  @protected
   ScrobbleSecret dco_decode_box_autoadd_scrobble_secret(dynamic raw);
 
   @protected
@@ -148,6 +151,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QualityOption> dco_decode_list_quality_option(dynamic raw);
 
   @protected
+  List<RadioFacet> dco_decode_list_radio_facet(dynamic raw);
+
+  @protected
   List<ScrobbleRow> dco_decode_list_scrobble_row(dynamic raw);
 
   @protected
@@ -200,6 +206,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QualityOption dco_decode_quality_option(dynamic raw);
+
+  @protected
+  RadioBrowse dco_decode_radio_browse(dynamic raw);
+
+  @protected
+  RadioFacet dco_decode_radio_facet(dynamic raw);
+
+  @protected
+  RadioQuery dco_decode_radio_query(dynamic raw);
 
   @protected
   (List<DownloadGroup>, BigInt) dco_decode_record_list_download_group_u_64(dynamic raw);
@@ -266,6 +281,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackSettings sse_decode_box_autoadd_playback_settings(SseDeserializer deserializer);
+
+  @protected
+  RadioQuery sse_decode_box_autoadd_radio_query(SseDeserializer deserializer);
 
   @protected
   ScrobbleSecret sse_decode_box_autoadd_scrobble_secret(SseDeserializer deserializer);
@@ -367,6 +385,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QualityOption> sse_decode_list_quality_option(SseDeserializer deserializer);
 
   @protected
+  List<RadioFacet> sse_decode_list_radio_facet(SseDeserializer deserializer);
+
+  @protected
   List<ScrobbleRow> sse_decode_list_scrobble_row(SseDeserializer deserializer);
 
   @protected
@@ -419,6 +440,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QualityOption sse_decode_quality_option(SseDeserializer deserializer);
+
+  @protected
+  RadioBrowse sse_decode_radio_browse(SseDeserializer deserializer);
+
+  @protected
+  RadioFacet sse_decode_radio_facet(SseDeserializer deserializer);
+
+  @protected
+  RadioQuery sse_decode_radio_query(SseDeserializer deserializer);
 
   @protected
   (List<DownloadGroup>, BigInt) sse_decode_record_list_download_group_u_64(SseDeserializer deserializer);
@@ -485,6 +515,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_playback_settings(PlaybackSettings self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_radio_query(RadioQuery self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_scrobble_secret(ScrobbleSecret self, SseSerializer serializer);
@@ -586,6 +619,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_quality_option(List<QualityOption> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_radio_facet(List<RadioFacet> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_scrobble_row(List<ScrobbleRow> self, SseSerializer serializer);
 
   @protected
@@ -638,6 +674,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_quality_option(QualityOption self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_browse(RadioBrowse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_facet(RadioFacet self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_query(RadioQuery self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_list_download_group_u_64((List<DownloadGroup>, BigInt) self, SseSerializer serializer);

@@ -42,7 +42,8 @@ impl Scrobbling {
     /// The accounts a listen from `source` goes to: linked, switched on, and for a local file
     /// only when local files are sent.
     pub fn receivers(&self, source: &str) -> Vec<(String, Account)> {
-        if source == crate::LOCAL && !self.local_files {
+        // A station is not a listen of any one song.
+        if crate::radio::is_live(source) || (source == crate::LOCAL && !self.local_files) {
             return Vec::new();
         }
         self.accounts
@@ -144,6 +145,16 @@ mod tests {
         assert!(scrobbling.receivers(crate::LOCAL).is_empty());
         scrobbling.local_files = true;
         assert_eq!(scrobbling.receivers(crate::LOCAL).len(), 1);
+    }
+
+    #[test]
+    fn a_station_is_never_scrobbled() {
+        let mut scrobbling = Scrobbling {
+            local_files: true,
+            ..Scrobbling::default()
+        };
+        scrobbling.accounts.insert("lastfm".into(), linked(true));
+        assert!(scrobbling.receivers(crate::radio::RADIO).is_empty());
     }
 
     #[test]

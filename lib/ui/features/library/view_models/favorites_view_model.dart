@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../radio/radio_section.dart';
 
 import '../../../../src/rust/api/player.dart' as core;
 import '../../../core/error_text.dart';
@@ -62,6 +63,13 @@ class FavoritesViewModel extends ChangeNotifier {
     _tracks[track.source] = list;
     notifyListeners();
     try {
+      if (isStation(track)) {
+        // Kept on the phone, and never downloaded like a liked track.
+        await core.setRadioFavourite(track: track, favourite: !wasSaved);
+        _tracks[track.source] = await core.savedTracks(slug: track.source);
+        notifyListeners();
+        return;
+      }
       await core.setSaved(slug: track.source, trackId: track.id, saved: !wasSaved);
       if (!wasSaved) onLiked?.call(track);
     } catch (error) {

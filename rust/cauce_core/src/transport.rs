@@ -172,7 +172,13 @@ impl Transport {
     pub fn previous(&mut self) -> Option<Command> {
         // The listener picked something: earlier failures no longer hold the queue.
         self.failures = 0;
-        let earlier = match self.queue.back(self.position)? {
+        // A station has no start to go back to: previous is always the one before.
+        let live = self
+            .queue
+            .current()
+            .is_some_and(|item| crate::radio::is_live(&item.source));
+        let heard = if live { Duration::ZERO } else { self.position };
+        let earlier = match self.queue.back(heard)? {
             Back::Restart(_) => None,
             Back::To(item) => Some(item.clone()),
         };
@@ -198,7 +204,7 @@ impl Transport {
         self.queue
             .ahead(depth)
             .into_iter()
-            .filter(|item| !kept(item))
+            .filter(|item| !crate::radio::is_live(&item.source) && !kept(item))
             .cloned()
             .collect()
     }
@@ -599,6 +605,43 @@ mod tests {
         assert_eq!(transport.previous(), Some(Command::Restart));
         assert_eq!(transport.snapshot().position, Duration::ZERO);
         assert_eq!(transport.previous(), load("a", false));
+    }
+
+    fn station(id: &str) -> Item {
+        Item {
+            source: crate::radio::RADIO.to_owned(),
+            ..item(id)
+        }
+    }
+
+    /// A station has no start to go back to, so previous always moves to the station before.
+    #[test]
+    fn previous_on_a_station_goes_to_the_one_before_however_long_it_played() {
+        let mut transport = Transport::default();
+        transport.start(vec![station("a"), station("b")], 1);
+        transport.on_event(&PlaybackEvent::Position {
+            id: id("b"),
+            at: Duration::from_secs(600),
+        });
+        assert_eq!(
+            transport.previous(),
+            Some(Command::Load {
+                item: station("a"),
+                seamless: false
+            })
+        );
+    }
+
+    #[test]
+    fn stations_are_never_prefetched() {
+        let mut transport = Transport::default();
+        transport.start(vec![item("a"), station("b"), item("c")], 0);
+        let ids: Vec<String> = transport
+            .prefetch(5, |_| false)
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        assert_eq!(ids, ["c"]);
     }
 
     #[test]
