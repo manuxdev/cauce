@@ -4,6 +4,7 @@
 
 pub(crate) mod auth;
 mod client;
+mod lyrics;
 mod playback;
 mod wire;
 
@@ -13,6 +14,7 @@ use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 
 pub use client::{JellyfinClient, scrub};
+pub use lyrics::JellyfinLyrics;
 
 use crate::jellyfin::playback::Factory;
 use crate::{

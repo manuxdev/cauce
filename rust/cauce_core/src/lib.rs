@@ -202,6 +202,7 @@ impl Core {
             Arc::new(music::binimum::Binimum::new()),
             Arc::new(music::musixmatch::Musixmatch::new()),
             Arc::new(music::subsonic::SubsonicLyrics::new()),
+            Arc::new(music::jellyfin::JellyfinLyrics::new()),
             Arc::new(music::lrclib::LrcLib::new()),
             Arc::new(music::kugou::Kugou::new()),
             Arc::new(music::netease::NetEase::new()),
