@@ -17,6 +17,7 @@ import '../downloads/downloads_view_model.dart';
 import '../home/views/collection_screen.dart';
 import '../../core/toast.dart';
 import '../../core/error_text.dart';
+import '../radio/radio_section.dart';
 
 /// Opens the album `track` is on.
 void openAlbum(BuildContext context, core.TrackItem track) {
@@ -90,13 +91,17 @@ Future<void> queueTracks(
 /// Every option for `track` in a sheet under its cover and names: play it next or last, download
 /// it, heart it, add it to a playlist or, with `onRemove`, take it out of the one it is in, then go
 /// to its album or artists. A file has no download, heart or playlist.
+/// Whether `track` is kept the way a provider's track is: downloaded, hearted on its service,
+/// added to a playlist. A file has no account, and a live station has nothing to keep.
+bool keepsLikeATrack(core.TrackItem track) => track.source != 'local' && !isStation(track);
+
 Future<void> showTrackOptions(
   BuildContext context,
   core.TrackItem track, {
   VoidCallback? leave,
   VoidCallback? onRemove,
 }) {
-  final streamed = track.source != 'local';
+  final streamed = keepsLikeATrack(track);
   final goTo = _goTo(context, track, leave);
   return behindSheet(
     showModalBottomSheet<void>(
@@ -167,6 +172,7 @@ Future<void> showTrackOptions(
                             ).ignore(),
                           ),
                         ),
+                      if (isStation(track)) _FavoriteRow(track: track),
                       if (streamed) ...[
                         _DownloadRow(track: track),
                         _FavoriteRow(track: track),

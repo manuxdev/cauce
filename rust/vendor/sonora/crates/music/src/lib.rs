@@ -18,6 +18,7 @@ mod live_tests;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
+pub mod radio;
 mod models;
 pub mod musixmatch;
 pub mod netease;

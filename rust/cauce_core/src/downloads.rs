@@ -128,6 +128,10 @@ impl Downloads {
     }
 
     pub fn add(&mut self, source: &str, track: Track) {
+        // A live station never arrives whole, so there is nothing to keep.
+        if crate::radio::is_live(source) {
+            return;
+        }
         let Some(id) = track.id.clone() else {
             return;
         };
@@ -152,6 +156,9 @@ impl Downloads {
     /// The tracks in `tracks` that are not listed yet, as keeping likes or a collection
     /// downloaded asks for. One that failed is listed: it waits to be asked for by hand.
     pub fn missing(&self, source: &str, tracks: Vec<Track>) -> Vec<Track> {
+        if crate::radio::is_live(source) {
+            return Vec::new();
+        }
         tracks
             .into_iter()
             .filter(|track| {
@@ -442,6 +449,13 @@ mod tests {
         assert!(downloads.kept("deezer", "a"));
         assert!(!downloads.kept("deezer", "b"));
         assert!(!downloads.kept("youtube", "a"));
+    }
+    #[test]
+    fn a_station_is_never_listed_for_download() {
+        let mut downloads = Downloads::default();
+        downloads.add(crate::radio::RADIO, track("a"));
+        assert!(downloads.entries().is_empty());
+        assert!(downloads.missing(crate::radio::RADIO, vec![track("b")]).is_empty());
     }
     use std::time::Duration;
 

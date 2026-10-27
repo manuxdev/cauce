@@ -1,9 +1,11 @@
 import 'dart:math' as math;
+import '../../radio/radio_section.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_prefs.dart';
+import '../../../core/l10n.dart';
 import '../../../core/theme.dart';
 import '../../../core/tint_scope.dart';
 import '../audio_levels.dart';
@@ -173,6 +175,13 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // A station is live: nothing to seek in, so "Live" stands where the bar would.
+    if (isStation(_player.track)) {
+      return SizedBox(
+        height: math.max(44.0, _height(widget.style, widget.compact)) + (widget.times ? 18 : 0),
+        child: const LiveBadge(),
+      );
+    }
     final style = widget.style;
     final total = _total;
     final playing = total == 0 ? 0.0 : (_player.position.inMilliseconds / total).clamp(0.0, 1.0);
@@ -645,4 +654,35 @@ class _RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RingPainter old) => old.fraction != fraction || old.held != held;
+}
+
+/// "Live", with a red dot, for a station that has no position to show.
+class LiveBadge extends StatelessWidget {
+  const LiveBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(color: Color(0xFFFF453A), shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            context.t('radio.live').toUpperCase(),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: Color(0xCCFFFFFF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

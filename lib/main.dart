@@ -73,7 +73,8 @@ Future<void> main() async {
         core.scrobble(track: track, startedSecs: BigInt.from(started.millisecondsSinceEpoch ~/ 1000)).ignore(),
   );
   player.addListener(() {
-    final track = player.track;
+    // A station is not a listen of any one song: it is never scrobbled.
+    final track = player.track?.source == 'radio' ? null : player.track;
     scrobbles.observe(
       track,
       id: track == null ? '' : '${track.source}:${track.id}',

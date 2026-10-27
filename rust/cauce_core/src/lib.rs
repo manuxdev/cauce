@@ -11,6 +11,7 @@ pub mod logging;
 pub mod lyrics_shelf;
 pub mod native;
 pub mod queue;
+pub mod radio;
 pub mod scrobbling;
 pub mod session;
 pub mod settings;
@@ -64,6 +65,8 @@ pub struct PlayerState {
     pub transport: Snapshot,
     /// How the current track's stream is encoded, once its engine has said.
     pub encoding: Option<Encoding>,
+    /// The song a live station says it is playing, when its stream sends titles.
+    pub now_playing: Option<String>,
 }
 
 type StateSink = Arc<dyn Fn(PlayerState) + Send + Sync>;
@@ -90,6 +93,10 @@ type Fetching = std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 struct Inner {
     runtime: Handle,
     local: LocalProvider,
+    /// The station catalog, and the engine factory stations play through.
+    radio: music::radio::RadioBrowser,
+    stations: Arc<music::radio::playback::Factory>,
+    favourites: Mutex<radio::Favourites>,
     providers: Vec<Arc<dyn MusicProvider>>,
     lyrics: Vec<Arc<dyn LyricsProvider>>,
     /// Lyrics kept for downloaded tracks.
@@ -228,9 +235,13 @@ impl Core {
             data_folder.join(TIDAL_PREVIEWS_FILE).exists(),
             Ordering::Relaxed,
         );
+        let radio_browser = music::radio::RadioBrowser::new();
         let inner = Arc::new(Inner {
             runtime: runtime.handle().clone(),
             local: LocalProvider::new(paths.cache, database, cache),
+            radio: radio_browser.clone(),
+            stations: Arc::new(music::radio::playback::Factory::new(radio_browser)),
+            favourites: Mutex::new(radio::Favourites::load(&data_folder)),
             providers,
             lyrics,
             shelf: lyrics_shelf::Shelf::at(data_folder.join("lyrics")),
@@ -573,6 +584,59 @@ impl Core {
         self.run(async move { api.set_track_saved(&track_id, saved).await })
     }
 
+    /// Stations matching `query`, most played first.
+    pub fn radio_search(&self, query: music::radio::Query) -> Result<Vec<Item>> {
+        reachable(self.inner.vault.offline())?;
+        let radio = self.inner.radio.clone();
+        let found = self.run(async move { radio.search(&query).await })?;
+        Ok(found.iter().map(station_item).collect())
+    }
+
+    /// The most played stations.
+    pub fn radio_top(&self, limit: u32) -> Result<Vec<Item>> {
+        reachable(self.inner.vault.offline())?;
+        let radio = self.inner.radio.clone();
+        let found =
+            self.run(async move { radio.top(music::radio::Order::Clicks, limit).await })?;
+        Ok(found.iter().map(station_item).collect())
+    }
+
+    /// The countries, tags or languages stations can be browsed by.
+    pub fn radio_facets(&self, kind: RadioFacets) -> Result<Vec<music::radio::Facet>> {
+        reachable(self.inner.vault.offline())?;
+        let radio = self.inner.radio.clone();
+        self.run(async move {
+            match kind {
+                RadioFacets::Countries => radio.countries().await,
+                RadioFacets::Tags => radio.tags().await,
+                RadioFacets::Languages => radio.languages().await,
+            }
+        })
+    }
+
+    /// The favourite stations, newest first. They need no network to list.
+    pub fn radio_favourites(&self) -> Vec<Item> {
+        lock(&self.inner.favourites)
+            .list()
+            .iter()
+            .map(radio::Favourite::item)
+            .collect()
+    }
+
+    /// Keeps `item` as a favourite station, or stops keeping it. The station is taken from the
+    /// queue when it is there, so a song title shown in its place is not what is kept.
+    pub fn set_radio_favourite(&self, item: Item, on: bool) {
+        let listed = lock(&self.inner.transport)
+            .snapshot()
+            .items
+            .into_iter()
+            .find(|queued| queued.source == item.source && queued.id == item.id);
+        let favourite = radio::Favourite::of(listed.as_ref().unwrap_or(&item));
+        let mut favourites = lock(&self.inner.favourites);
+        favourites.set(favourite, on);
+        favourites.save(&self.inner.data);
+    }
+
     /// The tracks of an album or a playlist.
     pub fn collection_tracks(&self, slug: &str, kind: MediaKind, id: String) -> Result<Vec<Track>> {
         let api = self.inner.api(slug)?;
@@ -708,7 +772,17 @@ impl Core {
 
     /// Plays on, or loads last time's track where it was left when nothing has played yet.
     pub fn play(&self) -> Result<()> {
-        let resumed = lock(&self.inner.transport).resumed();
+        let (resumed, snapshot) = {
+            let transport = lock(&self.inner.transport);
+            (transport.resumed(), transport.snapshot())
+        };
+        // A paused station plays on from "now": its old buffer is stale, so it loads afresh.
+        if resumed.is_none()
+            && snapshot.status == Status::Paused
+            && let Some(item) = snapshot.item.filter(|item| radio::is_live(&item.source))
+        {
+            return self.inner.load(&item, Duration::ZERO, false);
+        }
         let Some((item, at)) = resumed else {
             self.inner.with_player(|player| player.play());
             return Ok(());
@@ -785,6 +859,14 @@ impl Core {
     }
 
     pub fn seek(&self, position: Duration) {
+        // A live station has nowhere to seek to.
+        let live = lock(&self.inner.transport)
+            .snapshot()
+            .item
+            .is_some_and(|item| radio::is_live(&item.source));
+        if live {
+            return;
+        }
         let resumed = lock(&self.inner.transport).seek(position);
         self.inner.changed();
         if !resumed {
@@ -910,6 +992,9 @@ impl Core {
     /// Asks for every track in `tracks` from `source`, and starts what the queue allows. They
     /// download once the provider is signed in, whether it plays or not.
     pub fn download(&self, source: &str, tracks: Vec<Track>) -> Result<()> {
+        if radio::is_live(source) {
+            anyhow::bail!("a station cannot be downloaded");
+        }
         // An account that only browses, such as a free Spotify one, cannot download.
         if !self.inner.streams(source) {
             anyhow::bail!("this account cannot download: a free Spotify account only browses");
@@ -1288,6 +1373,9 @@ impl Inner {
     /// The engine factory for a source: the local one for files, a signed-in provider's
     /// otherwise.
     fn factory(&self, source: &str) -> Result<Arc<dyn PlaybackFactory>> {
+        if radio::is_live(source) {
+            return Ok(self.stations.clone());
+        }
         if source == LOCAL {
             return self
                 .local
@@ -1555,9 +1643,15 @@ impl Inner {
             .item
             .as_ref()
             .and_then(|item| lock(&self.encodings).get(&item.id).copied());
+        let now_playing = transport
+            .item
+            .as_ref()
+            .filter(|item| radio::is_live(&item.source))
+            .and_then(|item| self.stations.now_playing(&item.id));
         PlayerState {
             transport,
             encoding,
+            now_playing,
         }
     }
 
@@ -1752,6 +1846,22 @@ fn resumed_transport(folder: &std::path::Path, settings: &PlaybackSettings) -> T
 /// Whether queued downloads wait: offline, or on mobile data when they are for Wi-Fi only.
 fn downloads_wait(offline: bool, wifi_only: bool, cellular: bool) -> bool {
     offline || wifi_only && cellular
+}
+
+/// What stations can be browsed by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioFacets {
+    Countries,
+    Tags,
+    Languages,
+}
+
+fn station_item(station: &music::radio::Station) -> Item {
+    Item {
+        source: radio::RADIO.to_owned(),
+        id: station.id.clone(),
+        track: station.track(),
+    }
 }
 
 /// Refuses what needs the network while the app is offline.

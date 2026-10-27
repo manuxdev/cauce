@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../radio/radio_section.dart';
 
 import '../../../../src/rust/api/player.dart' as core;
 import '../../../core/app_prefs.dart';
@@ -26,7 +27,8 @@ class LyricsViewModel extends ChangeNotifier {
     if (key == _track) return;
     _track = key;
     notifyListeners();
-    if (track != null && key != null && !_found.containsKey(key)) _load(track, key);
+    // A station has no lyrics to look for.
+    if (track != null && key != null && !_found.containsKey(key) && !isStation(track)) _load(track, key);
   }
 
   Future<void> _load(core.TrackItem track, String key) async {

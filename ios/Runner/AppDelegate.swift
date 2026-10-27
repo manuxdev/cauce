@@ -478,6 +478,7 @@ final class NowPlaying {
       MPMediaItemPropertyPlaybackDuration: values["duration"] as? Double ?? 0,
       MPNowPlayingInfoPropertyElapsedPlaybackTime: values["position"] as? Double ?? 0,
       MPNowPlayingInfoPropertyPlaybackRate: (values["playing"] as? Bool ?? false) ? 1.0 : 0.0,
+      MPNowPlayingInfoPropertyIsLiveStream: values["live"] as? Bool ?? false,
     ]
     let url = values["artwork"] as? String
     if url == artworkURL, let artwork {

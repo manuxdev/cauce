@@ -397,6 +397,9 @@ pub fn home(slug: String) -> Result<Vec<HomeShelf>> {
 }
 
 pub fn saved_tracks(slug: String) -> Result<Vec<TrackItem>> {
+    if cauce_core::radio::is_live(&slug) {
+        return Ok(stations(core()?.radio_favourites()));
+    }
     let tracks = core()?.saved_tracks(&slug)?;
     Ok(tracks
         .iter()
@@ -406,6 +409,81 @@ pub fn saved_tracks(slug: String) -> Result<Vec<TrackItem>> {
 
 pub fn set_saved(slug: String, track_id: String, saved: bool) -> Result<()> {
     core()?.set_saved(&slug, track_id, saved)
+}
+
+/// What stations are browsed by.
+pub enum RadioBrowse {
+    Countries,
+    Tags,
+    Languages,
+}
+
+/// A country, tag or language and how many stations it has. `code` is the country's ISO 3166-1
+/// or the language's ISO 639 code, which is what a search by it takes; a tag has none.
+pub struct RadioFacet {
+    pub name: String,
+    pub code: Option<String>,
+    pub stations: u32,
+}
+
+/// A station search: every filter is optional and blank ones are left out. `country_code` is
+/// ISO 3166-1, `language` is its name as Radio Browser lists it, such as "spanish".
+pub struct RadioQuery {
+    pub name: Option<String>,
+    pub country_code: Option<String>,
+    pub tag: Option<String>,
+    pub language: Option<String>,
+    pub offset: u32,
+    pub limit: u32,
+}
+
+fn stations(items: Vec<Item>) -> Vec<TrackItem> {
+    items
+        .iter()
+        .filter_map(|item| track_item(&item.source, &item.track))
+        .collect()
+}
+
+/// Stations as tracks of source `radio`: the name as the title, country and tags as the
+/// artists, the logo as the cover, and no length.
+pub fn radio_search(query: RadioQuery) -> Result<Vec<TrackItem>> {
+    Ok(stations(core()?.radio_search(music::radio::Query {
+        name: query.name,
+        country_code: query.country_code,
+        tag: query.tag,
+        language: query.language,
+        order: music::radio::Order::Clicks,
+        offset: query.offset,
+        limit: query.limit,
+    })?))
+}
+
+pub fn radio_top(limit: u32) -> Result<Vec<TrackItem>> {
+    Ok(stations(core()?.radio_top(limit)?))
+}
+
+pub fn radio_browse(kind: RadioBrowse) -> Result<Vec<RadioFacet>> {
+    let kind = match kind {
+        RadioBrowse::Countries => cauce_core::RadioFacets::Countries,
+        RadioBrowse::Tags => cauce_core::RadioFacets::Tags,
+        RadioBrowse::Languages => cauce_core::RadioFacets::Languages,
+    };
+    Ok(core()?
+        .radio_facets(kind)?
+        .into_iter()
+        .map(|facet| RadioFacet {
+            name: facet.name,
+            code: facet.code,
+            stations: facet.stations,
+        })
+        .collect())
+}
+
+/// Keeps a station as a favourite, or stops keeping it. Favourites list through
+/// `saved_tracks("radio")`.
+pub fn set_radio_favourite(track: TrackItem, favourite: bool) -> Result<()> {
+    core()?.set_radio_favourite(item(track), favourite);
+    Ok(())
 }
 
 /// The tracks behind an album, playlist or artist card.
@@ -1129,7 +1207,13 @@ fn snapshot(state: PlayerState) -> PlayerSnapshot {
     let transport = state.transport;
     let draw = |item: &Item| track_item(&item.source, &item.track);
     PlayerSnapshot {
-        track: transport.item.as_ref().and_then(draw),
+        // A station's song, when its stream names one, shows where its country and tags were.
+        track: transport.item.as_ref().and_then(draw).map(|mut track| {
+            if let Some(song) = state.now_playing {
+                track.artists = song;
+            }
+            track
+        }),
         index: transport.index.map(|index| index as u32),
         queue: transport.items.iter().filter_map(draw).collect(),
         status: match transport.status {

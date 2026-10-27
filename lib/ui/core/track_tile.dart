@@ -135,7 +135,10 @@ class TrackTile extends StatelessWidget {
                       SizedBox(
                         width: 40,
                         child: Text(
-                          formatDuration(Duration(milliseconds: track.durationMs.toInt())),
+                          // A station has no length to show.
+                          track.durationMs == BigInt.zero
+                              ? ''
+                              : formatDuration(Duration(milliseconds: track.durationMs.toInt())),
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontSize: 14,

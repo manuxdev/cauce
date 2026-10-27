@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../radio/radio_section.dart';
 
 import 'package:flutter/material.dart';
 
@@ -256,12 +257,14 @@ class _Actions extends StatelessWidget {
             on: repeat != core.RepeatMode.off,
             onTap: player.cycleRepeat,
           ),
-          _Action(
-            glyph: CauceGlyph.clock,
-            label: context.t('queue.stopAfter'),
-            on: player.stopsAfterCurrent,
-            onTap: () => player.stopAfterCurrent(!player.stopsAfterCurrent),
-          ),
+          // A station never ends, so there is no end to stop after.
+          if (!isStation(player.track))
+            _Action(
+              glyph: CauceGlyph.clock,
+              label: context.t('queue.stopAfter'),
+              on: player.stopsAfterCurrent,
+              onTap: () => player.stopAfterCurrent(!player.stopsAfterCurrent),
+            ),
           _Action(
             glyph: CauceGlyph.trash,
             label: context.t('queue.clear'),

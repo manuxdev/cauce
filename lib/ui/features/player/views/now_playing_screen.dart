@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../radio/radio_section.dart';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -98,7 +99,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           return const SizedBox.shrink();
         }
         final design = appPrefs.playerDesign;
-        void lyrics(bool show) => setState(() => _showLyrics = show);
+        // A station has no lyrics, so its lyrics button does nothing.
+        void lyrics(bool show) => setState(() => _showLyrics = show && !isStation(track));
         if (design != PlayerDesign.classic) {
           return Scaffold(
             backgroundColor: Colors.transparent,
