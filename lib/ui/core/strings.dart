@@ -234,7 +234,7 @@ const english = <String, String>{
       'Plays through Cauce’s own engine, with the equalizer and every effect, at 256 or 64 kbps AAC. Downloads stay encrypted: each play needs Apple Music signed in and a connection.',
   'plans.subsonic': 'No plans: Cauce plays and downloads what your server holds.',
   'plans.jellyfin':
-      'No plans: Cauce browses, searches, plays and downloads what your server holds. Likes and playlist editing are not here yet.',
+      'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
 
@@ -776,7 +776,7 @@ const spanish = <String, String>{
       'Suena con el motor propio de Cauce, con el ecualizador y todos los efectos, en AAC a 256 o 64 kbps. Las descargas siguen cifradas: cada reproducción necesita Apple Music con sesión iniciada y conexión.',
   'plans.subsonic': 'Sin planes: Cauce reproduce y descarga lo que tenga tu servidor.',
   'plans.jellyfin':
-      'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor. Los me gusta y la edición de listas aún no están.',
+      'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',
 

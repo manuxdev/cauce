@@ -9,16 +9,17 @@ use serde::de::DeserializeOwned;
 
 use crate::engine::Loudness;
 use crate::jellyfin::auth::{self, Credentials};
-use crate::jellyfin::wire::{self, Authenticated, Item, Items, User};
+use crate::jellyfin::wire::{
+    self, Authenticated, Item, Items, PlaylistEntries, PlaylistUser, Removal, User,
+};
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, Codec, Genre, GenreDetail, GenreItem, GenreSection,
     HomeFeed, MediaKind, MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, Transcode,
     UserProfile, distinct_covers,
 };
 
-/// What part 1 of the Jellyfin provider answers for likes and playlist edits, which come in
-/// part 2.
-const NOT_YET: &str = "not supported yet on Jellyfin";
+/// Jellyfin has no library of other people's playlists to save to or drop from.
+const NO_LIBRARY: &str = "jellyfin has no library of saved playlists";
 const PAGE: usize = 500;
 /// How many ids one `Ids=` lookup carries, so the url stays short.
 const IDS_PER_LOOKUP: usize = 100;
@@ -282,6 +283,24 @@ impl JellyfinClient {
         Ok(wire::favorites(items))
     }
 
+    /// Whether the listener may change the playlist. The server forbids asking about one they
+    /// may not, which reads as no.
+    async fn playlist_user(&self, playlist_id: &str) -> Option<PlaylistUser> {
+        let path = format!(
+            "/Playlists/{}/Users/{}",
+            crate::escape::component(playlist_id),
+            crate::escape::component(&self.user_id)
+        );
+        self.get(&path, &[]).await.ok()
+    }
+
+    /// Changes a playlist through the 10.9+ update, which takes only the fields it is given.
+    async fn update_playlist(&self, playlist_id: &str, body: serde_json::Value) -> Result<()> {
+        let path = format!("/Playlists/{}", crate::escape::component(playlist_id));
+        self.change(Method::POST, &path, &[], Some(body)).await?;
+        Ok(())
+    }
+
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
         self.send(path, query)
             .await?
@@ -397,7 +416,7 @@ impl JellyfinClient {
     fn playlists_of(&self, items: Vec<Item>) -> Vec<Playlist> {
         items
             .into_iter()
-            .map(|item| wire::playlist(item, &self.server))
+            .map(|item| wire::playlist(item, &self.server, None))
             .collect()
     }
 
@@ -546,49 +565,124 @@ impl MusicApi for JellyfinClient {
             .and_then(|track| track.playcount))
     }
 
+    /// Every playlist the listener sees, their own marked so. Jellyfin names no owner on a
+    /// listed playlist, so each one is asked whether the listener may change it.
+    // ponytail: one request per playlist; a shared playlist the listener may edit counts as
+    // their own, so deleting it fails on the server. Tell the two apart if shares get used.
     async fn playlists(&self) -> Result<Vec<Playlist>> {
-        Ok(self.playlists_of(
-            self.library("Playlist")
-                .await
-                .context("cannot load the playlists")?,
-        ))
+        let items = self
+            .library("Playlist")
+            .await
+            .context("cannot load the playlists")?;
+        let users =
+            futures::future::join_all(items.iter().map(|item| self.playlist_user(&item.id))).await;
+        Ok(items
+            .into_iter()
+            .zip(users)
+            .map(|(item, user)| wire::playlist(item, &self.server, user))
+            .collect())
     }
 
-    async fn create_playlist(&self, _name: &str) -> Result<String> {
-        anyhow::bail!("creating playlists is {NOT_YET}")
+    async fn create_playlist(&self, name: &str) -> Result<String> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct Created {
+            id: String,
+        }
+        let body = serde_json::json!({
+            "Name": name,
+            "UserId": self.user_id,
+            "MediaType": "Audio",
+            "Ids": [],
+        });
+        let created: Created = self
+            .change(Method::POST, "/Playlists", &[], Some(body))
+            .await
+            .context("cannot create the playlist")?
+            .json()
+            .await
+            .map_err(|error| self.fail(error))
+            .context("cannot read the new playlist")?;
+        Ok(created.id)
     }
 
-    async fn rename_playlist(&self, _playlist_id: &str, _name: &str) -> Result<()> {
-        anyhow::bail!("renaming playlists is {NOT_YET}")
+    async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()> {
+        self.update_playlist(playlist_id, serde_json::json!({ "Name": name }))
+            .await
+            .context("cannot rename the playlist")
     }
 
-    async fn delete_playlist(&self, _playlist_id: &str) -> Result<()> {
-        anyhow::bail!("deleting playlists is {NOT_YET}")
+    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
+        let path = format!("/Items/{}", crate::escape::component(playlist_id));
+        self.change(Method::DELETE, &path, &[], None)
+            .await
+            .context("cannot delete the playlist")?;
+        Ok(())
     }
 
     async fn remove_playlist_from_library(&self, _playlist_id: &str) -> Result<()> {
-        anyhow::bail!("removing playlists is {NOT_YET}")
+        anyhow::bail!("{NO_LIBRARY}")
     }
 
     async fn add_playlist_to_library(&self, _playlist_id: &str) -> Result<()> {
-        anyhow::bail!("saving playlists is {NOT_YET}")
+        anyhow::bail!("{NO_LIBRARY}")
     }
 
-    async fn set_playlist_public(&self, _playlist_id: &str, _public: bool) -> Result<()> {
-        anyhow::bail!("changing playlists is {NOT_YET}")
+    async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()> {
+        self.update_playlist(playlist_id, serde_json::json!({ "IsPublic": public }))
+            .await
+            .context("cannot change the playlist visibility")
     }
 
-    async fn add_track_to_playlist(&self, _playlist_id: &str, _track_id: &str) -> Result<()> {
-        anyhow::bail!("adding to playlists is {NOT_YET}")
+    async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+        self.add_tracks_to_playlist(playlist_id, &[track_id.to_owned()])
+            .await
+    }
+
+    /// Adds the tracks in order, a hundred to a request.
+    async fn add_tracks_to_playlist(&self, playlist_id: &str, track_ids: &[String]) -> Result<()> {
+        let path = format!("/Playlists/{}/Items", crate::escape::component(playlist_id));
+        for chunk in track_ids.chunks(IDS_PER_LOOKUP) {
+            let query = [("ids", chunk.join(",")), ("userId", self.user_id.clone())];
+            self.change(Method::POST, &path, &query, None)
+                .await
+                .context("cannot add to the playlist")?;
+        }
+        Ok(())
     }
 
     async fn remove_track_from_playlist(
         &self,
-        _playlist_id: &str,
-        _track_id: &str,
-        _copy: usize,
+        playlist_id: &str,
+        track_id: &str,
+        copy: usize,
     ) -> Result<()> {
-        anyhow::bail!("removing from playlists is {NOT_YET}")
+        let escaped = crate::escape::component(playlist_id);
+        let path = format!("/Playlists/{escaped}/Items");
+        let entries = self
+            .get::<Items>(&path, &self.user())
+            .await
+            .context("cannot load the playlist")?
+            .items;
+        match wire::removal(&entries, track_id, copy).context("track is not in the playlist")? {
+            Removal::Entry(entry) => {
+                self.change(Method::DELETE, &path, &[("entryIds", entry)], None)
+                    .await
+                    .context("cannot remove the track from the playlist")?;
+            }
+            Removal::Rewrite => {
+                let listed: PlaylistEntries = self
+                    .get(&format!("/Playlists/{escaped}"), &[])
+                    .await
+                    .context("cannot load the playlist")?;
+                let ids = wire::without(listed.item_ids, track_id, copy)
+                    .context("track is not in the playlist")?;
+                self.update_playlist(playlist_id, serde_json::json!({ "Ids": ids }))
+                    .await
+                    .context("cannot remove the track from the playlist")?;
+            }
+        }
+        Ok(())
     }
 
     async fn saved_albums(&self) -> Result<Vec<Album>> {
@@ -668,7 +762,7 @@ impl MusicApi for JellyfinClient {
         let item = item.with_context(|| format!("cannot load the playlist {playlist_id}"))?;
         let tracks =
             self.tracks(tracks.with_context(|| format!("cannot load the playlist {playlist_id}"))?);
-        let mut playlist = wire::playlist(item, &self.server);
+        let mut playlist = wire::playlist(item, &self.server, None);
         if playlist.track_count == 0 {
             playlist.track_count = tracks.len() as u32;
         }

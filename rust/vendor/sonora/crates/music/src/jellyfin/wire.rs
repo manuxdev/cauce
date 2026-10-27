@@ -49,6 +49,8 @@ pub struct Item {
     pub user_data: Option<UserData>,
     pub normalization_gain: Option<f32>,
     pub overview: Option<String>,
+    /// Which entry of a playlist this is, from `/Playlists/{id}/Items`.
+    pub playlist_item_id: Option<String>,
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -69,6 +71,20 @@ pub struct ImageTags {
 pub struct UserData {
     pub play_count: Option<u64>,
     pub is_favorite: Option<bool>,
+}
+
+/// `/Playlists/{id}/Users/{userId}`: whether that user may change the playlist.
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct PlaylistUser {
+    pub can_edit: bool,
+}
+
+/// `/Playlists/{id}`: the playlist's entries by track id, in order, duplicates included.
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct PlaylistEntries {
+    pub item_ids: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -217,16 +233,15 @@ pub fn artist(item: &Item, server: &str) -> SavedArtist {
     }
 }
 
-/// A playlist, never marked as the listener's own: editing one comes later, so until then the
-/// app offers no edits on it.
-pub fn playlist(item: Item, server: &str) -> Playlist {
+/// A playlist, the listener's own when the server says they may edit it.
+pub fn playlist(item: Item, server: &str, user: Option<PlaylistUser>) -> Playlist {
     Playlist {
         cover: cover(server, &item.id, item.primary(), COVER),
         id: item.id,
         name: item.name.unwrap_or_default(),
         owner: String::new(),
         owner_id: String::new(),
-        owned: false,
+        owned: user.is_some_and(|user| user.can_edit),
         collaborative: false,
         blend: false,
         public: false,
@@ -241,6 +256,47 @@ pub fn favorites(items: Vec<Item>) -> Vec<Item> {
         .into_iter()
         .filter(|item| item.user_data.as_ref().and_then(|data| data.is_favorite) == Some(true))
         .collect()
+}
+
+/// How to take one copy of a track out of a playlist.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Removal {
+    /// By the entry's own id.
+    Entry(String),
+    /// By writing the list back without it, since its entry id names every copy. The 12.x
+    /// servers give each entry its track's id, so removing one copy that way removes them all.
+    Rewrite,
+}
+
+/// How to remove the `copy`-th entry (from 0) of `track_id` from the playlist's `entries`.
+pub fn removal(entries: &[Item], track_id: &str, copy: usize) -> Option<Removal> {
+    let index = crate::entry_index(
+        entries.iter().map(|entry| entry.id.as_str()),
+        track_id,
+        copy,
+    )?;
+    let entry = entries[index]
+        .playlist_item_id
+        .as_deref()
+        .filter(|id| !id.is_empty());
+    let shared = |id: &str| {
+        entries
+            .iter()
+            .filter(|other| other.playlist_item_id.as_deref() == Some(id))
+            .count()
+            > 1
+    };
+    Some(match entry {
+        Some(id) if !shared(id) => Removal::Entry(id.to_owned()),
+        _ => Removal::Rewrite,
+    })
+}
+
+/// `ids` without the `copy`-th (from 0) of `track_id`.
+pub fn without(mut ids: Vec<String>, track_id: &str, copy: usize) -> Option<Vec<String>> {
+    let index = crate::entry_index(ids.iter().map(String::as_str), track_id, copy)?;
+    ids.remove(index);
+    Some(ids)
 }
 
 pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Credentials {
@@ -460,13 +516,25 @@ mod tests {
     }
 
     #[test]
-    fn a_playlist_item_becomes_a_playlist_the_listener_cannot_edit_yet() {
-        let playlist = playlist(item(PLAYLIST), SERVER);
+    fn a_playlist_item_becomes_a_playlist() {
+        let playlist = playlist(item(PLAYLIST), SERVER, None);
         assert_eq!(playlist.id, "d970eee82134b487f1df37d753fab1f9");
         assert_eq!(playlist.name, "Binaerpilot");
         assert_eq!(playlist.track_count, 3);
         assert!(!playlist.owned);
         assert!(playlist.cover.is_some());
+    }
+
+    /// The demo's `/Playlists/{id}/Users/{userId}` for the playlist's owner.
+    const PLAYLIST_USER: &str = r#"{"UserId":"4ed1b8b42a7c4ea682f0fe5d08d4e278","CanEdit":true}"#;
+
+    #[test]
+    fn a_playlist_the_listener_may_edit_is_their_own() {
+        let user: PlaylistUser = serde_json::from_str(PLAYLIST_USER).unwrap();
+        assert!(playlist(item(PLAYLIST), SERVER, Some(user)).owned);
+        let viewer: PlaylistUser =
+            serde_json::from_str(r#"{"UserId":"x","CanEdit":false}"#).unwrap();
+        assert!(!playlist(item(PLAYLIST), SERVER, Some(viewer)).owned);
     }
 
     #[test]
@@ -479,6 +547,48 @@ mod tests {
             .map(|item| item.id)
             .collect();
         assert_eq!(kept, ["a"]);
+    }
+
+    /// `/Playlists/{id}/Items` of a playlist with "a" twice, trimmed: older servers give every
+    /// entry its own `PlaylistItemId`.
+    const ENTRIES: &str = r#"{"Items":[
+        {"Id":"a","PlaylistItemId":"e1"},
+        {"Id":"b","PlaylistItemId":"e2"},
+        {"Id":"a","PlaylistItemId":"e3"}
+    ]}"#;
+
+    /// The same on the 12.4 demo, where an entry's `PlaylistItemId` is its track's id, so both
+    /// copies share one.
+    const SHARED_ENTRIES: &str = r#"{"Items":[
+        {"Id":"a","PlaylistItemId":"a"},
+        {"Id":"b","PlaylistItemId":"b"},
+        {"Id":"a","PlaylistItemId":"a"}
+    ]}"#;
+
+    fn entries(json: &str) -> Vec<Item> {
+        serde_json::from_str::<Items>(json).unwrap().items
+    }
+
+    #[test]
+    fn a_copy_is_removed_by_its_own_entry_id() {
+        let items = entries(ENTRIES);
+        assert_eq!(removal(&items, "a", 1), Some(Removal::Entry("e3".into())));
+        assert_eq!(removal(&items, "a", 0), Some(Removal::Entry("e1".into())));
+        assert_eq!(removal(&items, "a", 2), None);
+        assert_eq!(removal(&items, "z", 0), None);
+    }
+
+    #[test]
+    fn a_copy_sharing_its_entry_id_is_removed_by_rewriting_the_list() {
+        let items = entries(SHARED_ENTRIES);
+        assert_eq!(removal(&items, "a", 1), Some(Removal::Rewrite));
+        assert_eq!(removal(&items, "b", 0), Some(Removal::Entry("b".into())));
+        let ids = ["a", "b", "a", "c"].map(String::from).to_vec();
+        assert_eq!(
+            without(ids.clone(), "a", 1),
+            Some(["a", "b", "c"].map(String::from).to_vec())
+        );
+        assert_eq!(without(ids, "a", 2), None);
     }
 
     #[test]
