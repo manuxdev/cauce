@@ -24,7 +24,9 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
     listens recorded on the server (`/UserPlayedItems`, at scrobble time, dropped offline). No live session reporting
     (`/Sessions/Playing`), so the server's dashboard does not show what is playing
   - [ ] Quick Connect sign-in
-- [ ] Emby: its API is close to Jellyfin's (Jellyfin started as an Emby fork), so reuse the Jellyfin provider
+- [x] Emby, through the Jellyfin provider with an Emby flavor: the same features as Jellyfin, checked against a local
+      Emby 4.10 server (no public demo exists). Skipped: Quick Connect (Jellyfin only) and public/private playlists
+      (Emby has none). Lyrics come from the track's text subtitle (an `.lrc` or `.txt` beside it)
 - [ ] Plex: the most used media server. Documented API; check which remote uses need Plex Pass
 - [ ] Servers that speak the Subsonic API already work through the Subsonic provider: Navidrome, Ampache, Gonic,
       Airsonic, Funkwhale. Test each one and list them in the sign-in help
