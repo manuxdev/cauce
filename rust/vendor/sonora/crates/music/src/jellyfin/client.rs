@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use reqwest::header::{AUTHORIZATION, HeaderValue};
+use reqwest::{Method, StatusCode};
 use serde::de::DeserializeOwned;
 
 use crate::engine::Loudness;
@@ -187,16 +188,98 @@ impl JellyfinClient {
         failed(error, &self.token)
     }
 
-    async fn send(&self, path: &str, query: &[(&str, String)]) -> Result<reqwest::Response> {
+    fn request(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> reqwest::RequestBuilder {
         self.http
-            .get(format!("{}{path}", self.server))
+            .request(method, format!("{}{path}", self.server))
             .header(AUTHORIZATION, self.authorization.clone())
             .query(query)
+    }
+
+    async fn sent(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        request
             .send()
             .await
             .map_err(|error| self.fail(error))?
             .error_for_status()
             .map_err(|error| self.fail(error))
+    }
+
+    async fn send(&self, path: &str, query: &[(&str, String)]) -> Result<reqwest::Response> {
+        self.sent(self.request(Method::GET, path, query)).await
+    }
+
+    /// A change: `method` on `path`, with `body` as JSON when there is one.
+    async fn change(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<serde_json::Value>,
+    ) -> Result<reqwest::Response> {
+        let mut request = self.request(method, path, query);
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        self.sent(request).await
+    }
+
+    fn user(&self) -> [(&'static str, String); 1] {
+        [("userId", self.user_id.clone())]
+    }
+
+    /// Likes or unlikes any item. 10.9 and later take `/UserFavoriteItems`; an older server that
+    /// answers 404 there gets its own route.
+    async fn favorite(&self, id: &str, saved: bool) -> Result<()> {
+        let method = match saved {
+            true => Method::POST,
+            false => Method::DELETE,
+        };
+        let id = crate::escape::component(id);
+        let current = self
+            .request(
+                method.clone(),
+                &format!("/UserFavoriteItems/{id}"),
+                &self.user(),
+            )
+            .send()
+            .await
+            .map_err(|error| self.fail(error))?;
+        if current.status() != StatusCode::NOT_FOUND {
+            current
+                .error_for_status()
+                .map_err(|error| self.fail(error))?;
+            return Ok(());
+        }
+        let user = crate::escape::component(&self.user_id);
+        self.change(
+            method,
+            &format!("/Users/{user}/FavoriteItems/{id}"),
+            &[],
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Every liked item of `kind`, by name.
+    async fn favorites(&self, kind: &str) -> Result<Vec<Item>> {
+        let items = self
+            .all(
+                "/Items",
+                &[
+                    ("Filters", "IsFavorite"),
+                    ("Recursive", "true"),
+                    ("IncludeItemTypes", kind),
+                    ("SortBy", "SortName"),
+                ],
+            )
+            .await?;
+        Ok(wire::favorites(items))
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
@@ -426,7 +509,11 @@ impl MusicApi for JellyfinClient {
     }
 
     async fn saved_tracks(&self) -> Result<Vec<Track>> {
-        Ok(Vec::new())
+        Ok(self.tracks(
+            self.favorites("Audio")
+                .await
+                .context("cannot load the liked songs")?,
+        ))
     }
 
     async fn all_tracks(&self) -> Result<Vec<Track>> {
@@ -437,8 +524,10 @@ impl MusicApi for JellyfinClient {
         ))
     }
 
-    async fn set_track_saved(&self, _track_id: &str, _saved: bool) -> Result<()> {
-        anyhow::bail!("likes are {NOT_YET}")
+    async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()> {
+        self.favorite(track_id, saved)
+            .await
+            .with_context(|| format!("cannot change the like for {track_id}"))
     }
 
     async fn track(&self, track_id: &str) -> Result<Track> {
@@ -503,7 +592,11 @@ impl MusicApi for JellyfinClient {
     }
 
     async fn saved_albums(&self) -> Result<Vec<Album>> {
-        Ok(Vec::new())
+        Ok(self.albums(
+            self.favorites("MusicAlbum")
+                .await
+                .context("cannot load the liked albums")?,
+        ))
     }
 
     async fn all_albums(&self) -> Result<Vec<Album>> {
@@ -514,12 +607,21 @@ impl MusicApi for JellyfinClient {
         ))
     }
 
-    async fn set_album_saved(&self, _album_id: &str, _saved: bool) -> Result<()> {
-        anyhow::bail!("likes are {NOT_YET}")
+    async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()> {
+        self.favorite(album_id, saved)
+            .await
+            .with_context(|| format!("cannot change the like for album {album_id}"))
     }
 
     async fn saved_artists(&self) -> Result<Vec<SavedArtist>> {
-        Ok(Vec::new())
+        let artists = self
+            .favorites("MusicArtist")
+            .await
+            .context("cannot load the liked artists")?;
+        Ok(artists
+            .iter()
+            .map(|item| wire::artist(item, &self.server))
+            .collect())
     }
 
     async fn all_artists(&self) -> Result<Vec<SavedArtist>> {
@@ -533,8 +635,10 @@ impl MusicApi for JellyfinClient {
             .collect())
     }
 
-    async fn set_artist_saved(&self, _artist_id: &str, _saved: bool) -> Result<()> {
-        anyhow::bail!("following artists is {NOT_YET}")
+    async fn set_artist_saved(&self, artist_id: &str, saved: bool) -> Result<()> {
+        self.favorite(artist_id, saved)
+            .await
+            .with_context(|| format!("cannot change the like for artist {artist_id}"))
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {

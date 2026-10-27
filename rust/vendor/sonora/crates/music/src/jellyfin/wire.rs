@@ -68,6 +68,7 @@ pub struct ImageTags {
 #[serde(rename_all = "PascalCase", default)]
 pub struct UserData {
     pub play_count: Option<u64>,
+    pub is_favorite: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -232,6 +233,14 @@ pub fn playlist(item: Item, server: &str) -> Playlist {
         track_count: item.child_count.unwrap_or(0),
         modified_at: None,
     }
+}
+
+/// The items marked as favorites, so a server that ignored the filter still likes nothing extra.
+pub fn favorites(items: Vec<Item>) -> Vec<Item> {
+    items
+        .into_iter()
+        .filter(|item| item.user_data.as_ref().and_then(|data| data.is_favorite) == Some(true))
+        .collect()
 }
 
 pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Credentials {
@@ -458,6 +467,18 @@ mod tests {
         assert_eq!(playlist.track_count, 3);
         assert!(!playlist.owned);
         assert!(playlist.cover.is_some());
+    }
+
+    #[test]
+    fn only_favorites_count_as_liked() {
+        let liked = item(r#"{"Id":"a","UserData":{"PlayCount":0,"IsFavorite":true}}"#);
+        let other = item(AUDIO);
+        let bare = item(r#"{"Id":"c"}"#);
+        let kept: Vec<String> = favorites(vec![liked, other, bare])
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        assert_eq!(kept, ["a"]);
     }
 
     #[test]
