@@ -3,20 +3,20 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
-use reqwest::header::{AUTHORIZATION, HeaderValue};
+use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Method, StatusCode};
 use serde::de::DeserializeOwned;
 
 use crate::engine::Loudness;
 use crate::jellyfin::Flavor;
 use crate::jellyfin::auth::{self, Credentials};
-use crate::jellyfin::lyrics::Answer;
+use crate::jellyfin::lyrics::{self, Answer};
 use crate::jellyfin::wire::{
     self, Authenticated, Item, Items, PlaylistEntries, PlaylistUser, Removal, User,
 };
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, Codec, Genre, GenreDetail, GenreItem, GenreSection,
-    HomeFeed, MediaKind, MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, Transcode,
+    HomeFeed, Lyrics, MediaKind, MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, Transcode,
     UserProfile, distinct_covers,
 };
 
@@ -60,6 +60,64 @@ fn header(authorization: &str) -> Result<HeaderValue> {
     Ok(value)
 }
 
+fn header_name(flavor: Flavor) -> HeaderName {
+    HeaderName::from_static(auth::header_name(flavor))
+}
+
+/// Where the signed-in account is read: Emby has no `/Users/Me`.
+pub(crate) fn profile_path(flavor: Flavor, user_id: &str) -> String {
+    match flavor {
+        Flavor::Jellyfin => "/Users/Me".to_owned(),
+        Flavor::Emby => format!("/Users/{}", crate::escape::component(user_id)),
+    }
+}
+
+/// Where one item is read for the user: Emby has no `/Items/{id}`.
+pub(crate) fn item_path(flavor: Flavor, user_id: &str, id: &str) -> String {
+    let id = crate::escape::component(id);
+    match flavor {
+        Flavor::Jellyfin => format!("/Items/{id}"),
+        Flavor::Emby => format!("/Users/{}/Items/{id}", crate::escape::component(user_id)),
+    }
+}
+
+/// What an `Ids=` lookup adds: Emby finds no album or artist by id unless asked for its kind.
+pub(crate) fn ids_query(flavor: Flavor) -> Vec<(&'static str, &'static str)> {
+    match flavor {
+        Flavor::Jellyfin => Vec::new(),
+        Flavor::Emby => vec![
+            ("Recursive", "true"),
+            ("IncludeItemTypes", "Audio,MusicAlbum,MusicArtist"),
+        ],
+    }
+}
+
+/// Where a listen is counted, and its date in the form each server reads.
+pub(crate) fn played_request(
+    flavor: Flavor,
+    user_id: &str,
+    track_id: &str,
+    at: SystemTime,
+) -> (String, Vec<(&'static str, String)>) {
+    let track = crate::escape::component(track_id);
+    match flavor {
+        Flavor::Jellyfin => (
+            format!("/UserPlayedItems/{track}"),
+            vec![
+                ("userId", user_id.to_owned()),
+                ("datePlayed", wire::iso_8601(at)),
+            ],
+        ),
+        Flavor::Emby => (
+            format!(
+                "/Users/{}/PlayedItems/{track}",
+                crate::escape::component(user_id)
+            ),
+            vec![("DatePlayed", wire::emby_date(at))],
+        ),
+    }
+}
+
 /// Signs in with the password and answers what to store. The password goes in the body of this
 /// one request and nowhere else.
 pub async fn authenticate(
@@ -72,7 +130,7 @@ pub async fn authenticate(
     let response = reqwest::Client::new()
         .post(format!("{server}/Users/AuthenticateByName"))
         .header(
-            AUTHORIZATION,
+            header_name(flavor),
             header(&auth::authorization(device_id, None))?,
         )
         .json(&serde_json::json!({ "Username": username, "Pw": password }))
@@ -109,7 +167,7 @@ pub fn logout(credentials: &Credentials) {
             .timeout(Duration::from_secs(10))
             .build()?
             .post(format!("{}/Sessions/Logout", credentials.server))
-            .header(AUTHORIZATION, value)
+            .header(header_name(credentials.flavor), value)
             .send()?
             .error_for_status()?;
         Ok(())
@@ -210,7 +268,7 @@ impl JellyfinClient {
     ) -> reqwest::RequestBuilder {
         self.http
             .request(method, format!("{}{path}", self.server))
-            .header(AUTHORIZATION, self.authorization.clone())
+            .header(header_name(self.flavor), self.authorization.clone())
             .query(query)
     }
 
@@ -246,14 +304,20 @@ impl JellyfinClient {
         [("userId", self.user_id.clone())]
     }
 
-    /// Likes or unlikes any item. 10.9 and later take `/UserFavoriteItems`; an older server that
-    /// answers 404 there gets its own route.
+    /// Likes or unlikes any item. Jellyfin 10.9 and later take `/UserFavoriteItems`; an older
+    /// server that answers 404 there, and Emby, get the route under the user.
     async fn favorite(&self, id: &str, saved: bool) -> Result<()> {
         let method = match saved {
             true => Method::POST,
             false => Method::DELETE,
         };
         let id = crate::escape::component(id);
+        let user = crate::escape::component(&self.user_id);
+        let old = format!("/Users/{user}/FavoriteItems/{id}");
+        if self.flavor == Flavor::Emby {
+            self.change(method, &old, &[], None).await?;
+            return Ok(());
+        }
         let current = self
             .request(
                 method.clone(),
@@ -269,14 +333,7 @@ impl JellyfinClient {
                 .map_err(|error| self.fail(error))?;
             return Ok(());
         }
-        let user = crate::escape::component(&self.user_id);
-        self.change(
-            method,
-            &format!("/Users/{user}/FavoriteItems/{id}"),
-            &[],
-            None,
-        )
-        .await?;
+        self.change(method, &old, &[], None).await?;
         Ok(())
     }
 
@@ -332,6 +389,33 @@ impl JellyfinClient {
             .await
             .map_err(|error| self.fail(error))?;
         Ok(Some(answer))
+    }
+
+    /// The lyrics the server holds for a track, or none when it has none. Emby has no lyrics
+    /// route: it lists them as a subtitle of the track, read here with their times.
+    pub(crate) async fn server_lyrics(&self, track_id: &str) -> Result<Option<Lyrics>> {
+        if self.flavor == Flavor::Jellyfin {
+            return Ok(self.lyrics(track_id).await?.and_then(lyrics::lyrics));
+        }
+        let path = item_path(self.flavor, &self.user_id, track_id);
+        let item: Item = self
+            .get(&path, &[("Fields", "MediaSources".to_owned())])
+            .await?;
+        let Some((source, index)) = wire::lyrics_stream(&item) else {
+            return Ok(None);
+        };
+        let path = format!(
+            "/Items/{}/{}/Subtitles/{index}/Stream.srt",
+            crate::escape::component(track_id),
+            crate::escape::component(&source)
+        );
+        let text = self
+            .send(&path, &[])
+            .await?
+            .text()
+            .await
+            .map_err(|error| self.fail(error))?;
+        Ok(lyrics::srt(&text))
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
@@ -408,7 +492,7 @@ impl JellyfinClient {
 
     async fn item(&self, id: &str) -> Result<Item> {
         self.get(
-            &format!("/Items/{}", crate::escape::component(id)),
+            &item_path(self.flavor, &self.user_id, id),
             &[
                 ("userId", self.user_id.clone()),
                 ("Fields", format!("{FIELDS},Overview")),
@@ -422,11 +506,9 @@ impl JellyfinClient {
         let mut items = Vec::new();
         for chunk in ids.chunks(IDS_PER_LOOKUP) {
             let ids = chunk.join(",");
-            items.extend(
-                self.page("/Items", &[("Ids", ids.as_str())], 0, chunk.len())
-                    .await?
-                    .items,
-            );
+            let mut query = ids_query(self.flavor);
+            query.push(("Ids", ids.as_str()));
+            items.extend(self.page("/Items", &query, 0, chunk.len()).await?.items);
         }
         Ok(items)
     }
@@ -488,7 +570,7 @@ impl MusicApi for JellyfinClient {
 
     async fn profile(&self) -> Result<UserProfile> {
         let user: User = self
-            .get("/Users/Me", &[])
+            .get(&profile_path(self.flavor, &self.user_id), &[])
             .await
             .with_context(|| format!("cannot reach the {} server", self.flavor.slug()))?;
         Ok(UserProfile {
@@ -602,7 +684,8 @@ impl MusicApi for JellyfinClient {
     }
 
     /// Every playlist the listener sees, their own marked so. Jellyfin names no owner on a
-    /// listed playlist, so each one is asked whether the listener may change it.
+    /// listed playlist, so each one is asked whether the listener may change it. Emby lists only
+    /// the listener's own.
     // ponytail: one request per playlist; a shared playlist the listener may edit counts as
     // their own, so deleting it fails on the server. Tell the two apart if shares get used.
     async fn playlists(&self) -> Result<Vec<Playlist>> {
@@ -610,6 +693,13 @@ impl MusicApi for JellyfinClient {
             .library("Playlist")
             .await
             .context("cannot load the playlists")?;
+        if self.flavor == Flavor::Emby {
+            let mine = || Some(PlaylistUser { can_edit: true });
+            return Ok(items
+                .into_iter()
+                .map(|item| wire::playlist(item, &self.server, mine()))
+                .collect());
+        }
         let users =
             futures::future::join_all(items.iter().map(|item| self.playlist_user(&item.id))).await;
         Ok(items
@@ -625,14 +715,28 @@ impl MusicApi for JellyfinClient {
         struct Created {
             id: String,
         }
-        let body = serde_json::json!({
-            "Name": name,
-            "UserId": self.user_id,
-            "MediaType": "Audio",
-            "Ids": [],
-        });
+        // Emby takes the new playlist in the query and fails on a body.
+        let (query, body) = match self.flavor {
+            Flavor::Jellyfin => (
+                Vec::new(),
+                Some(serde_json::json!({
+                    "Name": name,
+                    "UserId": self.user_id,
+                    "MediaType": "Audio",
+                    "Ids": [],
+                })),
+            ),
+            Flavor::Emby => (
+                vec![
+                    ("Name", name.to_owned()),
+                    ("UserId", self.user_id.clone()),
+                    ("MediaType", "Audio".to_owned()),
+                ],
+                None,
+            ),
+        };
         let created: Created = self
-            .change(Method::POST, "/Playlists", &[], Some(body))
+            .change(Method::POST, "/Playlists", &query, body)
             .await
             .context("cannot create the playlist")?
             .json()
@@ -642,10 +746,24 @@ impl MusicApi for JellyfinClient {
         Ok(created.id)
     }
 
+    /// Emby has no playlist update, so it takes the whole item back with the new name.
     async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()> {
-        self.update_playlist(playlist_id, serde_json::json!({ "Name": name }))
+        if self.flavor == Flavor::Jellyfin {
+            return self
+                .update_playlist(playlist_id, serde_json::json!({ "Name": name }))
+                .await
+                .context("cannot rename the playlist");
+        }
+        let mut item: serde_json::Value = self
+            .get(&item_path(self.flavor, &self.user_id, playlist_id), &[])
             .await
-            .context("cannot rename the playlist")
+            .context("cannot load the playlist")?;
+        item["Name"] = name.into();
+        let path = format!("/Items/{}", crate::escape::component(playlist_id));
+        self.change(Method::POST, &path, &[], Some(item))
+            .await
+            .context("cannot rename the playlist")?;
+        Ok(())
     }
 
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
@@ -665,6 +783,9 @@ impl MusicApi for JellyfinClient {
     }
 
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()> {
+        if self.flavor == Flavor::Emby {
+            anyhow::bail!("emby playlists have no public setting");
+        }
         self.update_playlist(playlist_id, serde_json::json!({ "IsPublic": public }))
             .await
             .context("cannot change the playlist visibility")
@@ -773,11 +894,7 @@ impl MusicApi for JellyfinClient {
 
     /// Counts a listen: the play count goes up and the track becomes the last one played.
     async fn played(&self, track_id: &str, at: SystemTime) -> Result<()> {
-        let path = format!("/UserPlayedItems/{}", crate::escape::component(track_id));
-        let query = [
-            ("userId", self.user_id.clone()),
-            ("datePlayed", wire::iso_8601(at)),
-        ];
+        let (path, query) = played_request(self.flavor, &self.user_id, track_id, at);
         self.change(Method::POST, &path, &query, None)
             .await
             .with_context(|| format!("cannot record a play of {track_id}"))?;
@@ -962,6 +1079,44 @@ mod tests {
         assert!(!scrubbed.contains("s3cr3t"));
         assert!(scrubbed.contains("error sending request"));
         assert_eq!(scrub("plain", ""), "plain");
+    }
+}
+
+#[cfg(test)]
+mod flavor_tests {
+    use super::*;
+
+    #[test]
+    fn emby_reads_users_and_items_through_the_user() {
+        assert_eq!(profile_path(Flavor::Jellyfin, "u"), "/Users/Me");
+        assert_eq!(profile_path(Flavor::Emby, "u"), "/Users/u");
+        assert_eq!(item_path(Flavor::Jellyfin, "u", "i"), "/Items/i");
+        assert_eq!(item_path(Flavor::Emby, "u", "i"), "/Users/u/Items/i");
+    }
+
+    #[test]
+    fn emby_looks_folders_up_by_id_only_when_told_their_kind() {
+        assert!(ids_query(Flavor::Jellyfin).is_empty());
+        let query = ids_query(Flavor::Emby);
+        assert!(query.contains(&("Recursive", "true")));
+        assert!(query.contains(&("IncludeItemTypes", "Audio,MusicAlbum,MusicArtist")));
+    }
+
+    #[test]
+    fn emby_counts_a_listen_on_the_users_played_items() {
+        let at = std::time::UNIX_EPOCH + Duration::from_secs(1_793_131_200);
+        let (path, query) = played_request(Flavor::Emby, "u", "t", at);
+        assert_eq!(path, "/Users/u/PlayedItems/t");
+        assert_eq!(query, [("DatePlayed", "20261027200000".to_owned())]);
+        let (path, query) = played_request(Flavor::Jellyfin, "u", "t", at);
+        assert_eq!(path, "/UserPlayedItems/t");
+        assert_eq!(
+            query,
+            [
+                ("userId", "u".to_owned()),
+                ("datePlayed", "2026-10-27T20:00:00Z".to_owned())
+            ]
+        );
     }
 }
 
@@ -1200,6 +1355,154 @@ mod demo {
         assert!(owned && gone);
         assert_eq!(left, [first, second.clone()]);
         assert_eq!(detail.playlist.name, "cauce-live-check renamed");
+        assert!(after > before);
+    }
+}
+
+/// Against an Emby server of your own, by hand, as nothing public serves one:
+/// `EMBY_SERVER=… EMBY_USER=… EMBY_PASSWORD=… cargo test -p music --lib emby_live -- --ignored`.
+/// The library needs two tracks, one with an `.lrc` beside it. It stores nothing, never prints
+/// the token, and undoes what it makes.
+#[cfg(test)]
+mod emby_live {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "reaches the Emby server in EMBY_SERVER"]
+    async fn emby_live_signs_in_browses_streams_likes_edits_reads_lyrics_and_plays() {
+        let env = |key: &str| std::env::var(key).unwrap_or_default();
+        let server = auth::normalize_server(&env("EMBY_SERVER")).unwrap();
+        let credentials = authenticate(
+            Flavor::Emby,
+            &server,
+            &env("EMBY_USER"),
+            &env("EMBY_PASSWORD"),
+            "cauce-live-check",
+        )
+        .await
+        .unwrap();
+        let client = JellyfinClient::new(&credentials).unwrap();
+        let profile = client.profile().await.unwrap();
+        let tracks = client.all_tracks().await.unwrap();
+        let albums = client.all_albums().await.unwrap();
+        let artists = client.all_artists().await.unwrap();
+        let genres = client.genres().await.unwrap();
+        println!(
+            "{}: {} tracks, {} albums, {} artists, {} genres",
+            profile.display_name,
+            tracks.len(),
+            albums.len(),
+            artists.len(),
+            genres.len()
+        );
+        let found = client.search(&tracks[0].name).await.unwrap();
+        let artist = client.artist(&artists[0].id).await.unwrap();
+        let album = client.album(&albums[0].id).await.unwrap();
+        let genre = client.genre(&genres[0].id).await.unwrap();
+        let home = client.home().await.unwrap();
+        println!(
+            "search {}, artist {} with {} albums, album {} tracks, genre {} shelves, home {}",
+            found.len(),
+            artist.top_tracks.len(),
+            artist.albums.len(),
+            album.tracks.len(),
+            genre.sections.len(),
+            home.sections.len()
+        );
+        let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        let (first, second) = (ids[0].clone(), ids[1].clone());
+        for transcode in [
+            Transcode::default(),
+            Transcode {
+                codec: Some(Codec::Opus),
+                bitrate: Some(96),
+            },
+        ] {
+            let mut response = client.open_stream(&first, transcode).await.unwrap();
+            let chunk = response.chunk().await.unwrap().unwrap();
+            println!(
+                "streams {:?}, first bytes {:02x?}",
+                response.headers().get("content-type"),
+                &chunk[..4]
+            );
+        }
+        println!("details: {:?}", client.details(&first).await);
+
+        client.set_track_saved(&first, true).await.unwrap();
+        client.set_album_saved(&albums[0].id, true).await.unwrap();
+        client.set_artist_saved(&artists[0].id, true).await.unwrap();
+        let liked = client.saved_tracks().await.unwrap().len()
+            + client.saved_albums().await.unwrap().len()
+            + client.saved_artists().await.unwrap().len();
+        client.set_track_saved(&first, false).await.unwrap();
+        client.set_album_saved(&albums[0].id, false).await.unwrap();
+        client
+            .set_artist_saved(&artists[0].id, false)
+            .await
+            .unwrap();
+        let unliked = client.saved_tracks().await.unwrap().len();
+        println!("likes: {liked} then {unliked} tracks");
+
+        let playlist = client.create_playlist("cauce-live-check").await.unwrap();
+        let edits = async {
+            client
+                .add_tracks_to_playlist(&playlist, &[first.clone(), second.clone()])
+                .await?;
+            client.add_track_to_playlist(&playlist, &first).await?;
+            client
+                .remove_track_from_playlist(&playlist, &first, 1)
+                .await?;
+            client
+                .rename_playlist(&playlist, "cauce-live-check renamed")
+                .await?;
+            let mine = client
+                .playlists()
+                .await?
+                .into_iter()
+                .find(|p| p.id == playlist);
+            let detail = client.playlist(&playlist).await?;
+            anyhow::Ok((mine.is_some_and(|p| p.owned), detail))
+        }
+        .await;
+        client.delete_playlist(&playlist).await.unwrap();
+        let gone = !client
+            .playlists()
+            .await
+            .unwrap()
+            .iter()
+            .any(|p| p.id == playlist);
+        let (owned, detail) = edits.unwrap();
+        let left: Vec<String> = detail.tracks.iter().filter_map(|t| t.id.clone()).collect();
+        println!("playlist: owned {owned}, left {}, gone {gone}", left.len());
+
+        let mut lyrics = Vec::new();
+        for id in &ids {
+            if let Some(found) = client.server_lyrics(id).await.unwrap() {
+                lyrics.push(found);
+            }
+        }
+        println!(
+            "lyrics: {} tracks have some, synced {}",
+            lyrics.len(),
+            lyrics
+                .iter()
+                .filter(|l| matches!(l, Lyrics::Synced { .. }))
+                .count()
+        );
+
+        let before = client.track_playcount(&second).await.unwrap().unwrap_or(0);
+        client.played(&second, SystemTime::now()).await.unwrap();
+        let after = client.track_playcount(&second).await.unwrap().unwrap_or(0);
+        println!("plays: {before} then {after}");
+
+        std::thread::spawn(move || logout(&credentials))
+            .join()
+            .unwrap();
+        assert!(!found.is_empty() && !album.tracks.is_empty() && !artist.albums.is_empty());
+        assert!(liked >= 3 && owned && gone);
+        assert_eq!(left, [first, second.clone()]);
+        assert_eq!(detail.playlist.name, "cauce-live-check renamed");
+        assert!(!lyrics.is_empty());
         assert!(after > before);
     }
 }

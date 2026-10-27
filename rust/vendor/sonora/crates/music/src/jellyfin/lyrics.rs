@@ -65,6 +65,57 @@ pub fn lyrics(answer: Answer) -> Option<Lyrics> {
     (!text.trim().is_empty()).then(|| Lyrics::plain(text))
 }
 
+/// The lyrics in Emby's subtitle text: each block's start and its lines. Synced when a line starts
+/// after zero, since lyrics with no times come with every start at zero; plain otherwise.
+pub fn srt(text: &str) -> Option<Lyrics> {
+    let text = text.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+    let blocks: Vec<(Duration, String)> = text
+        .split("\n\n")
+        .filter_map(|block| {
+            let mut lines = block.lines().skip_while(|line| !line.contains("-->"));
+            let start = srt_time(lines.next()?.split("-->").next()?)?;
+            Some((start, lines.collect::<Vec<_>>().join(" ").trim().to_owned()))
+        })
+        .collect();
+    if blocks.iter().any(|(start, _)| !start.is_zero()) {
+        let mut lines: Vec<LyricsLine> = blocks
+            .iter()
+            .map(|(start, text)| LyricsLine {
+                start: *start,
+                end: None,
+                text: text.clone(),
+                romanized: None,
+                words: None,
+                secondary: Vec::new(),
+                voice: Voice::Lead,
+            })
+            .collect();
+        lrc::normalize(&mut lines);
+        if !lines.is_empty() {
+            return Some(Lyrics::Synced {
+                lines: lines.into(),
+            });
+        }
+    }
+    let text = blocks
+        .into_iter()
+        .map(|(_, text)| text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!text.trim().is_empty()).then(|| Lyrics::plain(text))
+}
+
+/// `HH:MM:SS,mmm` as a duration.
+fn srt_time(text: &str) -> Option<Duration> {
+    let (clock, millis) = text.trim().split_once(',')?;
+    let mut parts = clock.split(':').map(|part| part.parse::<u64>().ok());
+    let (hours, minutes, seconds) = (parts.next()??, parts.next()??, parts.next()??);
+    Some(
+        Duration::from_secs(hours * 3600 + minutes * 60 + seconds)
+            + Duration::from_millis(millis.parse().ok()?),
+    )
+}
+
 fn ticks(ticks: u64) -> Duration {
     Duration::from_secs(ticks / TICKS_PER_SECOND)
         + Duration::from_nanos((ticks % TICKS_PER_SECOND) * 100)
@@ -72,7 +123,7 @@ fn ticks(ticks: u64) -> Duration {
 
 type Identity = (String, String, String);
 
-/// Asks the signed-in Jellyfin server for the lyrics of one of its tracks. Any other track, or no
+/// Asks the signed-in Jellyfin or Emby server for the lyrics of one of its tracks. Any other track, or no
 /// stored sign-in, gets no answer and makes no request.
 pub struct JellyfinLyrics {
     flavor: Flavor,
@@ -83,6 +134,13 @@ impl JellyfinLyrics {
     pub fn new() -> Self {
         Self {
             flavor: Flavor::Jellyfin,
+            client: Mutex::new(None),
+        }
+    }
+
+    pub fn emby() -> Self {
+        Self {
+            flavor: Flavor::Emby,
             client: Mutex::new(None),
         }
     }
@@ -123,7 +181,7 @@ impl JellyfinLyrics {
         let Some(client) = self.client(stored())? else {
             return Ok(Vec::new());
         };
-        let found = client.lyrics(id).await?.and_then(lyrics);
+        let found = client.server_lyrics(id).await?;
         Ok(found
             .into_iter()
             .map(|lyrics| LyricsHit {
@@ -197,6 +255,34 @@ mod tests {
     fn lines_without_starts_become_plain_lyrics() {
         assert_eq!(read(PLAIN), Some(Lyrics::plain("High tide\nLow tide")));
         assert_eq!(read(r#"{"Metadata":{},"Lyrics":[]}"#), None);
+    }
+
+    /// Emby 4.10's `Stream.srt` of an `.lrc` file, with the byte order mark it sends.
+    const EMBY_SYNCED: &str = "\u{feff}1\n00:00:01,000 --> 00:00:05,500\nHello line one\n\n2\n\
+        00:00:05,500 --> 00:00:00,000\nSecond line here\n\n";
+
+    /// The same of a `.txt` file: every line starts at zero.
+    const EMBY_PLAIN: &str = "\u{feff}1\r\n00:00:00,000 --> 00:00:00,000\r\nPlain first line\r\n\r\n\
+        2\r\n00:00:00,000 --> 00:00:00,000\r\nPlain second line\r\n\r\n";
+
+    #[test]
+    fn emby_subtitles_with_starts_become_synced_lyrics() {
+        let Some(Lyrics::Synced { lines }) = srt(EMBY_SYNCED) else {
+            panic!("expected synced lyrics");
+        };
+        assert_eq!(lines[0].text, "Hello line one");
+        assert_eq!(lines[0].start, Duration::from_secs(1));
+        assert_eq!(lines[1].text, "Second line here");
+        assert_eq!(lines[1].start, Duration::from_millis(5_500));
+    }
+
+    #[test]
+    fn emby_subtitles_all_at_zero_become_plain_lyrics() {
+        assert_eq!(
+            srt(EMBY_PLAIN),
+            Some(Lyrics::plain("Plain first line\nPlain second line"))
+        );
+        assert_eq!(srt("\u{feff}"), None);
     }
 
     fn query(track: Option<TrackKey>) -> LyricsQuery {

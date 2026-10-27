@@ -1,5 +1,6 @@
-//! A Jellyfin server: sign-in, the library, search, playback and downloads, likes, playlist
-//! edits, server lyrics, and finished listens recorded on the server.
+//! A Jellyfin or Emby server: sign-in, the library, search, playback and downloads, likes,
+//! playlist edits, server lyrics, and finished listens recorded on the server. Jellyfin began as
+//! a fork of Emby and the two still share most of the API, so one client speaks to both.
 
 pub(crate) mod auth;
 mod client;
@@ -26,6 +27,7 @@ use crate::{
 pub enum Flavor {
     #[default]
     Jellyfin,
+    Emby,
 }
 
 impl Flavor {
@@ -33,6 +35,7 @@ impl Flavor {
     pub fn name(self) -> &'static str {
         match self {
             Self::Jellyfin => "Jellyfin",
+            Self::Emby => "Emby",
         }
     }
 
@@ -40,6 +43,7 @@ impl Flavor {
     pub fn slug(self) -> &'static str {
         match self {
             Self::Jellyfin => "jellyfin",
+            Self::Emby => "emby",
         }
     }
 }
@@ -59,6 +63,12 @@ impl JellyfinProvider {
     pub fn new() -> Self {
         Self {
             flavor: Flavor::Jellyfin,
+        }
+    }
+
+    pub fn emby() -> Self {
+        Self {
+            flavor: Flavor::Emby,
         }
     }
 
@@ -174,7 +184,8 @@ impl MusicProvider for JellyfinProvider {
         Self::restore_from(auth::load(self.flavor)).await
     }
 
-    /// An empty password is allowed: Jellyfin accounts may have none, as the demo's does.
+    /// An empty password is allowed: Jellyfin and Emby accounts may have none, as the Jellyfin
+    /// demo's does.
     async fn sign_in(
         &self,
         method: SignIn,

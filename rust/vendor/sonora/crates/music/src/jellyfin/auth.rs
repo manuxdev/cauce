@@ -56,6 +56,15 @@ pub fn authorization(device_id: &str, token: Option<&str>) -> String {
     header
 }
 
+/// The header the authorization goes in. Emby reads its own; Jellyfin 10.11 reads only the
+/// standard one unless the server turns the old headers back on.
+pub fn header_name(flavor: Flavor) -> &'static str {
+    match flavor {
+        Flavor::Jellyfin => "authorization",
+        Flavor::Emby => "x-emby-authorization",
+    }
+}
+
 /// This install's device id, made once and kept beside the credentials. Signing out keeps it, so
 /// the server sees one device however often the listener signs in again.
 pub fn device_id(flavor: Flavor) -> String {
@@ -128,6 +137,12 @@ mod tests {
         assert!(!before.contains("Token="));
         let after = authorization("dev-1", Some("abc"));
         assert_eq!(after, format!(r#"{before}, Token="abc""#));
+    }
+
+    #[test]
+    fn emby_reads_the_authorization_from_its_own_header() {
+        assert_eq!(header_name(Flavor::Jellyfin), "authorization");
+        assert_eq!(header_name(Flavor::Emby), "x-emby-authorization");
     }
 
     #[test]

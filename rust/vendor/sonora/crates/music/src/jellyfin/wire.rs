@@ -52,6 +52,24 @@ pub struct Item {
     pub overview: Option<String>,
     /// Which entry of a playlist this is, from `/Playlists/{id}/Items`.
     pub playlist_item_id: Option<String>,
+    /// The files of a track. Emby lists its lyrics among their streams.
+    pub media_sources: Option<Vec<MediaSource>>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct MediaSource {
+    pub id: Option<String>,
+    pub media_streams: Vec<MediaStream>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct MediaStream {
+    #[serde(rename = "Type")]
+    pub kind: Option<String>,
+    pub index: Option<u32>,
+    pub is_text_subtitle_stream: bool,
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -314,6 +332,31 @@ pub fn iso_8601(at: std::time::SystemTime) -> String {
     )
 }
 
+/// `at` as the UTC date and time Emby reads a listen's date in, to the second.
+pub fn emby_date(at: std::time::SystemTime) -> String {
+    let at = time::OffsetDateTime::from(at);
+    format!(
+        "{:04}{:02}{:02}{:02}{:02}{:02}",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
+}
+
+/// Where Emby keeps a track's lyrics: the file and the stream index of its first text
+/// subtitle, which on a track is a `.lrc` or `.txt` beside it or lyrics in its tags.
+pub fn lyrics_stream(item: &Item) -> Option<(String, u32)> {
+    item.media_sources.iter().flatten().find_map(|source| {
+        let stream = source.media_streams.iter().find(|stream| {
+            stream.kind.as_deref() == Some("Subtitle") && stream.is_text_subtitle_stream
+        })?;
+        Some((source.id.clone()?, stream.index?))
+    })
+}
+
 pub fn credentials(
     answer: Authenticated,
     server: &str,
@@ -562,6 +605,36 @@ mod tests {
     fn a_listen_is_dated_in_utc() {
         let at = std::time::UNIX_EPOCH + Duration::from_secs(1_793_131_200);
         assert_eq!(iso_8601(at), "2026-10-27T20:00:00Z");
+    }
+
+    #[test]
+    fn emby_dates_a_listen_with_no_separators() {
+        let at = std::time::UNIX_EPOCH + Duration::from_secs(1_793_131_200);
+        assert_eq!(emby_date(at), "20261027200000");
+    }
+
+    /// An Emby 4.10 `/Users/{userId}/Items/{id}` of a track with an `.lrc` beside it, trimmed.
+    const EMBY_TRACK: &str = r#"{
+        "Name": "Song 1",
+        "Id": "12",
+        "Type": "Audio",
+        "MediaSources": [{
+            "Id": "mediasource_12",
+            "MediaStreams": [
+                { "Codec": "mp3", "Type": "Audio", "Index": 0, "IsTextSubtitleStream": false },
+                { "Codec": "lrc", "Type": "Subtitle", "Index": 1, "IsExternal": true,
+                  "IsTextSubtitleStream": true }
+            ]
+        }]
+    }"#;
+
+    #[test]
+    fn emby_keeps_lyrics_as_a_text_subtitle_of_the_track() {
+        assert_eq!(
+            lyrics_stream(&item(EMBY_TRACK)),
+            Some(("mediasource_12".to_owned(), 1))
+        );
+        assert_eq!(lyrics_stream(&item(AUDIO)), None);
     }
 
     #[test]

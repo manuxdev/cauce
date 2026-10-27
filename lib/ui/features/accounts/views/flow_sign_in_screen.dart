@@ -15,12 +15,13 @@ import '../view_models/accounts_view_model.dart';
 /// The text key of the help under the sign-in fields of `slug`.
 String signInHelp(String slug) => switch (slug) {
   'jellyfin' => 'signIn.jellyfin.help',
+  'emby' => 'signIn.emby.help',
   _ => 'signIn.server.help',
 };
 
-/// Signs in to a service through its own flow: a server and password for Subsonic and Jellyfin,
-/// a code to approve for Tidal, an approval page for Spotify. Pops with the account's name once
-/// signed in.
+/// Signs in to a service through its own flow: a server and password for Subsonic, Jellyfin and
+/// Emby, a code to approve for Tidal, an approval page for Spotify. Pops with the account's name
+/// once signed in.
 class FlowSignInScreen extends StatefulWidget {
   const FlowSignInScreen({super.key, required this.service});
 
@@ -45,7 +46,7 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
   /// Whether the approval page is open, which closes itself before this screen can.
   bool _paging = false;
 
-  bool get _asksServer => const {'subsonic', 'jellyfin'}.contains(widget.service.slug);
+  bool get _asksServer => const {'subsonic', 'jellyfin', 'emby'}.contains(widget.service.slug);
 
   @override
   void initState() {
