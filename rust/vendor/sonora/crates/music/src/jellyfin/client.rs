@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 
 use crate::engine::Loudness;
 use crate::jellyfin::auth::{self, Credentials};
+use crate::jellyfin::lyrics::Answer;
 use crate::jellyfin::wire::{
     self, Authenticated, Item, Items, PlaylistEntries, PlaylistUser, Removal, User,
 };
@@ -299,6 +300,26 @@ impl JellyfinClient {
         let path = format!("/Playlists/{}", crate::escape::component(playlist_id));
         self.change(Method::POST, &path, &[], Some(body)).await?;
         Ok(())
+    }
+
+    /// The lyrics the server holds for a track, or none when it has none.
+    pub(crate) async fn lyrics(&self, track_id: &str) -> Result<Option<Answer>> {
+        let path = format!("/Audio/{}/Lyrics", crate::escape::component(track_id));
+        let response = self
+            .request(Method::GET, &path, &[])
+            .send()
+            .await
+            .map_err(|error| self.fail(error))?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let answer = response
+            .error_for_status()
+            .map_err(|error| self.fail(error))?
+            .json()
+            .await
+            .map_err(|error| self.fail(error))?;
+        Ok(Some(answer))
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {

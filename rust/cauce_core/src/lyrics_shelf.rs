@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use music::Lyrics;
 
 /// The lyrics services in each group the listener orders: `.lrc` files beside local tracks, the
-/// signed-in Subsonic server, and LRCLIB.
+/// signed-in Subsonic or Jellyfin server, and LRCLIB.
 const GROUPS: [(&str, &[&str]); 3] = [
     ("lrc", &[music::lyrics::LOCAL]),
-    ("server", &["Subsonic"]),
+    ("server", &["Subsonic", "Jellyfin"]),
     ("lrclib", &["LrcLib"]),
 ];
 
@@ -187,7 +187,7 @@ mod tests {
     fn groups_expand_in_the_order_given_and_unknown_ones_are_skipped() {
         let order = ["lrc", "nope", "provider", "server", "lrclib"].map(String::from);
         let services = sources(&order);
-        assert_eq!(services, [music::lyrics::LOCAL, "Subsonic", "LrcLib"]);
+        assert_eq!(services, [music::lyrics::LOCAL, "Subsonic", "Jellyfin", "LrcLib"]);
     }
 
     #[test]
