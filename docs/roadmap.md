@@ -20,8 +20,9 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
 - [ ] Jellyfin (test against the public demo, https://demo.jellyfin.org/stable, user `demo`, empty password; it has
       only a few tracks and resets now and then)
   - [x] Part 1: sign in with a stored access token (not the password), library, search, play, download, offline play
-    Playback is not reported to the server yet (sessions, play counts); do it with part 2
-  - [ ] Part 2: likes, playlists (create, add, remove by copy), server lyrics in the `server` lyrics group
+  - [x] Part 2: likes, playlists (create, add, remove by copy), server lyrics in the `server` lyrics group, finished
+    listens recorded on the server (`/UserPlayedItems`, at scrobble time, dropped offline). No live session reporting
+    (`/Sessions/Playing`), so the server's dashboard does not show what is playing
   - [ ] Quick Connect sign-in
 - [ ] Emby: its API is close to Jellyfin's (Jellyfin started as an Emby fork), so reuse the Jellyfin provider
 - [ ] Plex: the most used media server. Documented API; check which remote uses need Plex Pass
