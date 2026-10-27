@@ -154,6 +154,21 @@ class DownloadsViewModel extends ChangeNotifier {
     await refresh();
   }
 
+  /// Downloads at once the `added` tracks a kept playlist just gained here, then keeps it with
+  /// its tracks now. The queue and Wi-Fi-only hold as for any download.
+  Future<void> addedTo(String slug, String playlistId, List<core.TrackItem> added) async {
+    final wanted = downloadsOnAdd(kept: keeps(slug, core.CardKind.playlist, playlistId), added: added);
+    if (wanted.isEmpty) return;
+    await core.downloadMissing(tracks: wanted);
+    try {
+      final tracks = await core.collectionTracks(slug: slug, kind: core.CardKind.playlist, id: playlistId);
+      await core.keepCollection(slug: slug, kind: core.CardKind.playlist, id: playlistId, tracks: _wanted(tracks));
+    } on Object {
+      // Unreachable now: the next catch-up keeps it with them.
+    }
+    await refresh();
+  }
+
   Future<void> remove(core.TrackItem track) async {
     await core.removeDownload(source: track.source, id: track.id);
     await refresh();
@@ -188,3 +203,12 @@ class DownloadsViewModel extends ChangeNotifier {
 }
 
 final downloads = DownloadsViewModel();
+
+/// What adding `added` to a playlist downloads at once: the ones a provider can download, when
+/// the playlist is `kept` downloaded.
+List<core.TrackItem> downloadsOnAdd({required bool kept, required List<core.TrackItem> added}) =>
+    kept ? DownloadsViewModel._wanted(added) : const [];
+
+/// Whether coming back to the app catches up the kept downloads, `last` caught up at, so changes
+/// made elsewhere come in without a fetch on every return.
+bool catchUpDue(DateTime? last, DateTime now) => last == null || now.difference(last) >= const Duration(minutes: 15);
