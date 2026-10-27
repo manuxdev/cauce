@@ -1100,6 +1100,9 @@ impl Core {
     }
 
     fn send_listen(&self, item: &Item, at: std::time::SystemTime, finished: bool) {
+        if finished {
+            self.tell_provider(item, at);
+        }
         let receivers = lock(&self.inner.scrobbling).receivers(&item.source);
         let Some(play) = scrobbling::play(&item.track, at) else {
             return;
@@ -1124,6 +1127,20 @@ impl Core {
                 }
             });
         }
+    }
+
+    /// Records a finished listen on the track's own server, so its play counts and recently
+    /// played fill up. Offline or signed out, nothing goes and the listen is dropped there.
+    fn tell_provider(&self, item: &Item, at: std::time::SystemTime) {
+        let Ok(api) = self.inner.api(&item.source) else {
+            return;
+        };
+        let (source, id) = (item.source.clone(), item.id.clone());
+        self.inner.runtime.spawn(async move {
+            if let Err(error) = api.played(&id, at).await {
+                log::warn!("scrobble: {source} did not take the listen: {error:#}");
+            }
+        });
     }
 
     /// Takes a track off the downloads and out of the vault.

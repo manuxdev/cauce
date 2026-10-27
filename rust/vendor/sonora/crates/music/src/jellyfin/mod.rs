@@ -1,6 +1,5 @@
-//! A Jellyfin server, part 1: sign-in, the library, search, playback and downloads. Likes,
-//! playlist edits and server lyrics come in part 2, and until then their calls say so. Playback
-//! is not reported to the server yet either.
+//! A Jellyfin server: sign-in, the library, search, playback and downloads, likes, playlist
+//! edits, server lyrics, and finished listens recorded on the server.
 
 pub(crate) mod auth;
 mod client;
