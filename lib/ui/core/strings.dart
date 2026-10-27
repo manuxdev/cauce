@@ -111,6 +111,7 @@ const english = <String, String>{
   'signIn.username': 'Username',
   'signIn.password': 'Password',
   'signIn.server.help': 'Navidrome, Gonic, Airsonic or any Subsonic server.',
+  'signIn.jellyfin.help': 'Your Jellyfin server address, such as jellyfin.example.com or 192.168.1.10:8096.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'No playlists yet',
   'library.addFolder': 'Add a folder from Files',
@@ -197,6 +198,8 @@ const english = <String, String>{
   'plans.title': 'What Cauce can do',
   'plans.server': 'Your server',
   'plans.subsonic': 'No plans: Cauce plays and downloads what your server holds.',
+  'plans.jellyfin':
+      'No plans: Cauce browses, searches, plays and downloads what your server holds. Likes and playlist editing are not here yet.',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
 
@@ -595,6 +598,7 @@ const spanish = <String, String>{
   'signIn.username': 'Usuario',
   'signIn.password': 'Contraseña',
   'signIn.server.help': 'Navidrome, Gonic, Airsonic o cualquier servidor Subsonic.',
+  'signIn.jellyfin.help': 'La dirección de tu servidor Jellyfin, como jellyfin.example.com o 192.168.1.10:8096.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'Aún no hay playlists',
   'library.addFolder': 'Añadir una carpeta de Archivos',
@@ -683,6 +687,8 @@ const spanish = <String, String>{
   'plans.title': 'Lo que Cauce puede hacer',
   'plans.server': 'Tu servidor',
   'plans.subsonic': 'Sin planes: Cauce reproduce y descarga lo que tenga tu servidor.',
+  'plans.jellyfin':
+      'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor. Los me gusta y la edición de listas aún no están.',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',
 

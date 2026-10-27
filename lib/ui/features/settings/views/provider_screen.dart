@@ -97,6 +97,7 @@ class ProviderScreen extends StatelessWidget {
 /// platform alone. Only what Cauce itself does is said; a plan's own terms are the service's.
 List<(String, String)> _plans(String slug) => switch (slug) {
   'subsonic' => [('plans.server', 'plans.subsonic')],
+  'jellyfin' => [('plans.server', 'plans.jellyfin')],
   _ => const [],
 };
 

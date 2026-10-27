@@ -14,6 +14,7 @@ pub mod scrobble;
 mod sink;
 mod spectrum;
 mod stream;
+pub mod jellyfin;
 pub mod subsonic;
 pub mod trouble;
 pub mod vault;

@@ -311,6 +311,7 @@ class InitialAvatar extends StatelessWidget {
 /// A provider's brand colour and the two letters on its badge.
 ({Color color, String letters}) brandOf(String slug) => switch (slug) {
   'subsonic' => (color: const Color(0xFFEFA02E), letters: 'SS'),
+  'jellyfin' => (color: const Color(0xFFAA5CC3), letters: 'JF'),
   _ => (color: CauceColors.accent, letters: slug.isEmpty ? '?' : slug.substring(0, 2).toUpperCase()),
 };
 

@@ -8,7 +8,13 @@ import '../../../core/toast.dart';
 import '../../settings/views/settings_widgets.dart';
 import '../view_models/accounts_view_model.dart';
 
-/// Signs in to a service with a server, username and password, as Subsonic does. Pops with the
+/// The text key of the help under the sign-in fields of `slug`.
+String signInHelp(String slug) => switch (slug) {
+  'jellyfin' => 'signIn.jellyfin.help',
+  _ => 'signIn.server.help',
+};
+
+/// Signs in to a service with a server, username and password, as Subsonic and Jellyfin do. Pops with the
 /// account's name once signed in.
 class FlowSignInScreen extends StatefulWidget {
   const FlowSignInScreen({super.key, required this.service});
@@ -79,7 +85,7 @@ class _FlowSignInScreenState extends State<FlowSignInScreen> {
       back: context.t('search.cancel'),
       children: [
         SettingsGroup(
-          footer: context.t('signIn.server.help'),
+          footer: context.t(signInHelp(widget.service.slug)),
           children: [
             _field(_server, context.t('signIn.server'), type: TextInputType.url),
             _field(_username, context.t('signIn.username')),

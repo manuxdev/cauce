@@ -161,8 +161,10 @@ impl Core {
         log::info!("cauce: core started");
         let database = storage::Database::at(paths.data.join("state.sqlite"));
         let cache = storage::Cache::at(paths.cache.join("cache.sqlite"));
-        let providers: Vec<Arc<dyn MusicProvider>> =
-            vec![Arc::new(music::subsonic::SubsonicProvider::new())];
+        let providers: Vec<Arc<dyn MusicProvider>> = vec![
+            Arc::new(music::subsonic::SubsonicProvider::new()),
+            Arc::new(music::jellyfin::JellyfinProvider::new()),
+        ];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
             Arc::new(music::subsonic::SubsonicLyrics::new()),

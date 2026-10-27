@@ -11,7 +11,10 @@ class StreamingService {
   final String name;
 }
 
-final streamingServices = [const StreamingService('subsonic', 'Subsonic')];
+final streamingServices = [
+  const StreamingService('subsonic', 'Subsonic'),
+  const StreamingService('jellyfin', 'Jellyfin'),
+];
 
 /// Whether `source`'s track waits on signing in to its service to be liked, with `signedIn`
 /// the services that have an account in. Downloads play from the account kept on the phone,
