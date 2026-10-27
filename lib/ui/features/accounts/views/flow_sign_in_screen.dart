@@ -11,10 +11,11 @@ import '../view_models/accounts_view_model.dart';
 /// The text key of the help under the sign-in fields of `slug`.
 String signInHelp(String slug) => switch (slug) {
   'jellyfin' => 'signIn.jellyfin.help',
+  'emby' => 'signIn.emby.help',
   _ => 'signIn.server.help',
 };
 
-/// Signs in to a service with a server, username and password, as Subsonic and Jellyfin do. Pops with the
+/// Signs in to a service with a server, username and password, as Subsonic, Jellyfin and Emby do. Pops with the
 /// account's name once signed in.
 class FlowSignInScreen extends StatefulWidget {
   const FlowSignInScreen({super.key, required this.service});

@@ -79,7 +79,7 @@ const english = <String, String>{
   'lyrics.source.lrclib': 'LRCLIB',
   'lyrics.source.lrclib.detail': 'Open database',
   'lyrics.source.server': 'Your server',
-  'lyrics.source.server.detail': 'Lyrics stored on your Subsonic, Navidrome or Jellyfin server',
+  'lyrics.source.server.detail': 'Lyrics stored on your Subsonic, Navidrome, Jellyfin or Emby server',
   'lyrics.source.lrc': '.lrc files',
   'lyrics.source.lrc.detail': 'Beside your local files',
   'lyrics.source.use': 'Use {name}',
@@ -112,6 +112,7 @@ const english = <String, String>{
   'signIn.password': 'Password',
   'signIn.server.help': 'Navidrome, Gonic, Airsonic or any Subsonic server.',
   'signIn.jellyfin.help': 'Your Jellyfin server address, such as jellyfin.example.com or 192.168.1.10:8096.',
+  'signIn.emby.help': 'Your Emby server address, such as emby.example.com or 192.168.1.10:8096.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'No playlists yet',
   'library.addFolder': 'Add a folder from Files',
@@ -199,6 +200,8 @@ const english = <String, String>{
   'plans.server': 'Your server',
   'plans.subsonic': 'No plans: Cauce plays and downloads what your server holds.',
   'plans.jellyfin':
+      'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
+  'plans.emby':
       'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
@@ -583,7 +586,7 @@ const spanish = <String, String>{
   'lyrics.source.lrclib': 'LRCLIB',
   'lyrics.source.lrclib.detail': 'Base de datos abierta',
   'lyrics.source.server': 'Tu servidor',
-  'lyrics.source.server.detail': 'Letras guardadas en tu servidor Subsonic, Navidrome o Jellyfin',
+  'lyrics.source.server.detail': 'Letras guardadas en tu servidor Subsonic, Navidrome, Jellyfin o Emby',
   'lyrics.source.lrc': 'Archivos .lrc',
   'lyrics.source.lrc.detail': 'Junto a tus archivos locales',
   'lyrics.source.use': 'Usar {name}',
@@ -616,6 +619,7 @@ const spanish = <String, String>{
   'signIn.password': 'Contraseña',
   'signIn.server.help': 'Navidrome, Gonic, Airsonic o cualquier servidor Subsonic.',
   'signIn.jellyfin.help': 'La dirección de tu servidor Jellyfin, como jellyfin.example.com o 192.168.1.10:8096.',
+  'signIn.emby.help': 'La dirección de tu servidor Emby, como emby.example.com o 192.168.1.10:8096.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'Aún no hay playlists',
   'library.addFolder': 'Añadir una carpeta de Archivos',
@@ -705,6 +709,8 @@ const spanish = <String, String>{
   'plans.server': 'Tu servidor',
   'plans.subsonic': 'Sin planes: Cauce reproduce y descarga lo que tenga tu servidor.',
   'plans.jellyfin':
+      'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
+  'plans.emby':
       'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',

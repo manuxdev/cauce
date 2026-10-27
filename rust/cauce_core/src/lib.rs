@@ -171,11 +171,13 @@ impl Core {
         let providers: Vec<Arc<dyn MusicProvider>> = vec![
             Arc::new(music::subsonic::SubsonicProvider::new()),
             Arc::new(music::jellyfin::JellyfinProvider::new()),
+            Arc::new(music::jellyfin::JellyfinProvider::emby()),
         ];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
             Arc::new(music::subsonic::SubsonicLyrics::new()),
             Arc::new(music::jellyfin::JellyfinLyrics::new()),
+            Arc::new(music::jellyfin::JellyfinLyrics::emby()),
             Arc::new(music::lrclib::LrcLib::new()),
         ];
         let settings = PlaybackSettings::load(&paths.data);
