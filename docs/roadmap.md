@@ -53,7 +53,8 @@ Check each one against what Cauce already does before starting it.
       Done: played-songs cache with a size limit and LRU eviction, the storage screen, preload of the next track,
       offline detection. Added: likes already made download too once "download likes" is on, and downloaded albums
       and playlists stay kept, fetching the tracks they gain, and a manual offline mode (only kept tracks and files
-      play, nothing downloads or syncs). Open: a per-item downloads list, prefetching more than one track.
+      play, nothing downloads or syncs), and a per-item downloads list in storage, by kept collection with sizes on
+      disk, deleting a group or a track. Open: prefetching more than one track.
 - [ ] Several artists and genres per track (OpenSubsonic fields, custom separators). Navidrome #238 (50), Gramophone's
       top ask. https://github.com/navidrome/navidrome/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc
 - [ ] Playlist management: M3U import and export, folder to playlist, playlist folders, custom covers, sorting, add a
