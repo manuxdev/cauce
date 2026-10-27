@@ -102,7 +102,7 @@ class LyricsSettingsScreen extends StatelessWidget {
           SettingsGroup(
             title: context.t('lyrics.sources'),
             footer: context.t('lyrics.sources.detail'),
-            children: [_Sources(order: appPrefs.lyricsSources)],
+            children: [_Sources(order: appPrefs.lyricsSources, off: appPrefs.lyricsSourcesOff)],
           ),
           SettingsGroup(
             title: context.t('lyrics.offline'),
@@ -176,11 +176,13 @@ class _Preview extends StatelessWidget {
   }
 }
 
-/// The lyrics sources, held by the grip and dragged into the order they are tried.
+/// The lyrics sources, held by the grip and dragged into the order they are tried, each with a
+/// switch; one turned off stays in place, dimmed, and is not asked.
 class _Sources extends StatelessWidget {
-  const _Sources({required this.order});
+  const _Sources({required this.order, required this.off});
 
   final List<String> order;
+  final Set<String> off;
 
   @override
   Widget build(BuildContext context) {
@@ -206,12 +208,28 @@ class _Sources extends StatelessWidget {
               SettingsRow(
                 title: context.t('lyrics.source.$source'),
                 subtitle: context.t('lyrics.source.$source.detail'),
-                trailing: ReorderableDragStartListener(
-                  index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: CauceIcon(CauceGlyph.grip, size: 20, color: CauceColors.mutedForeground),
-                  ),
+                enabled: !off.contains(source),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      label: context.t('lyrics.source.use', {'name': context.t('lyrics.source.$source')}),
+                      child: Switch.adaptive(
+                        value: !off.contains(source),
+                        activeTrackColor: CauceColors.accent,
+                        onChanged: (on) => appPrefs.update(
+                          (prefs) => prefs.lyricsSourcesOff = on ? ({...off}..remove(source)) : {...off, source},
+                        ),
+                      ),
+                    ),
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: CauceIcon(CauceGlyph.grip, size: 20, color: CauceColors.mutedForeground),
+                      ),
+                    ),
+                  ],
                 ),
                 leading: Container(
                   width: 24,

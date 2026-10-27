@@ -61,7 +61,7 @@ class DownloadsViewModel extends ChangeNotifier {
         final key = _key(item.track.source, item.track.id);
         // Lyrics found are kept beside the download; none found is fine.
         if (nowDone.contains(key) && !wasDone.contains(key)) {
-          core.keepLyrics(track: item.track, sources: appPrefs.lyricsSources).ignore();
+          core.keepLyrics(track: item.track, sources: appPrefs.askedLyricsSources).ignore();
         }
       }
     }

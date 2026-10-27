@@ -355,8 +355,8 @@ impl Core {
     }
 
     /// The best lyrics for `item`: the ones kept with its download, or the best every lyrics
-    /// service together has, word-timed over line-timed over plain, then in the order of the
-    /// source `groups`. `None` when no service knows the track.
+    /// service in the source `groups` together has, word-timed over line-timed over plain, then
+    /// in the order of the `groups`. `None` when no service knows the track or no group is given.
     pub fn lyrics(&self, item: &Item, groups: &[String]) -> Result<Option<Lyrics>> {
         if let Some(kept) = self.inner.shelf.get(&item.source, &item.id) {
             return Ok(Some(kept));
@@ -392,7 +392,14 @@ impl Core {
                 id: item.id.clone(),
             }),
         };
-        let services = self.inner.lyrics.clone();
+        // Only the services in the groups given are asked: a group left out is turned off.
+        let services: Vec<_> = self
+            .inner
+            .lyrics
+            .iter()
+            .filter(|service| priority.iter().any(|name| name == service.name()))
+            .cloned()
+            .collect();
         self.run(async move {
             let mut tasks = tokio::task::JoinSet::new();
             for service in services {
