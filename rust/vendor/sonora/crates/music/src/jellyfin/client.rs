@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
@@ -756,6 +756,19 @@ impl MusicApi for JellyfinClient {
             .with_context(|| format!("cannot change the like for artist {artist_id}"))
     }
 
+    /// Counts a listen: the play count goes up and the track becomes the last one played.
+    async fn played(&self, track_id: &str, at: SystemTime) -> Result<()> {
+        let path = format!("/UserPlayedItems/{}", crate::escape::component(track_id));
+        let query = [
+            ("userId", self.user_id.clone()),
+            ("datePlayed", wire::iso_8601(at)),
+        ];
+        self.change(Method::POST, &path, &query, None)
+            .await
+            .with_context(|| format!("cannot record a play of {track_id}"))?;
+        Ok(())
+    }
+
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {
         let query = [
             ("ParentId", album_id),
@@ -1043,5 +1056,133 @@ mod demo {
         std::thread::spawn(move || logout(&credentials))
             .join()
             .unwrap();
+    }
+
+    /// Likes, a playlist's whole life, lyrics and a listen. The demo is shared, so whatever it
+    /// makes is undone before anything is checked.
+    #[tokio::test]
+    #[ignore = "reaches demo.jellyfin.org"]
+    async fn jellyfin_demo_likes_edits_playlists_reads_lyrics_and_reports_a_play() {
+        let server = auth::normalize_server("demo.jellyfin.org/stable").unwrap();
+        let credentials = authenticate(&server, "demo", "", "cauce-live-check")
+            .await
+            .unwrap();
+        let client = JellyfinClient::new(&credentials).unwrap();
+        let tracks = client.all_tracks().await.unwrap();
+        let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        let (first, second) = (ids[0].clone(), ids[1].clone());
+        let album = client.all_albums().await.unwrap()[0].id.clone();
+        let artist = client.all_artists().await.unwrap()[0].id.clone();
+
+        let liked_before = client
+            .saved_tracks()
+            .await
+            .unwrap()
+            .iter()
+            .any(|t| t.id.as_ref() == Some(&first));
+        client.set_track_saved(&first, true).await.unwrap();
+        client.set_album_saved(&album, true).await.unwrap();
+        client.set_artist_saved(&artist, true).await.unwrap();
+        let liked_track = client
+            .saved_tracks()
+            .await
+            .unwrap()
+            .iter()
+            .any(|t| t.id.as_ref() == Some(&first));
+        let liked_album = client
+            .saved_albums()
+            .await
+            .unwrap()
+            .iter()
+            .any(|a| a.id == album);
+        let liked_artist = client
+            .saved_artists()
+            .await
+            .unwrap()
+            .iter()
+            .any(|a| a.id == artist);
+        if !liked_before {
+            client.set_track_saved(&first, false).await.unwrap();
+        }
+        client.set_album_saved(&album, false).await.unwrap();
+        client.set_artist_saved(&artist, false).await.unwrap();
+        let unliked_album = !client
+            .saved_albums()
+            .await
+            .unwrap()
+            .iter()
+            .any(|a| a.id == album);
+        println!("likes: track {liked_track}, album {liked_album}, artist {liked_artist}");
+
+        let playlist = client.create_playlist("cauce-live-check").await.unwrap();
+        let edits = async {
+            client
+                .add_tracks_to_playlist(&playlist, &[first.clone(), second.clone()])
+                .await?;
+            client.add_track_to_playlist(&playlist, &first).await?;
+            let mine = client
+                .playlists()
+                .await?
+                .into_iter()
+                .find(|p| p.id == playlist);
+            client
+                .remove_track_from_playlist(&playlist, &first, 1)
+                .await?;
+            client
+                .rename_playlist(&playlist, "cauce-live-check renamed")
+                .await?;
+            client.set_playlist_public(&playlist, false).await?;
+            let detail = client.playlist(&playlist).await?;
+            anyhow::Ok((mine.is_some_and(|p| p.owned), detail))
+        }
+        .await;
+        client.delete_playlist(&playlist).await.unwrap();
+        let gone = !client
+            .playlists()
+            .await
+            .unwrap()
+            .iter()
+            .any(|p| p.id == playlist);
+        let (owned, detail) = edits.unwrap();
+        let left: Vec<String> = detail.tracks.iter().filter_map(|t| t.id.clone()).collect();
+        println!(
+            "playlist: owned {owned}, left {}, named {:?}, gone {gone}",
+            left.len(),
+            detail.playlist.name
+        );
+
+        let mut lyrics = None;
+        for id in &ids {
+            if let Some(found) = client
+                .lyrics(id)
+                .await
+                .unwrap()
+                .and_then(super::super::lyrics::lyrics)
+            {
+                lyrics = Some(found);
+                break;
+            }
+        }
+        match &lyrics {
+            Some(crate::Lyrics::Synced { lines }) => {
+                println!("lyrics: synced, {} lines", lines.len())
+            }
+            Some(_) => println!("lyrics: plain"),
+            None => println!("lyrics: no demo track has any"),
+        }
+
+        let before = client.track_playcount(&second).await.unwrap().unwrap_or(0);
+        client.played(&second, SystemTime::now()).await.unwrap();
+        let after = client.track_playcount(&second).await.unwrap().unwrap_or(0);
+        println!("plays: {before} then {after}");
+
+        std::thread::spawn(move || logout(&credentials))
+            .join()
+            .unwrap();
+        assert!(liked_track && liked_album && liked_artist && unliked_album);
+        assert!(owned && gone);
+        assert_eq!(left, [first, second.clone()]);
+        assert_eq!(detail.playlist.name, "cauce-live-check renamed");
+        assert!(after > before);
     }
 }

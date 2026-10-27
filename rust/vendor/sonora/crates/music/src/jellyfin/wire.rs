@@ -299,6 +299,20 @@ pub fn without(mut ids: Vec<String>, track_id: &str, copy: usize) -> Option<Vec<
     Some(ids)
 }
 
+/// `at` as the UTC date and time Jellyfin reads, to the second.
+pub fn iso_8601(at: std::time::SystemTime) -> String {
+    let at = time::OffsetDateTime::from(at);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        at.year(),
+        u8::from(at.month()),
+        at.day(),
+        at.hour(),
+        at.minute(),
+        at.second()
+    )
+}
+
 pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Credentials {
     Credentials {
         server: server.to_owned(),
@@ -535,6 +549,12 @@ mod tests {
         let viewer: PlaylistUser =
             serde_json::from_str(r#"{"UserId":"x","CanEdit":false}"#).unwrap();
         assert!(!playlist(item(PLAYLIST), SERVER, Some(viewer)).owned);
+    }
+
+    #[test]
+    fn a_listen_is_dated_in_utc() {
+        let at = std::time::UNIX_EPOCH + Duration::from_secs(1_793_131_200);
+        assert_eq!(iso_8601(at), "2026-10-27T20:00:00Z");
     }
 
     #[test]
