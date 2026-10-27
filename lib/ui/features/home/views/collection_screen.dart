@@ -67,6 +67,38 @@ class _CollectionScreenState extends State<CollectionScreen> {
 
   void _say(String message) => showToast(Toast(title: message, tone: ToastTone.error));
 
+  /// The tracks after a removal here, shown until the playlist loads again.
+  List<core.TrackItem>? _edited;
+  int _removing = 0;
+
+  /// Takes the row at `index` out of the playlist at once, then loads it again. A kept playlist
+  /// keeps the track's download; freeing space takes it once nothing holds it.
+  Future<void> _remove(List<core.TrackItem> tracks, int index) async {
+    final track = tracks[index];
+    final removed = context.t('playlist.removed');
+    final failed = context.t('playlist.failed', {'error': '{error}'});
+    setState(() {
+      _edited = [...tracks]..removeAt(index);
+      _removing++;
+    });
+    try {
+      await core.removeFromPlaylist(
+        slug: widget.slug,
+        playlistId: widget.card.id,
+        trackId: track.id,
+        copy: copyOf(tracks, index),
+      );
+      showToast(Toast(title: removed, detail: '${track.title} · ${track.artists}', cover: track.cover, badge: true));
+    } catch (error) {
+      _say(failed.replaceAll('{error}', explainError(error)));
+    }
+    if (!mounted) return;
+    final reload = _load();
+    setState(() => _tracks = reload);
+    await reload.then((_) {}, onError: (Object _) {});
+    if (mounted && --_removing == 0) setState(() => _edited = null);
+  }
+
   Future<void> _edit(List<core.TrackItem> tracks) async {
     final name = _name ?? widget.card.title;
     final failed = context.t('playlist.failed', {'error': '{error}'});
@@ -140,7 +172,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
     return FutureBuilder(
       future: _tracks,
       builder: (context, snapshot) {
-        final tracks = snapshot.data ?? const <core.TrackItem>[];
+        final tracks = _edited ?? snapshot.data ?? const <core.TrackItem>[];
         final play = tracks.isEmpty ? null : () => widget.player.playQueue(tracks, 0);
         final minutes = tracks.fold(0, (sum, track) => sum + track.durationMs.toInt()) ~/ 60000;
         return DetailPage(
@@ -260,7 +292,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
                 ],
               ),
             ),
-            if (snapshot.hasError)
+            if (snapshot.hasError && _edited == null)
               Padding(
                 padding: const EdgeInsets.only(top: 40),
                 child: EmptyState(
@@ -277,7 +309,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
               )
             else
               LoadSwitch(
-                loading: snapshot.connectionState != ConnectionState.done,
+                loading: _edited == null && snapshot.connectionState != ConnectionState.done,
                 skeleton: const TrackListSkeleton(),
                 child: ListenableBuilder(
                   listenable: widget.player,
@@ -286,18 +318,31 @@ class _CollectionScreenState extends State<CollectionScreen> {
                     if (tracks.any((track) => current?.id == track.id && current?.source == track.source)) {
                       _scrollToPlaying();
                     }
-                    return Column(
-                      children: [
-                        for (final (index, track) in tracks.indexed)
-                          TrackTile(
-                            key: current?.id == track.id && current?.source == track.source ? _playingTile : null,
-                            track: track,
-                            number: album ? index + 1 : null,
-                            showAlbum: !album,
-                            playing: current?.id == track.id && current?.source == track.source,
-                            onTap: () => widget.player.playQueue(tracks, index),
-                          ),
-                      ],
+                    return FutureBuilder(
+                      future: _mine,
+                      builder: (context, mine) {
+                        final own = mine.data ?? false;
+                        return Column(
+                          children: [
+                            for (final (index, track) in tracks.indexed)
+                              _removable(
+                                own: own,
+                                // Each row is its own instance, so a copy left behind keeps its swipe state.
+                                key: ObjectKey(track),
+                                onRemove: () => _remove(tracks, index),
+                                child: TrackTile(
+                                  key: current?.id == track.id && current?.source == track.source ? _playingTile : null,
+                                  track: track,
+                                  number: album ? index + 1 : null,
+                                  showAlbum: !album,
+                                  playing: current?.id == track.id && current?.source == track.source,
+                                  onTap: () => widget.player.playQueue(tracks, index),
+                                  onRemove: own ? () => _remove(tracks, index) : null,
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -307,6 +352,23 @@ class _CollectionScreenState extends State<CollectionScreen> {
       },
     );
   }
+}
+
+/// `child`, swiped left to take it out of the listener's `own` playlist, as in the queue.
+Widget _removable({required bool own, required Key key, required VoidCallback onRemove, required Widget child}) {
+  if (!own) return child;
+  return Dismissible(
+    key: key,
+    direction: DismissDirection.endToStart,
+    onDismissed: (_) => onRemove(),
+    background: Container(
+      color: CauceColors.error,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 24),
+      child: const CauceIcon(CauceGlyph.trash, size: 22, color: Colors.white, weight: 2.2),
+    ),
+    child: child,
+  );
 }
 
 /// A wide rounded button: accent, or on the page's tinted surface.

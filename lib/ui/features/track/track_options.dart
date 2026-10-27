@@ -88,9 +88,14 @@ Future<void> queueTracks(
 }
 
 /// Every option for `track` in a sheet under its cover and names: play it next or last, download
-/// it, heart it, add it to a playlist, then go to its album or artists. A file has no download,
-/// heart or playlist.
-Future<void> showTrackOptions(BuildContext context, core.TrackItem track, {VoidCallback? leave}) {
+/// it, heart it, add it to a playlist or, with `onRemove`, take it out of the one it is in, then go
+/// to its album or artists. A file has no download, heart or playlist.
+Future<void> showTrackOptions(
+  BuildContext context,
+  core.TrackItem track, {
+  VoidCallback? leave,
+  VoidCallback? onRemove,
+}) {
   final streamed = track.source != 'local';
   final goTo = _goTo(context, track, leave);
   return behindSheet(
@@ -171,6 +176,13 @@ Future<void> showTrackOptions(BuildContext context, core.TrackItem track, {VoidC
                           onTap: () => run(() => showAddToPlaylist(context, track)),
                         ),
                       ],
+                      if (onRemove != null)
+                        OptionRow(
+                          glyph: CauceGlyph.trash,
+                          label: context.t('playlist.remove'),
+                          color: CauceColors.error,
+                          onTap: () => run(onRemove),
+                        ),
                       if (goTo.isNotEmpty)
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: 22, vertical: 6),

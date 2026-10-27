@@ -55,6 +55,20 @@ Future<String> createPlaylist({required String slug, required String name}) =>
 Future<void> addToPlaylist({required String slug, required String playlistId, required String trackId}) =>
     RustLib.instance.api.crateApiPlayerAddToPlaylist(slug: slug, playlistId: playlistId, trackId: trackId);
 
+/// Removes the `copy`-th entry of `track_id` (from 0) from the playlist, so one copy of a
+/// track it has twice goes rather than the first.
+Future<void> removeFromPlaylist({
+  required String slug,
+  required String playlistId,
+  required String trackId,
+  required int copy,
+}) => RustLib.instance.api.crateApiPlayerRemoveFromPlaylist(
+  slug: slug,
+  playlistId: playlistId,
+  trackId: trackId,
+  copy: copy,
+);
+
 Future<void> renamePlaylist({required String slug, required String playlistId, required String name}) =>
     RustLib.instance.api.crateApiPlayerRenamePlaylist(slug: slug, playlistId: playlistId, name: name);
 

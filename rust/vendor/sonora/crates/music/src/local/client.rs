@@ -318,7 +318,8 @@ impl MusicApi for LocalClient {
         self.store.add(playlist_id, track_id)
     }
 
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+    // A local playlist holds a track once, so there is only the first copy.
+    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str, _copy: usize) -> Result<()> {
         self.store.remove(playlist_id, track_id)
     }
 

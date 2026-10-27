@@ -432,6 +432,8 @@ const english = <String, String>{
   'playlist.liked': 'Liked',
   'playlist.searchHint': 'Search songs to add',
   'playlist.failed': 'Could not change the playlist: {error}',
+  'playlist.remove': 'Remove from playlist',
+  'playlist.removed': 'Removed from playlist',
   'playlist.createdIn': 'Created on {service} with "{track}" as its first song.',
 
   // Onboarding
@@ -909,6 +911,8 @@ const spanish = <String, String>{
   'playlist.liked': 'Me gusta',
   'playlist.searchHint': 'Busca canciones para agregar',
   'playlist.failed': 'No se pudo cambiar la playlist: {error}',
+  'playlist.remove': 'Quitar de la playlist',
+  'playlist.removed': 'Quitado de la playlist',
   'playlist.createdIn': 'Se crea en {service} con «{track}» como primera canción.',
 
   'connect.title': 'Toda tu música, en un solo lugar.',
