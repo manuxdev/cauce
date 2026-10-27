@@ -3,8 +3,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
-use music::{Encoding, GenreItem, HomeFeed, Lyrics, MediaKind, Track};
 use cauce_core::{Core, Item, Paths, PlayerState, Repeat, Status};
+use music::{Encoding, GenreItem, HomeFeed, Lyrics, MediaKind, Track};
 
 use crate::frb_generated::StreamSink;
 
@@ -706,15 +706,107 @@ pub struct KeptCollection {
 }
 
 /// Keeps an album or playlist downloaded with the `tracks` it has now, downloading those not
-/// listed yet. Asked again whenever it opens.
+/// listed yet. Asked again whenever it opens. A `name` and `cover` are kept for the downloads
+/// list; without a name, the ones noted before stay.
 pub fn keep_collection(
     slug: String,
     kind: CardKind,
     id: String,
     tracks: Vec<TrackItem>,
+    name: Option<String>,
+    cover: Option<String>,
 ) -> Result<()> {
     let tracks = tracks.into_iter().map(|track| item(track).track).collect();
-    core()?.keep_collection(&slug, matches!(kind, CardKind::Album), &id, tracks)
+    core()?.keep_collection(
+        &slug,
+        matches!(kind, CardKind::Album),
+        &id,
+        tracks,
+        name.as_deref(),
+        cover.as_deref(),
+    )
+}
+
+/// Stops keeping an album or playlist downloaded and removes its downloads, but for those
+/// another kept collection holds and, while likes download, the `liked` ids.
+pub fn remove_kept_collection(
+    slug: String,
+    kind: CardKind,
+    id: String,
+    liked: Vec<String>,
+) -> Result<()> {
+    core()?.remove_kept_collection(&slug, matches!(kind, CardKind::Album), &id, liked);
+    Ok(())
+}
+
+/// A downloaded track and the bytes it takes on disk.
+pub struct DownloadedTrack {
+    pub track: TrackItem,
+    pub bytes: u64,
+}
+
+/// The downloads of one kept collection, or with no `collection` those in none.
+pub struct DownloadGroup {
+    pub collection: Option<KeptCollection>,
+    /// Empty for a playlist kept before names were noted.
+    pub name: String,
+    pub cover: Option<String>,
+    pub tracks: Vec<DownloadedTrack>,
+    pub bytes: u64,
+}
+
+/// The downloads by kept collection, largest first, then the others, and the bytes they take
+/// together, a track in two collections counted once. It reads every file's size.
+pub fn download_groups() -> Result<(Vec<DownloadGroup>, u64)> {
+    let (groups, total) = core()?.download_groups();
+    let groups = groups
+        .into_iter()
+        .map(|group| {
+            let first = group.tracks.first().map(|(entry, _)| &entry.track);
+            let kept = group.collection;
+            // a collection kept before its name was noted borrows its first track's
+            let name = match &kept {
+                Some(kept) if !kept.name.is_empty() => kept.name.clone(),
+                Some(kept) if kept.album => {
+                    first.map(|track| track.album.clone()).unwrap_or_default()
+                }
+                _ => String::new(),
+            };
+            let cover = kept
+                .as_ref()
+                .and_then(|kept| kept.cover.clone())
+                .or_else(|| first.and_then(|track| track.cover.clone()));
+            DownloadGroup {
+                collection: kept.map(kept_collection),
+                name,
+                cover,
+                tracks: group
+                    .tracks
+                    .into_iter()
+                    .filter_map(|(entry, bytes)| {
+                        Some(DownloadedTrack {
+                            track: track_item(&entry.source, &entry.track)?,
+                            bytes,
+                        })
+                    })
+                    .collect(),
+                bytes: group.bytes,
+            }
+        })
+        .collect();
+    Ok((groups, total))
+}
+
+fn kept_collection(kept: cauce_core::downloads::Collection) -> KeptCollection {
+    KeptCollection {
+        slug: kept.source,
+        kind: if kept.album {
+            CardKind::Album
+        } else {
+            CardKind::Playlist
+        },
+        id: kept.id,
+    }
 }
 
 /// Stops keeping it downloaded; what is downloaded stays.
@@ -727,15 +819,7 @@ pub fn kept_collections() -> Result<Vec<KeptCollection>> {
     Ok(core()?
         .kept_collections()
         .into_iter()
-        .map(|kept| KeptCollection {
-            slug: kept.source,
-            kind: if kept.album {
-                CardKind::Album
-            } else {
-                CardKind::Playlist
-            },
-            id: kept.id,
-        })
+        .map(kept_collection)
         .collect())
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../src/rust/api/player.dart' as core;
+import '../../../core/app_scope.dart';
 import '../../../core/artwork.dart';
 import '../../../core/detail_page.dart';
 import '../../../core/icons.dart';
@@ -44,7 +45,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final tracks = await core.collectionTracks(slug: widget.slug, kind: card.kind, id: card.id);
     // A kept one downloads what it gained since.
     if (downloads.keeps(widget.slug, card.kind, card.id)) {
-      downloads.keep(widget.slug, card.kind, card.id, tracks).catchError((Object _) {});
+      downloads
+          .keep(widget.slug, card.kind, card.id, tracks, name: _name ?? card.title, cover: card.cover)
+          .catchError((Object _) {});
     }
     return tracks;
   }
@@ -437,7 +440,8 @@ class _DownloadAll extends StatelessWidget {
         ],
       ),
     );
-    if (sure ?? false) await downloads.removeCollection(slug, card.kind, card.id, tracks);
+    if (!(sure ?? false) || !context.mounted) return;
+    await downloads.removeCollection(slug, card.kind, card.id, liked: AppScope.of(context).favorites.tracks(slug));
   }
 
   @override
@@ -511,7 +515,7 @@ class _DownloadAll extends StatelessWidget {
                       showToast(Toast(title: started, detail: count, cover: batch.cover, progress: batch.progress));
                     }
                   }
-                  await downloads.keep(slug, card.kind, card.id, tracks);
+                  await downloads.keep(slug, card.kind, card.id, tracks, name: name, cover: card.cover);
                 },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

@@ -58,6 +58,22 @@ pub struct Collection {
     /// Its track ids at the last sync. A track that left it is no longer held back from going
     /// stale, nor is its download removed.
     pub tracks: Vec<String>,
+    /// What it is called and its cover, for the downloads list. A collection kept before they
+    /// were noted has none.
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub cover: Option<String>,
+}
+
+/// The downloaded tracks of one kept collection, or of none, each with the bytes it takes on
+/// disk, and what they take together.
+#[derive(Debug, PartialEq)]
+pub struct Group {
+    /// None for the tracks in no kept collection.
+    pub collection: Option<Collection>,
+    pub tracks: Vec<(Entry, u64)>,
+    pub bytes: u64,
 }
 
 #[derive(Debug, Default)]
@@ -158,15 +174,113 @@ impl Downloads {
             .any(|kept| kept.source == source && kept.album == album && kept.id == id)
     }
 
-    /// Keeps an album or playlist downloaded, or notes the `tracks` it has now.
+    /// Keeps an album or playlist downloaded, or notes the `tracks` it has now. Its name and
+    /// cover stay.
     pub fn keep(&mut self, source: &str, album: bool, id: &str, tracks: Vec<String>) {
-        self.unkeep(source, album, id);
+        if let Some(kept) = self.collection_mut(source, album, id) {
+            kept.tracks = tracks;
+            return;
+        }
         self.collections.push(Collection {
             source: source.to_owned(),
             album,
             id: id.to_owned(),
             tracks,
+            name: String::new(),
+            cover: None,
         });
+    }
+
+    /// Notes what a kept collection is called and its cover.
+    pub fn title(&mut self, source: &str, album: bool, id: &str, name: &str, cover: Option<&str>) {
+        if let Some(kept) = self.collection_mut(source, album, id) {
+            kept.name = name.to_owned();
+            kept.cover = cover.map(str::to_owned);
+        }
+    }
+
+    /// Stops keeping a collection and takes its tracks off the list, but for those another
+    /// kept collection holds, so its next sync does not fetch them again, and those `spared`
+    /// names, such as likes kept downloaded. Answers the ids taken off.
+    pub fn drop_collection(
+        &mut self,
+        source: &str,
+        album: bool,
+        id: &str,
+        spared: &[String],
+    ) -> Vec<String> {
+        let Some(at) = self
+            .collections
+            .iter()
+            .position(|kept| kept.source == source && kept.album == album && kept.id == id)
+        else {
+            return Vec::new();
+        };
+        let dropped = self.collections.remove(at);
+        let gone: Vec<String> = dropped
+            .tracks
+            .into_iter()
+            .filter(|track| {
+                !spared.contains(track)
+                    && !self
+                        .collections
+                        .iter()
+                        .any(|kept| kept.source == source && kept.tracks.contains(track))
+            })
+            .collect();
+        gone.into_iter()
+            .filter(|track| self.remove(source, track))
+            .collect()
+    }
+
+    /// The finished downloads by kept collection, largest first, then those in none, with what
+    /// `size` says each takes. A track in two collections is listed in both and counted once in
+    /// the total that comes with them.
+    pub fn groups(&self, size: impl Fn(&Entry) -> u64) -> (Vec<Group>, u64) {
+        let done: Vec<(&Entry, u64)> = self
+            .entries
+            .iter()
+            .filter(|entry| entry.done)
+            .map(|entry| (entry, size(entry)))
+            .collect();
+        let total = done.iter().map(|(_, bytes)| bytes).sum();
+        let group = |collection: Option<&Collection>, tracks: Vec<(Entry, u64)>| Group {
+            collection: collection.cloned(),
+            bytes: tracks.iter().map(|(_, bytes)| bytes).sum(),
+            tracks,
+        };
+        let mut groups: Vec<Group> = self
+            .collections
+            .iter()
+            .map(|kept| {
+                let tracks = kept
+                    .tracks
+                    .iter()
+                    .filter_map(|track| {
+                        done.iter()
+                            .find(|(entry, _)| entry.source == kept.source && &entry.id == track)
+                            .map(|(entry, bytes)| ((*entry).clone(), *bytes))
+                    })
+                    .collect();
+                group(Some(kept), tracks)
+            })
+            .filter(|group| !group.tracks.is_empty())
+            .collect();
+        groups.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+        let others: Vec<(Entry, u64)> = done
+            .iter()
+            .filter(|(entry, _)| {
+                !self
+                    .collections
+                    .iter()
+                    .any(|kept| kept.source == entry.source && kept.tracks.contains(&entry.id))
+            })
+            .map(|(entry, bytes)| ((*entry).clone(), *bytes))
+            .collect();
+        if !others.is_empty() {
+            groups.push(group(None, others));
+        }
+        (groups, total)
     }
 
     pub fn unkeep(&mut self, source: &str, album: bool, id: &str) {
@@ -278,6 +392,12 @@ impl Downloads {
         self.entries
             .iter()
             .any(|entry| matches!(entry.state(), State::Queued | State::Running))
+    }
+
+    fn collection_mut(&mut self, source: &str, album: bool, id: &str) -> Option<&mut Collection> {
+        self.collections
+            .iter_mut()
+            .find(|kept| kept.source == source && kept.album == album && kept.id == id)
     }
 
     fn entry_mut(&mut self, source: &str, id: &str) -> Option<&mut Entry> {
@@ -541,6 +661,127 @@ mod tests {
             downloads.stale(91 * DAY, 90 * DAY),
             vec![("subsonic".to_owned(), "left".to_owned())]
         );
+    }
+
+    /// What each downloaded track takes in these tests: its id, read as a number of bytes.
+    fn size(entry: &Entry) -> u64 {
+        entry.id.parse().unwrap_or(0)
+    }
+
+    fn group_ids(group: &Group) -> Vec<&str> {
+        group
+            .tracks
+            .iter()
+            .map(|(entry, _)| entry.id.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn downloads_group_into_kept_collections_then_the_others() {
+        let mut downloads = Downloads::default();
+        for id in ["10", "20", "30", "40"] {
+            downloaded(&mut downloads, id, 0);
+        }
+        downloads.add("subsonic", track("50"));
+        downloads.keep(
+            "subsonic",
+            true,
+            "album",
+            vec!["10".into(), "20".into(), "60".into()],
+        );
+        let (groups, _) = downloads.groups(size);
+        assert_eq!(groups.len(), 2);
+        let album = groups[0].collection.as_ref().unwrap();
+        assert_eq!((album.album, album.id.as_str()), (true, "album"));
+        // only what is on disk: one still queued or never listed is not shown
+        assert_eq!(group_ids(&groups[0]), vec!["10", "20"]);
+        assert!(groups[1].collection.is_none());
+        assert_eq!(group_ids(&groups[1]), vec!["30", "40"]);
+    }
+
+    #[test]
+    fn a_track_in_two_kept_collections_shows_in_both_and_counts_once() {
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "100", 0);
+        downloaded(&mut downloads, "7", 0);
+        downloads.keep("subsonic", true, "album", vec!["100".into(), "7".into()]);
+        downloads.keep("subsonic", false, "mix", vec!["100".into()]);
+        let (groups, total) = downloads.groups(size);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].bytes, 107);
+        assert_eq!(groups[1].bytes, 100);
+        assert_eq!(total, 107);
+    }
+
+    #[test]
+    fn groups_and_their_tracks_carry_their_sizes_largest_group_first() {
+        let mut downloads = Downloads::default();
+        for id in ["1", "2", "300", "4000"] {
+            downloaded(&mut downloads, id, 0);
+        }
+        downloads.keep("subsonic", false, "small", vec!["1".into(), "2".into()]);
+        downloads.keep("subsonic", true, "big", vec!["300".into()]);
+        let (groups, total) = downloads.groups(size);
+        let names: Vec<_> = groups
+            .iter()
+            .map(|group| group.collection.as_ref().map(|kept| kept.id.as_str()))
+            .collect();
+        // the others come last whatever they take
+        assert_eq!(names, vec![Some("big"), Some("small"), None]);
+        assert_eq!(
+            groups[1]
+                .tracks
+                .iter()
+                .map(|(_, bytes)| *bytes)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(groups[2].bytes, 4000);
+        assert_eq!(total, 4303);
+    }
+
+    #[test]
+    fn a_kept_collection_with_nothing_downloaded_is_not_a_group() {
+        let mut downloads = Downloads::default();
+        downloads.add("subsonic", track("1"));
+        downloads.keep("subsonic", true, "album", vec!["1".into()]);
+        assert_eq!(downloads.groups(size), (Vec::new(), 0));
+    }
+
+    #[test]
+    fn dropping_a_collection_spares_tracks_kept_otherwise() {
+        let mut downloads = Downloads::default();
+        for id in ["only", "shared", "liked"] {
+            downloaded(&mut downloads, id, 0);
+        }
+        downloads.keep(
+            "subsonic",
+            true,
+            "album",
+            vec!["only".into(), "shared".into(), "liked".into()],
+        );
+        downloads.keep("subsonic", false, "mix", vec!["shared".into()]);
+        let removed = downloads.drop_collection("subsonic", true, "album", &["liked".to_owned()]);
+        assert_eq!(removed, vec!["only".to_owned()]);
+        assert!(!downloads.keeps("subsonic", true, "album"));
+        assert!(downloads.keeps("subsonic", false, "mix"));
+        assert!(downloads.kept("subsonic", "shared"));
+        assert!(downloads.kept("subsonic", "liked"));
+        assert!(!downloads.kept("subsonic", "only"));
+    }
+
+    #[test]
+    fn a_kept_collection_keeps_its_name_when_kept_again() {
+        let mut downloads = Downloads::default();
+        downloads.keep("subsonic", true, "album", vec!["1".into()]);
+        downloads.title("subsonic", true, "album", "Blue", Some("cover.jpg"));
+        downloads.keep("subsonic", true, "album", vec!["1".into(), "2".into()]);
+        let kept = &downloads.collections()[0];
+        assert_eq!(
+            (kept.name.as_str(), kept.cover.as_deref()),
+            ("Blue", Some("cover.jpg"))
+        );
+        assert_eq!(kept.tracks.len(), 2);
     }
 
     fn folder(name: &str) -> PathBuf {

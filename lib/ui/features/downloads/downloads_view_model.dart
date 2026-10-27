@@ -103,20 +103,29 @@ class DownloadsViewModel extends ChangeNotifier {
   }
 
   /// Keeps an album or playlist downloaded with the `tracks` it has now: those not listed yet
-  /// download, and so do the ones it gains each time it is kept again.
-  Future<void> keep(String slug, core.CardKind kind, String id, List<core.TrackItem> tracks) async {
-    await core.keepCollection(slug: slug, kind: kind, id: id, tracks: _wanted(tracks));
+  /// download, and so do the ones it gains each time it is kept again. The `name` and `cover`
+  /// are what the downloads list shows for it.
+  Future<void> keep(
+    String slug,
+    core.CardKind kind,
+    String id,
+    List<core.TrackItem> tracks, {
+    String? name,
+    String? cover,
+  }) async {
+    await core.keepCollection(slug: slug, kind: kind, id: id, tracks: _wanted(tracks), name: name, cover: cover);
     await refresh();
   }
 
-  /// Stops keeping an album or playlist downloaded and removes the downloads of its `tracks`.
-  Future<void> removeCollection(String slug, core.CardKind kind, String id, List<core.TrackItem> tracks) async {
-    await core.unkeepCollection(slug: slug, kind: kind, id: id);
-    for (final track in tracks) {
-      if (_byKey.containsKey(_key(track.source, track.id))) {
-        await core.removeDownload(source: track.source, id: track.id);
-      }
-    }
+  /// Stops keeping an album or playlist downloaded and removes its downloads, but for those
+  /// another kept collection holds and, while likes download, the `liked` ones.
+  Future<void> removeCollection(
+    String slug,
+    core.CardKind kind,
+    String id, {
+    required List<core.TrackItem> liked,
+  }) async {
+    await core.removeKeptCollection(slug: slug, kind: kind, id: id, liked: [for (final track in liked) track.id]);
     await refresh();
   }
 
