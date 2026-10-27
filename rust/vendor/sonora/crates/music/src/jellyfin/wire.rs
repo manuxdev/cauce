@@ -7,7 +7,10 @@ use serde::Deserialize;
 use crate::engine::Loudness;
 use crate::escape;
 use crate::jellyfin::auth::Credentials;
-use crate::{Album, ArtistRef, Playlist, ReleaseType, SavedArtist, Track, iso_8601_to_epoch};
+use crate::{
+    Album, ArtistRef, Genre, GenreItem, GenreSection, HomeFeed, Playlist, ReleaseType, SavedArtist,
+    Track, iso_8601_to_epoch,
+};
 
 /// How many ticks Jellyfin counts in a second.
 const TICKS_PER_SECOND: u64 = 10_000_000;
@@ -241,6 +244,54 @@ pub fn credentials(answer: Authenticated, server: &str, device_id: &str) -> Cred
     }
 }
 
+pub fn genre(item: Item, server: &str) -> Genre {
+    Genre {
+        cover: cover(server, &item.id, item.primary(), COVER),
+        id: item.id,
+        name: item.name.unwrap_or_default(),
+    }
+}
+
+/// The albums `tracks` come from, each once, in the order the tracks name them, up to `wanted`.
+pub fn album_ids(tracks: &[Item], wanted: usize) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for id in tracks.iter().filter_map(|track| track.album_id.as_deref()) {
+        if ids.len() == wanted {
+            break;
+        }
+        if !id.is_empty() && !ids.iter().any(|kept| kept == id) {
+            ids.push(id.to_owned());
+        }
+    }
+    ids
+}
+
+/// The home feed with Subsonic's shelves and titles: random songs to listen again and as quick
+/// picks, then the newest and the most played albums. An empty shelf is left out.
+pub fn home(random: Vec<Track>, newest: Vec<Album>, most_played: Vec<Album>) -> HomeFeed {
+    let sections = [
+        ("Newest albums", newest),
+        ("Most played albums", most_played),
+    ]
+    .into_iter()
+    .filter(|(_, albums)| !albums.is_empty())
+    .map(|(title, albums)| GenreSection {
+        title: title.to_owned(),
+        items: albums.into_iter().map(GenreItem::Album).collect(),
+    })
+    .collect();
+    HomeFeed {
+        listen_again: random
+            .iter()
+            .take(10)
+            .cloned()
+            .map(GenreItem::Track)
+            .collect(),
+        quick_picks: Some(random.into_iter().take(15).collect()),
+        sections,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -433,5 +484,67 @@ mod tests {
         let listing: Items = serde_json::from_str(&json).unwrap();
         assert_eq!(listing.items.len(), 1);
         assert_eq!(listing.total_record_count, Some(5));
+    }
+
+    /// A `MusicGenre` from the demo's `/MusicGenres`, trimmed.
+    const GENRE: &str = r#"{
+        "Name": "Electronic",
+        "Id": "6ca4fc40460773bb0ac0cd7c74ca4807",
+        "Type": "MusicGenre",
+        "ImageTags": { "Primary": "6a06bd45cf5d2f38ea3aa0a0dcc18afb" }
+    }"#;
+
+    #[test]
+    fn a_music_genre_becomes_a_genre() {
+        let genre = genre(item(GENRE), SERVER);
+        assert_eq!(genre.id, "6ca4fc40460773bb0ac0cd7c74ca4807");
+        assert_eq!(genre.name, "Electronic");
+        assert!(
+            genre
+                .cover
+                .unwrap()
+                .ends_with("tag=6a06bd45cf5d2f38ea3aa0a0dcc18afb")
+        );
+    }
+
+    #[test]
+    fn the_most_played_tracks_name_their_albums_once_in_order() {
+        let played = |album: &str| Item {
+            album_id: Some(album.to_owned()),
+            ..item(AUDIO)
+        };
+        let tracks = [
+            played("a"),
+            played("b"),
+            played("a"),
+            Item::default(),
+            played("c"),
+        ];
+        assert_eq!(album_ids(&tracks, 2), ["a", "b"]);
+        assert_eq!(album_ids(&tracks, 12), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn home_has_the_subsonic_shelves_and_leaves_empty_ones_out() {
+        let songs: Vec<Track> = (0..25).map(|_| track(item(AUDIO), SERVER)).collect();
+        let albums = vec![album(item(ALBUM), SERVER)];
+        let feed = home(songs, albums.clone(), albums);
+        assert_eq!(feed.listen_again.len(), 10);
+        assert_eq!(feed.quick_picks.as_ref().map(Vec::len), Some(15));
+        let titles: Vec<&str> = feed
+            .sections
+            .iter()
+            .map(|section| section.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Newest albums", "Most played albums"]);
+
+        let bare = home(Vec::new(), Vec::new(), vec![album(item(ALBUM), SERVER)]);
+        let titles: Vec<&str> = bare
+            .sections
+            .iter()
+            .map(|section| section.title.as_str())
+            .collect();
+        assert_eq!(titles, ["Most played albums"]);
+        assert!(bare.listen_again.is_empty());
     }
 }
