@@ -38,8 +38,10 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
 
 ### Open catalogs
 
-- [ ] Internet radio through Radio Browser (open API): search by name, country, genre and language, favourite stations,
-      now-playing titles where the stream sends them
+- [x] Internet radio through Radio Browser (open API): search by name, country, genre and language, favourite stations,
+      now-playing titles where the stream sends them. Left out: HLS stations (filtered out), lower bitrates on data
+      saver, plain-http station logos (the placeholder shows), HE-AAC over ADTS plays its core only, and the lyrics
+      button stays on screen for a station but does nothing
 - [ ] Podcasts through RSS: subscribe by URL or search, new-episode checks, resume per episode, playback speed, download
       episodes
 - [ ] Internet Archive: public-domain and Creative Commons music through its official API
