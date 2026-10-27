@@ -202,6 +202,16 @@ Future<void> shuffleUpcoming() => RustLib.instance.api.crateApiPlayerShuffleUpco
 /// Takes the queued track at `index` out; the one playing stays.
 Future<void> removeQueued({required int index}) => RustLib.instance.api.crateApiPlayerRemoveQueued(index: index);
 
+/// Queues `tracks` right after the current one, or plays them when nothing is playing.
+Future<void> playNext({required List<TrackItem> tracks}) => RustLib.instance.api.crateApiPlayerPlayNext(tracks: tracks);
+
+/// Queues `tracks` at the end, or plays them when nothing is playing.
+Future<void> addToQueue({required List<TrackItem> tracks}) =>
+    RustLib.instance.api.crateApiPlayerAddToQueue(tracks: tracks);
+
+/// Writes what is playing and where, for an app going to the background.
+Future<void> saveSession() => RustLib.instance.api.crateApiPlayerSaveSession();
+
 /// Drops what is still to play.
 Future<void> clearUpcoming() => RustLib.instance.api.crateApiPlayerClearUpcoming();
 

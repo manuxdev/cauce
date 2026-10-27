@@ -796,6 +796,22 @@ pub fn remove_queued(index: u32) -> Result<()> {
     Ok(())
 }
 
+/// Queues `tracks` right after the current one, or plays them when nothing is playing.
+pub fn play_next(tracks: Vec<TrackItem>) -> Result<()> {
+    core()?.play_next(tracks.into_iter().map(item).collect())
+}
+
+/// Queues `tracks` at the end, or plays them when nothing is playing.
+pub fn add_to_queue(tracks: Vec<TrackItem>) -> Result<()> {
+    core()?.add_to_queue(tracks.into_iter().map(item).collect())
+}
+
+/// Writes what is playing and where, for an app going to the background.
+pub fn save_session() -> Result<()> {
+    core()?.save_session();
+    Ok(())
+}
+
 /// Drops what is still to play.
 pub fn clear_upcoming() -> Result<()> {
     core()?.clear_upcoming();

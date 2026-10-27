@@ -63,8 +63,8 @@ impl Session {
 
 /// Decides when a snapshot is worth writing: whenever the queue, the track or the status changes,
 /// and every [`POSITION_EVERY`] while the position moves.
-/// What, when it changes, is saved at once: queue length, index, track, status and repeat.
-type Key = (usize, Option<usize>, Option<String>, Status, Repeat);
+/// What, when it changes, is saved at once: the queue's order, index, status and repeat.
+type Key = (Vec<String>, Option<usize>, Status, Repeat);
 
 #[derive(Default)]
 pub struct Saver {
@@ -76,9 +76,8 @@ pub struct Saver {
 impl Saver {
     pub fn due(&mut self, snapshot: &Snapshot, now: Instant) -> bool {
         let key = (
-            snapshot.items.len(),
+            snapshot.items.iter().map(|item| item.id.clone()).collect(),
             snapshot.index,
-            snapshot.item.as_ref().map(|item| item.id.clone()),
             snapshot.status,
             snapshot.repeat,
         );
@@ -179,5 +178,72 @@ mod tests {
         snapshot.status = Status::Paused;
         assert!(saver.due(&snapshot, start + Duration::from_secs(12)));
         assert!(!saver.due(&snapshot, start + Duration::from_secs(30)));
+    }
+
+    fn folder(name: &str) -> std::path::PathBuf {
+        let folder = std::env::temp_dir().join(format!("cauce-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        folder
+    }
+
+    #[test]
+    fn a_reordered_queue_comes_back_in_its_order_paused() {
+        let folder = folder("round-trip");
+        let mut transport = Transport::default();
+        transport.start(vec![item("a"), item("b"), item("c")], 0);
+        transport.play_next(vec![item("a")]);
+        transport.move_item(3, 1);
+        transport.set_repeat(Repeat::All);
+        transport.seek(Duration::from_secs(7));
+        let saved = transport.snapshot();
+        Session::of(&saved).unwrap().save(&folder);
+        let session = Session::load(&folder).unwrap();
+        let mut back = Transport::default();
+        back.resume(
+            session.items.clone(),
+            session.index,
+            session.position(),
+            session.repeat,
+        );
+        let snapshot = back.snapshot();
+        assert_eq!(snapshot.items, saved.items);
+        assert_eq!(snapshot.index, Some(0));
+        assert_eq!(snapshot.position, Duration::from_secs(7));
+        assert_eq!(snapshot.repeat, Repeat::All);
+        assert_eq!(snapshot.status, Status::Paused);
+        std::fs::remove_dir_all(&folder).ok();
+    }
+
+    #[test]
+    fn a_corrupt_session_is_no_session() {
+        let folder = folder("corrupt");
+        std::fs::write(folder.join(FILE), "{\"items\": [{\"source\": 1}], \"index\"").unwrap();
+        assert_eq!(Session::load(&folder), None);
+        std::fs::remove_dir_all(&folder).ok();
+    }
+
+    #[test]
+    fn a_session_pointing_past_its_items_resumes_nothing() {
+        let mut transport = Transport::default();
+        transport.resume(vec![item("a")], 4, Duration::from_secs(3), Repeat::Off);
+        let snapshot = transport.snapshot();
+        assert!(snapshot.items.is_empty());
+        assert_eq!(snapshot.status, Status::Idle);
+    }
+
+    #[test]
+    fn reordering_or_shuffling_saves_at_once() {
+        let mut saver = Saver::default();
+        let start = Instant::now();
+        let mut snapshot = Snapshot {
+            items: vec![item("a"), item("b"), item("c")],
+            index: Some(0),
+            item: Some(item("a")),
+            status: Status::Paused,
+            ..Snapshot::default()
+        };
+        assert!(saver.due(&snapshot, start));
+        snapshot.items.swap(1, 2);
+        assert!(saver.due(&snapshot, start + Duration::from_secs(1)));
     }
 }

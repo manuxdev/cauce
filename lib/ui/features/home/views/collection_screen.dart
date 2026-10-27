@@ -64,6 +64,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
     if (!mounted) return;
     try {
       switch (edit) {
+        case PlaylistEdit.playNext || PlaylistEdit.addToQueue:
+          await queueTracks(context, tracks, next: edit == PlaylistEdit.playNext, name: name, cover: widget.card.cover);
         case PlaylistEdit.add:
           await Navigator.of(context).push(
             MaterialPageRoute<void>(

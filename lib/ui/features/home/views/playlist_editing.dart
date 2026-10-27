@@ -18,7 +18,7 @@ import '../../../core/toast.dart';
 import '../../../core/error_text.dart';
 
 /// What can be done to one of the listener's own playlists.
-enum PlaylistEdit { add, rename, delete }
+enum PlaylistEdit { playNext, addToQueue, add, rename, delete }
 
 Future<PlaylistEdit?> showPlaylistOptions(BuildContext context) {
   return behindSheet(
@@ -32,6 +32,16 @@ Future<PlaylistEdit?> showPlaylistOptions(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SheetHandle(),
+            OptionRow(
+              glyph: CauceGlyph.next,
+              label: context.t('track.playNext'),
+              onTap: () => Navigator.of(sheet).pop(PlaylistEdit.playNext),
+            ),
+            OptionRow(
+              glyph: CauceGlyph.queue,
+              label: context.t('track.addToQueue'),
+              onTap: () => Navigator.of(sheet).pop(PlaylistEdit.addToQueue),
+            ),
             OptionRow(
               glyph: CauceGlyph.plus,
               label: context.t('playlist.addSongs'),

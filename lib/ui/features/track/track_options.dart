@@ -72,9 +72,24 @@ List<_Option> _goTo(BuildContext context, core.TrackItem track, VoidCallback? le
   ];
 }
 
-/// Every option for `track` in a sheet under its cover and names: download it, heart it, add it
-/// to a playlist, then go to its album or artists. A file only has the ways to its album and
-/// artists.
+/// Queues `tracks` right after the current one or at the end, and says so naming `name`.
+Future<void> queueTracks(
+  BuildContext context,
+  List<core.TrackItem> tracks, {
+  required bool next,
+  required String name,
+  String? cover,
+}) async {
+  final player = AppScope.of(context).player;
+  final title = context.t(next ? 'queue.playsNext' : 'queue.added');
+  if (await (next ? player.playNext(tracks) : player.addToQueue(tracks))) {
+    showToast(Toast(title: title, detail: name, cover: cover, badge: true));
+  }
+}
+
+/// Every option for `track` in a sheet under its cover and names: play it next or last, download
+/// it, heart it, add it to a playlist, then go to its album or artists. A file has no download,
+/// heart or playlist.
 Future<void> showTrackOptions(BuildContext context, core.TrackItem track, {VoidCallback? leave}) {
   final streamed = track.source != 'local';
   final goTo = _goTo(context, track, leave);
@@ -83,6 +98,7 @@ Future<void> showTrackOptions(BuildContext context, core.TrackItem track, {VoidC
       sheetAnimationStyle: sheetAnimation,
       context: context,
       useRootNavigator: true,
+      isScrollControlled: true,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (sheet) {
         void run(VoidCallback action) {
@@ -126,29 +142,47 @@ Future<void> showTrackOptions(BuildContext context, core.TrackItem track, {VoidC
                 ),
               ),
               Divider(height: 1, color: CauceColors.border),
-              const SizedBox(height: 6),
-              if (streamed) ...[
-                _DownloadRow(track: track),
-                _FavoriteRow(track: track),
-                OptionRow(
-                  glyph: CauceGlyph.plus,
-                  label: context.t('track.addToPlaylist'),
-                  onTap: () => run(() => showAddToPlaylist(context, track)),
-                ),
-                if (goTo.isNotEmpty)
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 22, vertical: 6),
-                    child: Divider(height: 1, color: CauceColors.border),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 6),
+                      for (final next in [true, false])
+                        OptionRow(
+                          glyph: next ? CauceGlyph.next : CauceGlyph.queue,
+                          label: context.t(next ? 'track.playNext' : 'track.addToQueue'),
+                          onTap: () => run(
+                            () => queueTracks(
+                              context,
+                              [track],
+                              next: next,
+                              name: [track.title, track.artists].where((part) => part.isNotEmpty).join(' · '),
+                              cover: track.cover,
+                            ).ignore(),
+                          ),
+                        ),
+                      if (streamed) ...[
+                        _DownloadRow(track: track),
+                        _FavoriteRow(track: track),
+                        OptionRow(
+                          glyph: CauceGlyph.plus,
+                          label: context.t('track.addToPlaylist'),
+                          onTap: () => run(() => showAddToPlaylist(context, track)),
+                        ),
+                      ],
+                      if (goTo.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                          child: Divider(height: 1, color: CauceColors.border),
+                        ),
+                      for (final option in goTo)
+                        OptionRow(glyph: option.glyph, label: option.label, onTap: () => run(option.run)),
+                      const SizedBox(height: 8),
+                    ],
                   ),
-              ],
-              for (final option in goTo)
-                OptionRow(glyph: option.glyph, label: option.label, onTap: () => run(option.run)),
-              if (!streamed && goTo.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(context.t('track.noOptions'), style: TextStyle(color: CauceColors.mutedForeground)),
                 ),
-              const SizedBox(height: 8),
+              ),
             ],
           ),
         );

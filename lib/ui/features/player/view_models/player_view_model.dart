@@ -68,7 +68,7 @@ class PlayerViewModel extends ChangeNotifier {
     final wanted = tracks[start];
     final found = wanted.playable ? null : await substitute(wanted);
     if (found != null) tracks = [...tracks]..[start] = found;
-    return _play(() => core.playQueue(tracks: tracks, start: start));
+    await _play(() => core.playQueue(tracks: tracks, start: start));
   }
 
   Future<void> playFiles(List<String> paths, int start) => _play(() => core.playFiles(paths: paths, start: start));
@@ -81,6 +81,16 @@ class PlayerViewModel extends ChangeNotifier {
   Future<void> shuffleUpcoming() => _run(core.shuffleUpcoming);
   Future<void> removeQueued(int index) => _run(() => core.removeQueued(index: index));
   Future<void> clearUpcoming() => _run(core.clearUpcoming);
+
+  /// Queues `tracks` right after the current one, or plays them when nothing is playing.
+  /// Answers whether it worked.
+  Future<bool> playNext(List<core.TrackItem> tracks) => _queue(() => core.playNext(tracks: tracks));
+
+  /// Queues `tracks` at the end, or plays them when nothing is playing. Answers whether it worked.
+  Future<bool> addToQueue(List<core.TrackItem> tracks) => _queue(() => core.addToQueue(tracks: tracks));
+
+  /// Writes what is playing and where now, as the app goes to the background.
+  Future<void> saveSession() => _run(core.saveSession);
   Future<void> seek(Duration to) => _run(() => core.seek(millis: BigInt.from(to.inMilliseconds)));
 
   /// Off → all → one → off.
@@ -100,18 +110,25 @@ class PlayerViewModel extends ChangeNotifier {
     await core.play();
   });
 
+  /// Queuing with nothing playing starts it, which takes the audio first.
+  Future<bool> _queue(Future<void> Function() command) =>
+      (_state?.status ?? core.PlaybackStatus.idle) == core.PlaybackStatus.idle ? _play(command) : _run(command);
+
   /// Runs a command that loads a track.
-  Future<void> _play(Future<void> Function() command) => _run(() async {
+  Future<bool> _play(Future<void> Function() command) => _run(() async {
     if (await claimAudio()) await core.reopenOutput();
     await command();
   });
 
-  Future<void> _run(Future<void> Function() command) async {
+  /// Runs `command`, answering whether it worked.
+  Future<bool> _run(Future<void> Function() command) async {
     try {
       await command();
+      return true;
     } catch (error) {
       _fail(errorKey(error));
       notifyListeners();
+      return false;
     }
   }
 
