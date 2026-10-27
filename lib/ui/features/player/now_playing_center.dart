@@ -93,7 +93,7 @@ class NowPlayingCenter {
       case 'previous':
         await _player.previous();
       case 'online':
-        online.value = arguments['value'] == true;
+        deviceOnline.value = arguments['value'] == true;
       case 'network':
         _player.cellular = arguments['value'] == true;
         await core.setCellular(cellular: _player.cellular);

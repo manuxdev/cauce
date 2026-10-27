@@ -200,6 +200,9 @@ Future<void> reopenOutput() => RustLib.instance.api.crateApiPlayerReopenOutput()
 Future<void> setCellular({required bool cellular}) =>
     RustLib.instance.api.crateApiPlayerSetCellular(cellular: cellular);
 
+/// Whether the app stays off the network: the phone has none, or offline mode is on.
+Future<void> setOffline({required bool offline}) => RustLib.instance.api.crateApiPlayerSetOffline(offline: offline);
+
 /// Rest once the current track ends, or not, as a sleep timer at the end of a track does.
 Future<void> setStopAfterCurrent({required bool stop}) =>
     RustLib.instance.api.crateApiPlayerSetStopAfterCurrent(stop: stop);
