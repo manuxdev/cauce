@@ -681,6 +681,47 @@ impl Core {
         Ok(())
     }
 
+    /// Asks only for the tracks in `tracks` not listed yet, as keeping likes or a collection
+    /// downloaded does.
+    pub fn download_missing(&self, source: &str, tracks: Vec<Track>) -> Result<()> {
+        let missing = lock(&self.inner.downloads).missing(source, tracks);
+        if missing.is_empty() {
+            return Ok(());
+        }
+        self.download(source, missing)
+    }
+
+    /// Keeps an album or playlist downloaded with the `tracks` it has now, and asks for those
+    /// not listed yet.
+    pub fn keep_collection(
+        &self,
+        source: &str,
+        album: bool,
+        id: &str,
+        tracks: Vec<Track>,
+    ) -> Result<()> {
+        self.download_missing(source, tracks.clone())?;
+        let mut downloads = lock(&self.inner.downloads);
+        downloads.keep(
+            source,
+            album,
+            id,
+            tracks.into_iter().filter_map(|track| track.id).collect(),
+        );
+        downloads.save(&self.inner.data);
+        Ok(())
+    }
+
+    pub fn unkeep_collection(&self, source: &str, album: bool, id: &str) {
+        let mut downloads = lock(&self.inner.downloads);
+        downloads.unkeep(source, album, id);
+        downloads.save(&self.inner.data);
+    }
+
+    pub fn kept_collections(&self) -> Vec<downloads::Collection> {
+        lock(&self.inner.downloads).collections().to_vec()
+    }
+
     /// The scrobbling accounts and whether local files are sent.
     pub fn scrobbling(&self) -> scrobbling::Scrobbling {
         lock(&self.inner.scrobbling).clone()

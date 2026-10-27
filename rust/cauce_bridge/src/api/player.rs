@@ -684,6 +684,61 @@ pub fn keep_lyrics(track: TrackItem, sources: Vec<String>) -> Result<bool> {
     core()?.keep_lyrics(&item(track), &sources)
 }
 
+/// Downloads the `tracks` not listed yet, as keeping likes downloaded does. Failed ones wait to
+/// be asked for by hand.
+pub fn download_missing(tracks: Vec<TrackItem>) -> Result<()> {
+    let core = core()?;
+    let mut refused = Ok(());
+    for track in tracks {
+        let item = item(track);
+        if let Err(error) = core.download_missing(&item.source, vec![item.track]) {
+            refused = Err(error);
+        }
+    }
+    refused
+}
+
+/// An album or playlist kept downloaded.
+pub struct KeptCollection {
+    pub slug: String,
+    pub kind: CardKind,
+    pub id: String,
+}
+
+/// Keeps an album or playlist downloaded with the `tracks` it has now, downloading those not
+/// listed yet. Asked again whenever it opens.
+pub fn keep_collection(
+    slug: String,
+    kind: CardKind,
+    id: String,
+    tracks: Vec<TrackItem>,
+) -> Result<()> {
+    let tracks = tracks.into_iter().map(|track| item(track).track).collect();
+    core()?.keep_collection(&slug, matches!(kind, CardKind::Album), &id, tracks)
+}
+
+/// Stops keeping it downloaded; what is downloaded stays.
+pub fn unkeep_collection(slug: String, kind: CardKind, id: String) -> Result<()> {
+    core()?.unkeep_collection(&slug, matches!(kind, CardKind::Album), &id);
+    Ok(())
+}
+
+pub fn kept_collections() -> Result<Vec<KeptCollection>> {
+    Ok(core()?
+        .kept_collections()
+        .into_iter()
+        .map(|kept| KeptCollection {
+            slug: kept.source,
+            kind: if kept.album {
+                CardKind::Album
+            } else {
+                CardKind::Playlist
+            },
+            id: kept.id,
+        })
+        .collect())
+}
+
 pub fn remove_download(source: String, id: String) -> Result<()> {
     core()?.remove_download(&source, &id);
     Ok(())

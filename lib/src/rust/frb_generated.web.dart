@@ -87,6 +87,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  KeptCollection dco_decode_kept_collection(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -103,6 +106,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<HomeShelf> dco_decode_list_home_shelf(dynamic raw);
+
+  @protected
+  List<KeptCollection> dco_decode_list_kept_collection(dynamic raw);
 
   @protected
   List<LyricLine> dco_decode_list_lyric_line(dynamic raw);
@@ -279,6 +285,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  KeptCollection sse_decode_kept_collection(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -295,6 +304,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<HomeShelf> sse_decode_list_home_shelf(SseDeserializer deserializer);
+
+  @protected
+  List<KeptCollection> sse_decode_list_kept_collection(SseDeserializer deserializer);
 
   @protected
   List<LyricLine> sse_decode_list_lyric_line(SseDeserializer deserializer);
@@ -471,6 +483,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_kept_collection(KeptCollection self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
@@ -487,6 +502,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_home_shelf(List<HomeShelf> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_kept_collection(List<KeptCollection> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_lyric_line(List<LyricLine> self, SseSerializer serializer);

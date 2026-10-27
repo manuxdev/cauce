@@ -471,6 +471,9 @@ const english = <String, String>{
   'downloads.inProgress': 'In progress',
   'downloads.done': 'Downloaded',
   'downloads.delete': 'Delete',
+  'downloads.remove': 'Remove download',
+  'downloads.remove.confirm':
+      'The songs of {name} are removed from this iPhone, and new ones stop downloading. They stay in your library.',
 
   // Web sign-in
   'signIn.title': 'Sign in to {service}',
@@ -937,6 +940,9 @@ const spanish = <String, String>{
   'downloads.inProgress': 'En curso',
   'downloads.done': 'Descargadas',
   'downloads.delete': 'Eliminar',
+  'downloads.remove': 'Quitar descarga',
+  'downloads.remove.confirm':
+      'Las canciones de {name} se borran del iPhone y las nuevas dejan de descargarse. Siguen en tu biblioteca.',
 
   'signIn.title': 'Iniciá sesión en {service}',
 };

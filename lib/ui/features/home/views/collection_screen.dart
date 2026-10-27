@@ -39,8 +39,15 @@ class CollectionScreen extends StatefulWidget {
 class _CollectionScreenState extends State<CollectionScreen> {
   late Future<List<core.TrackItem>> _tracks = _load();
 
-  Future<List<core.TrackItem>> _load() =>
-      core.collectionTracks(slug: widget.slug, kind: widget.card.kind, id: widget.card.id);
+  Future<List<core.TrackItem>> _load() async {
+    final card = widget.card;
+    final tracks = await core.collectionTracks(slug: widget.slug, kind: card.kind, id: card.id);
+    // A kept one downloads what it gained since.
+    if (downloads.keeps(widget.slug, card.kind, card.id)) {
+      downloads.keep(widget.slug, card.kind, card.id, tracks).catchError((Object _) {});
+    }
+    return tracks;
+  }
 
   static const _cover = 240.0;
 
@@ -225,7 +232,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _DownloadAll(tracks: tracks, name: _name ?? widget.card.title, cover: widget.card.cover),
+                    child: _DownloadAll(
+                      slug: widget.slug,
+                      card: widget.card,
+                      tracks: tracks,
+                      name: _name ?? widget.card.title,
+                    ),
                   ),
                   FutureBuilder(
                     future: _mine,
@@ -396,15 +408,37 @@ class _DownloadLine extends StatelessWidget {
   }
 }
 
-/// Downloads every track not downloaded yet, showing how many are done while they come in.
+/// Downloads every track not downloaded yet and keeps the album or playlist downloaded, showing
+/// how many are done while they come in. Once kept, it offers to remove the download.
 class _DownloadAll extends StatelessWidget {
-  const _DownloadAll({required this.tracks, required this.name, required this.cover});
+  const _DownloadAll({required this.slug, required this.card, required this.tracks, required this.name});
 
+  final String slug;
+  final core.MediaCard card;
   final List<core.TrackItem> tracks;
 
-  /// What the toast calls it, and its cover.
+  /// What the toast calls it.
   final String name;
-  final String? cover;
+
+  Future<void> _remove(BuildContext context) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: CauceColors.sheet,
+        title: Text(context.t('downloads.remove')),
+        content: Text(context.t('downloads.remove.confirm', {'name': name})),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: Text(context.t('search.cancel'))),
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            style: TextButton.styleFrom(foregroundColor: CauceColors.error),
+            child: Text(context.t('downloads.delete')),
+          ),
+        ],
+      ),
+    );
+    if (sure ?? false) await downloads.removeCollection(slug, card.kind, card.id, tracks);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -450,18 +484,34 @@ class _DownloadAll extends StatelessWidget {
             ),
           );
         }
+        if (downloads.keeps(slug, card.kind, card.id)) {
+          return _BigButton(
+            onTap: () => _remove(context),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CauceIcon(CauceGlyph.downloaded, size: 17, weight: 2.1, color: CauceColors.accent),
+                const SizedBox(width: 8),
+                Flexible(child: Text(context.t('track.downloaded'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+          );
+        }
         final all = playable.isNotEmpty && missing.isEmpty;
         return _BigButton(
-          onTap: missing.isEmpty
+          onTap: playable.isEmpty
               ? null
-              : () {
+              : () async {
                   final started = context.t('downloads.downloading', {'name': name});
                   final count = context.t('downloads.batch', {'count': missing.length});
-                  askToNotify();
-                  downloads.download(missing, name: name, cover: cover).then((batch) {
-                    if (batch == null) return;
-                    showToast(Toast(title: started, detail: count, cover: batch.cover, progress: batch.progress));
-                  });
+                  if (missing.isNotEmpty) {
+                    askToNotify();
+                    final batch = await downloads.download(missing, name: name, cover: card.cover);
+                    if (batch != null) {
+                      showToast(Toast(title: started, detail: count, cover: batch.cover, progress: batch.progress));
+                    }
+                  }
+                  await downloads.keep(slug, card.kind, card.id, tracks);
                 },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

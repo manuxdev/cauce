@@ -14,6 +14,9 @@ class PlaybackSettingsViewModel extends ChangeNotifier {
   core.PlaybackSettings? get settings => _settings;
   core.StorageUsage? get usage => _usage;
 
+  /// Runs when downloading likes is turned on, to fetch the ones liked before.
+  void Function()? onDownloadLikes;
+
   /// Every equalizer preset, in upstream's order.
   final List<core.EqualizerPreset> presets = core.equalizerPresets();
 
@@ -87,6 +90,7 @@ class PlaybackSettingsViewModel extends ChangeNotifier {
     core.setPlaybackSettings(settings: next).ignore();
     if (resumeOnConnect != null) _tellPlatform();
     if (keepTracks == false) refreshUsage().ignore();
+    if (downloadLikes == true && !current.downloadLikes) onDownloadLikes?.call();
   }
 
   void _tellPlatform() {

@@ -157,6 +157,26 @@ Future<void> scrobble({required TrackItem track, required BigInt startedSecs}) =
 Future<bool> keepLyrics({required TrackItem track, required List<String> sources}) =>
     RustLib.instance.api.crateApiPlayerKeepLyrics(track: track, sources: sources);
 
+/// Downloads the `tracks` not listed yet, as keeping likes downloaded does. Failed ones wait to
+/// be asked for by hand.
+Future<void> downloadMissing({required List<TrackItem> tracks}) =>
+    RustLib.instance.api.crateApiPlayerDownloadMissing(tracks: tracks);
+
+/// Keeps an album or playlist downloaded with the `tracks` it has now, downloading those not
+/// listed yet. Asked again whenever it opens.
+Future<void> keepCollection({
+  required String slug,
+  required CardKind kind,
+  required String id,
+  required List<TrackItem> tracks,
+}) => RustLib.instance.api.crateApiPlayerKeepCollection(slug: slug, kind: kind, id: id, tracks: tracks);
+
+/// Stops keeping it downloaded; what is downloaded stays.
+Future<void> unkeepCollection({required String slug, required CardKind kind, required String id}) =>
+    RustLib.instance.api.crateApiPlayerUnkeepCollection(slug: slug, kind: kind, id: id);
+
+Future<List<KeptCollection>> keptCollections() => RustLib.instance.api.crateApiPlayerKeptCollections();
+
 Future<void> removeDownload({required String source, required String id}) =>
     RustLib.instance.api.crateApiPlayerRemoveDownload(source: source, id: id);
 
@@ -327,6 +347,27 @@ class HomeShelf {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is HomeShelf && runtimeType == other.runtimeType && title == other.title && cards == other.cards;
+}
+
+/// An album or playlist kept downloaded.
+class KeptCollection {
+  final String slug;
+  final CardKind kind;
+  final String id;
+
+  const KeptCollection({required this.slug, required this.kind, required this.id});
+
+  @override
+  int get hashCode => slug.hashCode ^ kind.hashCode ^ id.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KeptCollection &&
+          runtimeType == other.runtimeType &&
+          slug == other.slug &&
+          kind == other.kind &&
+          id == other.id;
 }
 
 class LyricLine {

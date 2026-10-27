@@ -1,6 +1,6 @@
 //! The list of downloaded tracks and the queue that fills it. The audio itself lives in the
 //! vault, where a provider's player puts it; this only remembers which tracks were asked for, in
-//! what order, and how each one went.
+//! what order, and how each one went, and the albums and playlists kept downloaded.
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -9,6 +9,9 @@ use music::Track;
 use serde::{Deserialize, Serialize};
 
 pub const FILE: &str = "downloads.json";
+
+/// The albums and playlists kept downloaded. A list from before it has none.
+pub const KEPT_FILE: &str = "kept.json";
 
 /// How many downloads run side by side.
 pub const AT_ONCE: usize = 2;
@@ -46,10 +49,22 @@ impl Entry {
     }
 }
 
+/// An album or playlist kept downloaded: what it gains is downloaded whenever it is synced.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Collection {
+    pub source: String,
+    pub album: bool,
+    pub id: String,
+    /// Its track ids at the last sync. A track that left it is no longer held back from going
+    /// stale, nor is its download removed.
+    pub tracks: Vec<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct Downloads {
     entries: Vec<Entry>,
     queue: VecDeque<(String, String)>,
+    collections: Vec<Collection>,
 }
 
 impl Downloads {
@@ -64,18 +79,20 @@ impl Downloads {
             .filter(|entry| !entry.done)
             .map(|entry| (entry.source.clone(), entry.id.clone()))
             .collect();
-        Self { entries, queue }
+        let collections = std::fs::read_to_string(folder.join(KEPT_FILE))
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default();
+        Self {
+            entries,
+            queue,
+            collections,
+        }
     }
 
     pub fn save(&self, folder: &Path) {
-        match serde_json::to_string(&self.entries) {
-            Ok(text) => {
-                if let Err(error) = std::fs::write(path(folder), text) {
-                    log::warn!("downloads: cannot save the list: {error}");
-                }
-            }
-            Err(error) => log::warn!("downloads: cannot encode the list: {error}"),
-        }
+        write(&path(folder), &self.entries);
+        write(&folder.join(KEPT_FILE), &self.collections);
     }
 
     pub fn entries(&self) -> &[Entry] {
@@ -114,6 +131,47 @@ impl Downloads {
             });
         }
         self.queue.push_back((source.to_owned(), id));
+    }
+
+    /// The tracks in `tracks` that are not listed yet, as keeping likes or a collection
+    /// downloaded asks for. One that failed is listed: it waits to be asked for by hand.
+    pub fn missing(&self, source: &str, tracks: Vec<Track>) -> Vec<Track> {
+        tracks
+            .into_iter()
+            .filter(|track| {
+                track.playable
+                    && track
+                        .id
+                        .as_deref()
+                        .is_some_and(|id| self.get(source, id).is_none())
+            })
+            .collect()
+    }
+
+    pub fn collections(&self) -> &[Collection] {
+        &self.collections
+    }
+
+    pub fn keeps(&self, source: &str, album: bool, id: &str) -> bool {
+        self.collections
+            .iter()
+            .any(|kept| kept.source == source && kept.album == album && kept.id == id)
+    }
+
+    /// Keeps an album or playlist downloaded, or notes the `tracks` it has now.
+    pub fn keep(&mut self, source: &str, album: bool, id: &str, tracks: Vec<String>) {
+        self.unkeep(source, album, id);
+        self.collections.push(Collection {
+            source: source.to_owned(),
+            album,
+            id: id.to_owned(),
+            tracks,
+        });
+    }
+
+    pub fn unkeep(&mut self, source: &str, album: bool, id: &str) {
+        self.collections
+            .retain(|kept| !(kept.source == source && kept.album == album && kept.id == id));
     }
 
     #[cfg(test)]
@@ -183,22 +241,37 @@ impl Downloads {
                     && entry
                         .played_at
                         .is_some_and(|at| now.saturating_sub(at) > max_age)
+                    && !self
+                        .collections
+                        .iter()
+                        .any(|kept| kept.source == entry.source && kept.tracks.contains(&entry.id))
             })
             .map(|entry| (entry.source.clone(), entry.id.clone()))
             .collect()
     }
 
-    /// Takes a track off the list; answers whether it was there.
+    /// Takes a track off the list; answers whether it was there. A kept collection left with
+    /// none of its tracks listed is no longer kept.
     pub fn remove(&mut self, source: &str, id: &str) -> bool {
         let before = self.entries.len();
         self.entries
             .retain(|entry| !(entry.source == source && entry.id == id));
-        self.entries.len() != before
+        let entries = &self.entries;
+        self.collections.retain(|kept| {
+            kept.tracks.is_empty()
+                || kept.tracks.iter().any(|track| {
+                    entries
+                        .iter()
+                        .any(|entry| entry.source == kept.source && &entry.id == track)
+                })
+        });
+        entries.len() != before
     }
 
     pub fn clear(&mut self) {
         self.entries.clear();
         self.queue.clear();
+        self.collections.clear();
     }
 
     pub fn running(&self) -> bool {
@@ -223,6 +296,17 @@ pub fn now() -> u64 {
 
 fn path(folder: &Path) -> PathBuf {
     folder.join(FILE)
+}
+
+fn write(path: &Path, value: &impl Serialize) {
+    match serde_json::to_string(value) {
+        Ok(text) => {
+            if let Err(error) = std::fs::write(path, text) {
+                log::warn!("downloads: cannot save: {error}");
+            }
+        }
+        Err(error) => log::warn!("downloads: cannot encode: {error}"),
+    }
 }
 
 #[cfg(test)]
@@ -300,7 +384,10 @@ mod tests {
         downloads.add("subsonic", track("1"));
         downloads.next();
         downloads.finished("subsonic", "1", false);
-        assert_eq!(downloads.get("subsonic", "1").unwrap().state(), State::Failed);
+        assert_eq!(
+            downloads.get("subsonic", "1").unwrap().state(),
+            State::Failed
+        );
         downloads.add("subsonic", track("1"));
         assert_eq!(
             downloads.next(),
@@ -318,10 +405,7 @@ mod tests {
             Some(("subsonic".to_owned(), "d".to_owned()))
         );
         assert_eq!(downloads.next_ready(|source| source == "subsonic"), None);
-        assert_eq!(
-            downloads.next(),
-            Some(("local".to_owned(), "y".to_owned()))
-        );
+        assert_eq!(downloads.next(), Some(("local".to_owned(), "y".to_owned())));
     }
 
     #[test]
@@ -366,8 +450,130 @@ mod tests {
         let mut downloads = Downloads::default();
         downloads.add("subsonic", track("queued"));
         downloaded(&mut downloads, "undated", 0);
-        downloads.entry_mut("subsonic", "undated").unwrap().played_at = None;
+        downloads
+            .entry_mut("subsonic", "undated")
+            .unwrap()
+            .played_at = None;
         assert!(downloads.stale(1000 * DAY, 90 * DAY).is_empty());
+    }
+
+    fn unplayable(id: &str) -> Track {
+        Track {
+            playable: false,
+            ..track(id)
+        }
+    }
+
+    fn ids(tracks: &[Track]) -> Vec<&str> {
+        tracks
+            .iter()
+            .filter_map(|track| track.id.as_deref())
+            .collect()
+    }
+
+    #[test]
+    fn only_likes_not_listed_yet_need_a_download() {
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "done", 0);
+        downloads.add("subsonic", track("queued"));
+        downloads.add("local", track("new"));
+        let liked = vec![
+            track("done"),
+            track("queued"),
+            track("new"),
+            unplayable("gone"),
+            Track {
+                id: None,
+                ..track("no-id")
+            },
+        ];
+        assert_eq!(ids(&downloads.missing("subsonic", liked)), vec!["new"]);
+    }
+
+    #[test]
+    fn a_kept_collection_needs_only_what_is_not_listed() {
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "1", 0);
+        downloads.add("subsonic", track("2"));
+        downloads.next();
+        downloads.finished("subsonic", "2", false);
+        downloads.keep(
+            "subsonic",
+            true,
+            "album",
+            vec!["1".into(), "2".into(), "3".into()],
+        );
+        let tracks = vec![track("1"), track("2"), track("3")];
+        // a failed one waits to be asked for by hand, so a broken track is not fetched on every open
+        assert_eq!(ids(&downloads.missing("subsonic", tracks)), vec!["3"]);
+        assert!(downloads.keeps("subsonic", true, "album"));
+        assert!(!downloads.keeps("subsonic", false, "album"));
+    }
+
+    #[test]
+    fn keeping_again_takes_the_new_tracks() {
+        let mut downloads = Downloads::default();
+        downloads.keep("subsonic", false, "mix", vec!["1".into()]);
+        downloads.keep("subsonic", false, "mix", vec!["2".into()]);
+        assert_eq!(downloads.collections().len(), 1);
+        assert_eq!(downloads.collections()[0].tracks, vec!["2".to_owned()]);
+    }
+
+    #[test]
+    fn removing_every_download_of_a_collection_stops_keeping_it() {
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "1", 0);
+        downloaded(&mut downloads, "2", 0);
+        downloads.keep("subsonic", false, "mix", vec!["1".into(), "2".into()]);
+        downloads.remove("subsonic", "1");
+        assert!(downloads.keeps("subsonic", false, "mix"));
+        downloads.remove("subsonic", "2");
+        assert!(!downloads.keeps("subsonic", false, "mix"));
+    }
+
+    #[test]
+    fn a_track_of_a_kept_collection_never_goes_stale() {
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "kept", 0);
+        downloaded(&mut downloads, "left", 0);
+        downloads.keep("subsonic", false, "mix", vec!["kept".into()]);
+        assert_eq!(
+            downloads.stale(91 * DAY, 90 * DAY),
+            vec![("subsonic".to_owned(), "left".to_owned())]
+        );
+    }
+
+    fn folder(name: &str) -> PathBuf {
+        let folder = std::env::temp_dir().join(format!("cauce-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        folder
+    }
+
+    #[test]
+    fn kept_collections_survive_a_load() {
+        let folder = folder("kept");
+        let mut downloads = Downloads::default();
+        downloads.keep("subsonic", true, "album", vec!["1".into()]);
+        downloads.save(&folder);
+        let loaded = Downloads::load(&folder);
+        assert_eq!(loaded.collections(), downloads.collections());
+        std::fs::remove_dir_all(&folder).ok();
+    }
+
+    #[test]
+    fn a_list_from_before_kept_collections_keeps_none() {
+        let folder = folder("old");
+        let mut downloads = Downloads::default();
+        downloaded(&mut downloads, "1", 0);
+        std::fs::write(
+            folder.join(FILE),
+            serde_json::to_string(downloads.entries()).unwrap(),
+        )
+        .unwrap();
+        let loaded = Downloads::load(&folder);
+        assert_eq!(loaded.entries().len(), 1);
+        assert!(loaded.collections().is_empty());
+        std::fs::remove_dir_all(&folder).ok();
     }
 
     #[test]
