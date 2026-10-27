@@ -32,6 +32,24 @@ class CachedNetworkImage extends ImageProvider<CachedNetworkImage> {
       ..maximumSizeBytes = 256 << 20;
   }
 
+  /// Fetches the image at `url` onto disk ahead of showing it, unless it is kept already or the
+  /// app is offline, so it shows offline later. A failure only means it is fetched when shown.
+  static Future<void> warm(String url) async {
+    final folder = _folder;
+    if (folder == null || !online.value || !_warming.add(url)) return;
+    try {
+      final file = File('${folder.path}/${_name(url)}');
+      if (await file.exists()) return;
+      await _keep(file, await CachedNetworkImage(url)._download());
+    } on Object {
+      // Unreachable now: shown, it is fetched then.
+    } finally {
+      _warming.remove(url);
+    }
+  }
+
+  static final _warming = <String>{};
+
   /// Removes every kept image.
   static Future<void> clear() async {
     final folder = _folder;

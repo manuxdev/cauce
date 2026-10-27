@@ -33,6 +33,7 @@ import 'ui/features/onboarding/app_gate.dart';
 import 'ui/features/lyrics/view_models/lyrics_view_model.dart';
 import 'ui/features/player/audio_levels.dart';
 import 'ui/features/player/now_playing_center.dart';
+import 'ui/features/player/upcoming_covers.dart';
 import 'ui/features/player/view_models/player_view_model.dart';
 import 'ui/features/player/views/mini_player.dart';
 import 'ui/features/scrobbling/scrobble_tracker.dart';
@@ -110,6 +111,23 @@ Future<void> main() async {
   }
 
   playbackSettings.onDownloadLikes = catchUp;
+  // The covers of the tracks the core prefetches are kept as well, so they show offline too.
+  var warmed = const <String>[];
+  player.addListener(() {
+    final covers = upcomingCovers(
+      player.queue,
+      player.index,
+      repeat: player.repeat,
+      online: online.value,
+      cellular: player.cellular,
+      dataSaver: playbackSettings.settings?.dataSaver ?? false,
+    );
+    if (listEquals(covers, warmed)) return;
+    warmed = covers;
+    for (final cover in covers) {
+      CachedNetworkImage.warm(cover).ignore();
+    }
+  });
   online.addListener(() async {
     await core.setOffline(offline: !online.value);
     if (!online.value) return;
