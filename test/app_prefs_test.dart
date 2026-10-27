@@ -50,7 +50,7 @@ void main() {
     expect(defaults.wordByWord, isTrue);
     expect(defaults.lyricsOffset, Duration.zero);
     expect(defaults.openLyrics, isFalse);
-    expect(defaults.lyricsSources, ['provider', 'lrclib', 'lrc']);
+    expect(defaults.lyricsSources, ['provider', 'server', 'lrclib', 'lrc']);
     expect(defaults.saveLyrics, isTrue);
 
     final prefs = AppPrefs()
@@ -69,9 +69,25 @@ void main() {
     expect(again.wordByWord, isFalse);
     expect(again.lyricsOffset, const Duration(milliseconds: -500));
     expect(again.openLyrics, isTrue);
-    expect(again.lyricsSources, ['lrc', 'provider', 'lrclib']);
+    expect(again.lyricsSources, ['provider', 'server', 'lrclib', 'lrc']);
     expect(again.saveLyrics, isFalse);
     expect((AppPrefs()..read({'lyricsScale': 9.0})).lyricsScale, 1.3);
+  });
+
+  test('a saved source list naming an unknown source loads without it', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSources': ['lrc', 'nope', 'provider', 'server', 'lrclib'],
+      });
+    expect(prefs.lyricsSources, ['lrc', 'provider', 'server', 'lrclib']);
+  });
+
+  test('a source list saved before the server group gets it in its default place', () {
+    final prefs = AppPrefs()
+      ..read({
+        'lyricsSources': ['lrclib', 'lrc', 'provider'],
+      });
+    expect(prefs.lyricsSources, ['lrclib', 'server', 'lrc', 'provider']);
   });
 
   test('the cover colour sets how strongly pages take the cover hue', () {

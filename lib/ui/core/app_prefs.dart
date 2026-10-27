@@ -119,7 +119,7 @@ class AppPrefs extends ChangeNotifier {
   /// The full player opens on the lyrics.
   bool openLyrics = false;
 
-  /// The lyrics source groups in the order tried: `provider`, `lrclib` and `lrc`.
+  /// The lyrics source groups in the order tried: `provider`, `server`, `lrclib` and `lrc`.
   List<String> lyricsSources = lyricsSourceGroups;
 
   /// Downloads keep their lyrics, so they show offline.
@@ -163,9 +163,12 @@ class AppPrefs extends ChangeNotifier {
     wordByWord = json['wordByWord'] as bool? ?? true;
     lyricsOffset = Duration(milliseconds: json['lyricsOffsetMs'] as int? ?? 0);
     openLyrics = json['openLyrics'] as bool? ?? false;
-    // Known groups as saved, then any the saved list lacks, in their default order.
+    // Known groups as saved, with any the saved list lacks put back at their default place.
     final saved = [...?(json['lyricsSources'] as List?)?.whereType<String>().where(lyricsSourceGroups.contains)];
-    lyricsSources = [...saved, ...lyricsSourceGroups.where((group) => !saved.contains(group))];
+    for (final (index, group) in lyricsSourceGroups.indexed) {
+      if (!saved.contains(group)) saved.insert(index.clamp(0, saved.length), group);
+    }
+    lyricsSources = saved;
     saveLyrics = json['saveLyrics'] as bool? ?? true;
   }
 
@@ -245,7 +248,7 @@ final appPrefs = AppPrefs();
 
 const minLyricsScale = 0.8;
 const maxLyricsScale = 1.3;
-const lyricsSourceGroups = ['provider', 'lrclib', 'lrc'];
+const lyricsSourceGroups = ['provider', 'server', 'lrclib', 'lrc'];
 
 /// A light tick, as a selection makes, when touch feedback is on.
 void tick() {
