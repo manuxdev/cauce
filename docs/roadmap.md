@@ -52,8 +52,8 @@ Check each one against what Cauce already does before starting it.
 - [ ] Offline-first mode. Strongest single ask (Feishin #47, 88). https://github.com/jeffvli/feishin/issues/47
       Done: played-songs cache with a size limit and LRU eviction, the storage screen, preload of the next track,
       offline detection. Added: likes already made download too once "download likes" is on, and downloaded albums
-      and playlists stay kept, fetching the tracks they gain. Open: a manual offline mode, a per-item downloads list,
-      prefetching more than one track.
+      and playlists stay kept, fetching the tracks they gain, and a manual offline mode (only kept tracks and files
+      play, nothing downloads or syncs). Open: a per-item downloads list, prefetching more than one track.
 - [ ] Several artists and genres per track (OpenSubsonic fields, custom separators). Navidrome #238 (50), Gramophone's
       top ask. https://github.com/navidrome/navidrome/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc
 - [ ] Playlist management: M3U import and export, folder to playlist, playlist folders, custom covers, sorting, add a
