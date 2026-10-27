@@ -107,8 +107,10 @@ Future<void> main() async {
   // Likes, when they download, and kept albums and playlists get what they are missing. An
   // account that only browses, such as a free Spotify one, cannot download: its likes are not
   // fetched for nothing.
+  DateTime? caughtUp;
   void catchUp() {
     if (!online.value) return;
+    caughtUp = DateTime.now();
     final likes = playbackSettings.settings?.downloadLikes ?? false;
     final signedIn = [
       for (final service in accounts.connected)
@@ -118,6 +120,12 @@ Future<void> main() async {
   }
 
   playbackSettings.onDownloadLikes = catchUp;
+  // Coming back to the app picks up what changed elsewhere, at most every so often.
+  AppLifecycleListener(
+    onResume: () {
+      if (catchUpDue(caughtUp, DateTime.now())) catchUp();
+    },
+  );
   // The covers of the tracks the core prefetches are kept as well, so they show offline too.
   var warmed = const <String>[];
   player.addListener(() {

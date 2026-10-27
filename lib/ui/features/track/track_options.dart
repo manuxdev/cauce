@@ -417,6 +417,7 @@ class _PlaylistPickerState extends State<_PlaylistPicker> {
     final retry = context.t('toast.retry');
     try {
       await core.addToPlaylist(slug: track.source, playlistId: id, trackId: track.id);
+      downloads.addedTo(track.source, id, [track]).ignore();
       showToast(Toast(title: added, detail: '${track.title} · ${track.artists}', cover: track.cover, badge: true));
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
@@ -428,7 +429,10 @@ class _PlaylistPickerState extends State<_PlaylistPicker> {
           badge: true,
           tone: ToastTone.error,
           action: retry,
-          onAction: () => core.addToPlaylist(slug: track.source, playlistId: id, trackId: track.id).ignore(),
+          onAction: () => core
+              .addToPlaylist(slug: track.source, playlistId: id, trackId: track.id)
+              .then((_) => downloads.addedTo(track.source, id, [track]))
+              .ignore(),
         ),
       );
       if (mounted) setState(() => _busy = false);

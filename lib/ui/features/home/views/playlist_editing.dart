@@ -13,6 +13,7 @@ import '../../../core/skeleton.dart';
 import '../../../core/theme.dart';
 import '../../../core/track_tile.dart';
 import '../../../core/widgets.dart';
+import '../../downloads/downloads_view_model.dart';
 import '../../track/track_options.dart';
 import '../../../core/toast.dart';
 import '../../../core/error_text.dart';
@@ -168,6 +169,7 @@ class _AddSongsScreenState extends State<AddSongsScreen> {
     setState(() => _adding.add(track.id));
     try {
       await core.addToPlaylist(slug: widget.slug, playlistId: widget.playlistId, trackId: track.id);
+      downloads.addedTo(widget.slug, widget.playlistId, [track]).ignore();
       if (mounted) setState(() => _added.add(track.id));
     } catch (error) {
       if (mounted) {
