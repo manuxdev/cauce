@@ -423,12 +423,7 @@ impl Core {
             while let Some(found) = tasks.join_next().await {
                 hits.extend(found.unwrap_or_default());
             }
-            let mut ranked = music::lyrics::rank_with_priority(&query, hits, &priority);
-            music::lyrics::reshape(&mut ranked);
-            Ok(ranked
-                .into_iter()
-                .find(|hit| !hit.instrumental)
-                .map(|hit| hit.lyrics))
+            Ok(lyrics_shelf::pick(&query, hits, &priority))
         })
     }
 
