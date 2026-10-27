@@ -10,12 +10,49 @@ timer, gapless playback, volume normalization, Subsonic/Navidrome with downloads
 
 ## Sources
 
-- [ ] Jellyfin
-- [ ] Plex
-- [ ] Network and cloud folders: WebDAV, SMB, Google Drive, Dropbox, iCloud Drive
-- [ ] Internet radio through Radio Browser (open catalog)
-- [ ] Podcasts through RSS
+The more sources the app covers, the more people it serves. Check each service's current API terms before starting it,
+especially for commercial use.
+
+Order: Jellyfin, Emby, Plex, then radio and podcasts.
+
+### The user's own servers
+
+- [ ] Jellyfin (test against the public demo, https://demo.jellyfin.org/stable, user `demo`, empty password; it has
+      only a few tracks and resets now and then)
+  - [ ] Part 1: sign in with a stored access token (not the password), library, search, play, download, offline play
+  - [ ] Part 2: likes, playlists (create, add, remove by copy), server lyrics in the `server` lyrics group
+  - [ ] Quick Connect sign-in
+- [ ] Emby: its API is close to Jellyfin's (Jellyfin started as an Emby fork), so reuse the Jellyfin provider
+- [ ] Plex: the most used media server. Documented API; check which remote uses need Plex Pass
+- [ ] Servers that speak the Subsonic API already work through the Subsonic provider: Navidrome, Ampache, Gonic,
+      Airsonic, Funkwhale. Test each one and list them in the sign-in help
+- [ ] Ampache's own API, only if its Subsonic support falls short
+
+### Files on a network or in the cloud
+
+- [ ] WebDAV and SMB shares
+- [ ] Google Drive, Dropbox and iCloud Drive through their official APIs
+- [ ] Shared features: browse folders, read tags and covers, cache and download like the other sources
+
+### Open catalogs
+
+- [ ] Internet radio through Radio Browser (open API): search by name, country, genre and language, favourite stations,
+      now-playing titles where the stream sends them
+- [ ] Podcasts through RSS: subscribe by URL or search, new-episode checks, resume per episode, playback speed, download
+      episodes
+- [ ] Internet Archive: public-domain and Creative Commons music through its official API
+- [ ] Audius: independent artists through its open API
+- [ ] Jamendo: Creative Commons music. Its API is free for non-commercial use, so a paid app needs an agreement with
+      Jamendo first
+
+### Official streaming APIs
+
 - [ ] Apple Music through official MusicKit (needs the paid Apple Developer Program)
+
+### Not possible
+
+SoundCloud's API is closed to new apps, Bandcamp has no public API, and Spotify, YouTube Music, Deezer and Tidal don't
+allow playback in third-party apps.
 
 ## System integration
 
