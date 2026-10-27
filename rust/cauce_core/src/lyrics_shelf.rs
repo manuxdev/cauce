@@ -5,11 +5,12 @@ use std::path::{Path, PathBuf};
 
 use music::Lyrics;
 
-/// The lyrics services in each group the listener orders: LRCLIB, and `.lrc` files beside local
-/// tracks.
-const GROUPS: [(&str, &[&str]); 2] = [
-    ("lrclib", &["LrcLib"]),
+/// The lyrics services in each group the listener orders: `.lrc` files beside local tracks, the
+/// signed-in Subsonic server, and LRCLIB.
+const GROUPS: [(&str, &[&str]); 3] = [
     ("lrc", &[music::lyrics::LOCAL]),
+    ("server", &["Subsonic"]),
+    ("lrclib", &["LrcLib"]),
 ];
 
 /// The lyrics services in the order of `groups`; unknown groups are skipped.
@@ -74,9 +75,24 @@ mod tests {
 
     #[test]
     fn groups_expand_in_the_order_given_and_unknown_ones_are_skipped() {
-        let order = ["lrc", "nope", "provider", "lrclib"].map(String::from);
+        let order = ["lrc", "nope", "provider", "server", "lrclib"].map(String::from);
         let services = sources(&order);
-        assert_eq!(services, [music::lyrics::LOCAL, "LrcLib"]);
+        assert_eq!(services, [music::lyrics::LOCAL, "Subsonic", "LrcLib"]);
+    }
+
+    #[test]
+    fn the_server_is_not_asked_for_a_track_from_elsewhere() {
+        use music::LyricsProvider as _;
+        let query = music::LyricsQuery {
+            title: "High tide".into(),
+            artist: "Someone".into(),
+            album: None,
+            duration: std::time::Duration::ZERO,
+            track: None,
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let hits = runtime.block_on(music::subsonic::SubsonicLyrics::new().search(&query));
+        assert!(hits.unwrap().is_empty());
     }
 
     #[test]
