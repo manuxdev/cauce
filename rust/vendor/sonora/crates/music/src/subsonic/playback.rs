@@ -77,12 +77,6 @@ impl From<Details> for Facts {
 }
 
 impl Subsonic {
-    /// What tells two kept copies of one track id apart: the server it came from and the
-    /// conversion it was asked for.
-    fn variant(&self) -> String {
-        format!("{}|{:?}", self.client.identity(), self.transcode)
-    }
-
     /// The track from the vault, when it was kept from this server in this format.
     async fn recall(&self, id: &str) -> Option<Loaded> {
         let kept = self.shelf.as_ref()?.find(id, &self.variant()).await?;
@@ -119,6 +113,11 @@ impl Fetch for Subsonic {
 
     fn shelf(&self) -> Option<&Shelf> {
         self.shelf.as_ref()
+    }
+
+    /// The server a track came from and the conversion it was asked for.
+    fn variant(&self) -> String {
+        format!("{}|{:?}", self.client.identity(), self.transcode)
     }
 
     /// Opens the stream and asks for the length and loudness at the same time, so neither round

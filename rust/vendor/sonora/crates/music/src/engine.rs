@@ -101,6 +101,12 @@ pub trait Fetch: Send + Sync + 'static {
         true
     }
 
+    /// What tells this engine's kept copies of a track apart from another's, such as the format
+    /// it asks for. A cached copy is only found under the variant it was kept as.
+    fn variant(&self) -> String {
+        String::new()
+    }
+
     /// Fetches a track: enough of it to start decoding, not all of it.
     async fn load(&self, id: &str) -> Result<Self::Loaded>;
 
@@ -175,6 +181,7 @@ pub fn start<F: Fetch>(
     let name = fetch.name();
     let shelf = fetch.shelf().cloned();
     let offline = fetch.plays_offline();
+    let variant = fetch.variant();
     let spawned = std::thread::Builder::new()
         .name(format!("{name}-playback"))
         .spawn(move || run(Arc::new(fetch), config, command_rx, events, engine_spectrum));
@@ -187,6 +194,7 @@ pub fn start<F: Fetch>(
             spectrum,
             shelf,
             offline,
+            variant,
         }),
         Box::new(Events(event_rx)),
     )
@@ -211,6 +219,11 @@ enum Command {
     Download {
         id: String,
         progress: Fraction,
+        done: oneshot::Sender<Result<()>>,
+    },
+    /// Fetch a whole track into the cache without playing it, until `done` is dropped.
+    Prefetch {
+        id: String,
         done: oneshot::Sender<Result<()>>,
     },
 }
@@ -248,6 +261,8 @@ struct Handle {
     shelf: Option<Shelf>,
     /// Whether what is on the shelf plays with no network, as [`Fetch::plays_offline`] said.
     offline: bool,
+    /// What the shelf keeps this engine's tracks as, as [`Fetch::variant`] said.
+    variant: String,
 }
 
 impl Player for Handle {
@@ -319,6 +334,30 @@ impl Player for Handle {
             sent?;
             answer.await.context("the playback engine stopped")?
         })
+    }
+
+    fn prefetch(&self, track_id: &str) -> BoxFuture<'static, Result<()>> {
+        let (done, answer) = oneshot::channel();
+        let sent = match self.shelf {
+            Some(_) => self
+                .commands
+                .send(Command::Prefetch {
+                    id: track_id.to_owned(),
+                    done,
+                })
+                .context("cannot reach the playback engine"),
+            None => Err(anyhow!("this provider keeps nothing")),
+        };
+        Box::pin(async move {
+            sent?;
+            answer.await.context("the playback engine stopped")?
+        })
+    }
+
+    fn kept(&self, track_id: &str) -> bool {
+        self.shelf
+            .as_ref()
+            .is_some_and(|shelf| shelf.holds(track_id) || shelf.caches(track_id, &self.variant))
     }
 
     fn downloaded(&self, track_id: &str) -> bool {
@@ -604,6 +643,18 @@ async fn engine_loop<F: Fetch>(
                         let fetch = fetch.clone();
                         tokio::spawn(async move {
                             done.send(download(&*fetch, &id, &progress).await).ok();
+                        });
+                    }
+                    Command::Prefetch { id, mut done } => {
+                        let fetch = fetch.clone();
+                        tokio::spawn(async move {
+                            // Nobody waiting means the track stopped being upcoming: drop the
+                            // fetch, and with it whatever was half written to the cache.
+                            let fetched = tokio::select! {
+                                fetched = prefetch(&*fetch, &id) => fetched,
+                                () = done.closed() => return,
+                            };
+                            done.send(fetched).ok();
                         });
                     }
                 }
@@ -1273,6 +1324,19 @@ async fn download<F: Fetch>(fetch: &F, id: &str, progress: &Fraction) -> Result<
     shelf.unwant(id);
     fetched?;
     ensure!(shelf.holds(id), "the download of {id} did not finish");
+    Ok(())
+}
+
+/// Fetches all of track `id` the way a play would, so the provider keeps it as it keeps a track
+/// that played: in the cache, while caching is on. A track already kept costs nothing.
+async fn prefetch<F: Fetch>(fetch: &F, id: &str) -> Result<()> {
+    let shelf = fetch.shelf().context("this provider keeps nothing")?;
+    shelf.settle().await;
+    if shelf.holds(id) || shelf.caches(id, &fetch.variant()) {
+        return Ok(());
+    }
+    let loaded = fetch.load(id).await?;
+    fetch.downloaded(&loaded).await;
     Ok(())
 }
 

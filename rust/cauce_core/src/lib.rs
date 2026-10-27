@@ -83,6 +83,9 @@ struct Engine {
     player: Box<dyn Player>,
 }
 
+/// A prefetch running on an engine, which stops when dropped.
+type Fetching = std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+
 /// What the runtime's tasks share with the core.
 struct Inner {
     runtime: Handle,
@@ -122,6 +125,8 @@ struct Inner {
     /// Engines started only to download, for a provider other than the one playing. They go once
     /// nothing is left to download.
     downloaders: Mutex<HashMap<String, Box<dyn Player>>>,
+    /// The round fetching upcoming tracks into the cache, to stop when the queue moves on.
+    prefetching: Mutex<Option<tokio::task::AbortHandle>>,
     on_change: StateSink,
 }
 
@@ -245,6 +250,7 @@ impl Core {
             downloads: Mutex::new(Downloads::load(&data_folder)),
             fractions: Mutex::default(),
             downloaders: Mutex::default(),
+            prefetching: Mutex::default(),
             on_change: Arc::new(on_change),
         });
         let freeing = inner.clone();
@@ -1284,9 +1290,16 @@ impl Inner {
     /// Carries out what the transport decided, then tells the host.
     fn apply(self: &Arc<Self>, command: Option<Command>) -> Result<()> {
         let outcome = match command {
-            Some(Command::Load { item, seamless }) => self.load(&item, Duration::ZERO, seamless),
+            Some(Command::Load { item, seamless }) => {
+                // The track that loads now has the bandwidth; the cache warms again once it is in.
+                if let Some(round) = lock(&self.prefetching).take() {
+                    round.abort();
+                }
+                self.load(&item, Duration::ZERO, seamless)
+            }
             Some(Command::Preload { .. }) if !self.preloads() => Ok(()),
             Some(Command::Preload { item }) => {
+                self.prefetch(&item);
                 self.with_engine_of(&item.source, |player| player.preload(&item.id, true))
             }
             Some(Command::Restart) => {
@@ -1301,6 +1314,48 @@ impl Inner {
         };
         self.changed();
         outcome
+    }
+
+    /// Fetches the upcoming tracks the settings allow into the cache, one at a time and nearest
+    /// first, beside the gapless preload of `preloaded`. It runs once the current track is all
+    /// in, so it never takes bandwidth from it, and a newer round or a load stops it.
+    fn prefetch(self: &Arc<Self>, preloaded: &Item) {
+        let inner = self.clone();
+        let mut tried = vec![preloaded.clone()];
+        let round = self.runtime.spawn(async move {
+            // Each step looks again, so a track no longer upcoming is never started.
+            while let Some((item, fetching)) = inner.next_prefetch(&tried) {
+                log::debug!("prefetch: {} {}", item.source, item.id);
+                if let Err(error) = fetching.await {
+                    log::debug!("prefetch: {} {} failed: {error:#}", item.source, item.id);
+                    break;
+                }
+                tried.push(item);
+            }
+        });
+        if let Some(previous) = lock(&self.prefetching).replace(round.abort_handle()) {
+            previous.abort();
+        }
+    }
+
+    /// The next upcoming track to fetch into the cache, not one of `tried`, and its fetch on the
+    /// engine playing, which streams at the quality the track will play at. Downloads the
+    /// listener asked for go first, so nothing is prefetched while any are left.
+    // ponytail: only the playing engine's source is prefetched; a mixed queue's other tracks wait.
+    fn next_prefetch(&self, tried: &[Item]) -> Option<(Item, Fetching)> {
+        if lock(&self.downloads).running() {
+            return None;
+        }
+        let depth = lock(&self.settings)
+            .prefetch_depth(self.cellular.load(Ordering::Relaxed), self.vault.offline());
+        let upcoming = lock(&self.transport).prefetch(depth, |item| tried.contains(item));
+        let engine = lock(&self.engine);
+        let engine = engine.as_ref()?;
+        let item = upcoming
+            .into_iter()
+            .find(|item| item.source == engine.source && !engine.player.kept(&item.id))?;
+        let fetching = engine.player.prefetch(&item.id);
+        Some((item, fetching))
     }
 
     /// Finds tracks like `seed` from its provider's radio and plays on into them. Without the
