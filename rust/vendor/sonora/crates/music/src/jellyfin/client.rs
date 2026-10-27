@@ -8,6 +8,7 @@ use reqwest::{Method, StatusCode};
 use serde::de::DeserializeOwned;
 
 use crate::engine::Loudness;
+use crate::jellyfin::Flavor;
 use crate::jellyfin::auth::{self, Credentials};
 use crate::jellyfin::lyrics::Answer;
 use crate::jellyfin::wire::{
@@ -19,8 +20,8 @@ use crate::{
     UserProfile, distinct_covers,
 };
 
-/// Jellyfin has no library of other people's playlists to save to or drop from.
-const NO_LIBRARY: &str = "jellyfin has no library of saved playlists";
+/// The server has no library of other people's playlists to save to or drop from.
+const NO_LIBRARY: &str = "the server has no library of saved playlists";
 const PAGE: usize = 500;
 /// How many ids one `Ids=` lookup carries, so the url stays short.
 const IDS_PER_LOOKUP: usize = 100;
@@ -54,7 +55,7 @@ fn failed(error: reqwest::Error, token: &str) -> anyhow::Error {
 /// The header value for `authorization`, marked sensitive so nothing that logs headers shows it.
 fn header(authorization: &str) -> Result<HeaderValue> {
     let mut value =
-        HeaderValue::from_str(authorization).context("cannot build the jellyfin authorization")?;
+        HeaderValue::from_str(authorization).context("cannot build the server authorization")?;
     value.set_sensitive(true);
     Ok(value)
 }
@@ -62,6 +63,7 @@ fn header(authorization: &str) -> Result<HeaderValue> {
 /// Signs in with the password and answers what to store. The password goes in the body of this
 /// one request and nowhere else.
 pub async fn authenticate(
+    flavor: Flavor,
     server: &str,
     username: &str,
     password: &str,
@@ -77,19 +79,22 @@ pub async fn authenticate(
         .send()
         .await
         .map_err(|error| failed(error, ""))
-        .context("cannot reach the jellyfin server")?;
+        .with_context(|| format!("cannot reach the {} server", flavor.slug()))?;
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-        anyhow::bail!("the jellyfin server refused the username or password");
+        anyhow::bail!(
+            "the {} server refused the username or password",
+            flavor.slug()
+        );
     }
     let answer: Authenticated = response
         .error_for_status()
         .map_err(|error| failed(error, ""))
-        .context("the jellyfin server refused the sign-in")?
+        .with_context(|| format!("the {} server refused the sign-in", flavor.slug()))?
         .json()
         .await
         .map_err(|error| failed(error, ""))
-        .context("cannot read the jellyfin sign-in answer")?;
-    Ok(wire::credentials(answer, server, device_id))
+        .with_context(|| format!("cannot read the {} sign-in answer", flavor.slug()))?;
+    Ok(wire::credentials(answer, server, device_id, flavor))
 }
 
 /// Ends the session on the server, so the token stops working there too. Best effort: the
@@ -111,7 +116,8 @@ pub fn logout(credentials: &Credentials) {
     });
     if let Err(error) = sent {
         log::info!(
-            "jellyfin: the server did not take the sign-out: {}",
+            "{}: the server did not take the sign-out: {}",
+            credentials.flavor.slug(),
             scrub(&format!("{error:#}"), &credentials.token)
         );
     }
@@ -162,6 +168,7 @@ pub struct JellyfinClient {
     device_id: String,
     token: String,
     authorization: HeaderValue,
+    flavor: Flavor,
 }
 
 impl JellyfinClient {
@@ -177,6 +184,7 @@ impl JellyfinClient {
                 &credentials.device_id,
                 Some(&credentials.token),
             ))?,
+            flavor: credentials.flavor,
         })
     }
 
@@ -184,6 +192,10 @@ impl JellyfinClient {
     /// own server, so this tells apart two servers' tracks that share one.
     pub fn identity(&self) -> String {
         format!("{}@{}", self.user_id, self.server)
+    }
+
+    pub fn flavor(&self) -> Flavor {
+        self.flavor
     }
 
     fn fail(&self, error: reqwest::Error) -> anyhow::Error {
@@ -478,7 +490,7 @@ impl MusicApi for JellyfinClient {
         let user: User = self
             .get("/Users/Me", &[])
             .await
-            .context("cannot reach the jellyfin server")?;
+            .with_context(|| format!("cannot reach the {} server", self.flavor.slug()))?;
         Ok(UserProfile {
             id: user.id,
             display_name: match user.name.is_empty() {
@@ -509,7 +521,10 @@ impl MusicApi for JellyfinClient {
             .filter(|id| seen.insert(id.clone()))
             .collect();
         let albums = self.by_ids(&album_ids).await.unwrap_or_else(|error| {
-            log::warn!("jellyfin: cannot load the artist's albums: {error:#}");
+            log::warn!(
+                "{}: cannot load the artist's albums: {error:#}",
+                self.flavor.slug()
+            );
             Vec::new()
         });
         let profile = wire::artist(&item, &self.server);
@@ -874,7 +889,9 @@ impl MusicApi for JellyfinClient {
         }
         let shelf = |read: Result<Items>| {
             read.map(|page| page.items)
-                .inspect_err(|error| log::warn!("jellyfin: a home shelf failed: {error:#}"))
+                .inspect_err(|error| {
+                    log::warn!("{}: a home shelf failed: {error:#}", self.flavor.slug())
+                })
                 .unwrap_or_default()
         };
         let ids = wire::album_ids(&shelf(played), HOME_ALBUMS);
@@ -995,7 +1012,7 @@ mod demo {
     #[ignore = "reaches demo.jellyfin.org"]
     async fn jellyfin_demo_signs_in_lists_searches_and_streams() {
         let server = auth::normalize_server("demo.jellyfin.org/stable").unwrap();
-        let credentials = authenticate(&server, "demo", "", "cauce-live-check")
+        let credentials = authenticate(Flavor::Jellyfin, &server, "demo", "", "cauce-live-check")
             .await
             .unwrap();
         let client = JellyfinClient::new(&credentials).unwrap();
@@ -1064,7 +1081,7 @@ mod demo {
     #[ignore = "reaches demo.jellyfin.org"]
     async fn jellyfin_demo_likes_edits_playlists_reads_lyrics_and_reports_a_play() {
         let server = auth::normalize_server("demo.jellyfin.org/stable").unwrap();
-        let credentials = authenticate(&server, "demo", "", "cauce-live-check")
+        let credentials = authenticate(Flavor::Jellyfin, &server, "demo", "", "cauce-live-check")
             .await
             .unwrap();
         let client = JellyfinClient::new(&credentials).unwrap();

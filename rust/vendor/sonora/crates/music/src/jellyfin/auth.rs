@@ -4,6 +4,7 @@ use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::credentials;
+use crate::jellyfin::Flavor;
 
 /// What a sign-in leaves on the phone. The password is never among it: the access token the
 /// server handed over stands in for it until the listener signs out. No `Debug`, so the token
@@ -15,14 +16,17 @@ pub struct Credentials {
     pub username: String,
     pub device_id: String,
     pub token: String,
+    /// Which server this is, known from the folder the sign-in is kept in.
+    #[serde(skip)]
+    pub flavor: Flavor,
 }
 
-fn folder() -> PathBuf {
-    credentials::dir("jellyfin")
+fn folder(flavor: Flavor) -> PathBuf {
+    credentials::dir(flavor.slug())
 }
 
-fn path() -> PathBuf {
-    folder().join(credentials::FILE)
+fn path(flavor: Flavor) -> PathBuf {
+    folder(flavor).join(credentials::FILE)
 }
 
 /// Adds `https://` to an address with no scheme and drops the trailing slash. A base path stays,
@@ -54,8 +58,8 @@ pub fn authorization(device_id: &str, token: Option<&str>) -> String {
 
 /// This install's device id, made once and kept beside the credentials. Signing out keeps it, so
 /// the server sees one device however often the listener signs in again.
-pub fn device_id() -> String {
-    device_id_at(&folder().join("device"), credentials::write)
+pub fn device_id(flavor: Flavor) -> String {
+    device_id_at(&folder(flavor).join("device"), credentials::write)
 }
 
 pub(crate) fn device_id_at(path: &Path, write: impl FnOnce(&Path, &[u8]) -> Result<()>) -> String {
@@ -68,7 +72,7 @@ pub(crate) fn device_id_at(path: &Path, write: impl FnOnce(&Path, &[u8]) -> Resu
         .take(32)
         .collect();
     if let Err(error) = write(path, made.as_bytes()) {
-        log::warn!("jellyfin: cannot keep the device id: {error:#}");
+        log::warn!("cannot keep the device id: {error:#}");
     }
     made
 }
@@ -80,18 +84,23 @@ pub(crate) fn read(path: &Path) -> Option<Credentials> {
     (!credentials.token.is_empty() && !credentials.user_id.is_empty()).then_some(credentials)
 }
 
-pub fn load() -> Option<Credentials> {
-    read(&path())
+pub fn load(flavor: Flavor) -> Option<Credentials> {
+    read(&path(flavor)).map(|credentials| Credentials {
+        flavor,
+        ..credentials
+    })
 }
 
 pub fn store(stored: &Credentials) -> Result<()> {
-    let bytes =
-        serde_json::to_vec_pretty(stored).context("cannot serialize jellyfin credentials")?;
-    credentials::write(&path(), &bytes).context("cannot store jellyfin credentials")
+    let slug = stored.flavor.slug();
+    let bytes = serde_json::to_vec_pretty(stored)
+        .with_context(|| format!("cannot serialize {slug} credentials"))?;
+    credentials::write(&path(stored.flavor), &bytes)
+        .with_context(|| format!("cannot store {slug} credentials"))
 }
 
-pub fn forget() {
-    credentials::remove(&path());
+pub fn forget(flavor: Flavor) {
+    credentials::remove(&path(flavor));
 }
 
 #[cfg(test)]

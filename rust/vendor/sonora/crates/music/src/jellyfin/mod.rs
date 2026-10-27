@@ -21,8 +21,28 @@ use crate::{
     SignIn,
 };
 
-/// The name the provider goes by. It is saved in settings, so it must not change.
-pub(crate) const NAME: &str = "Jellyfin";
+/// Which server a sign-in is with. The client follows it wherever the servers' APIs part.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Flavor {
+    #[default]
+    Jellyfin,
+}
+
+impl Flavor {
+    /// The name the provider goes by. It is saved in settings, so it must not change.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Jellyfin => "Jellyfin",
+        }
+    }
+
+    /// The provider's slug, which also names its folder of credentials and its vault shelf.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Jellyfin => "jellyfin",
+        }
+    }
+}
 
 /// Everything but stations, plus converting on request. Following an artist is liking it.
 const CAPABILITIES: Capabilities = Capabilities {
@@ -31,11 +51,15 @@ const CAPABILITIES: Capabilities = Capabilities {
     ..Capabilities::ALL
 };
 
-pub struct JellyfinProvider;
+pub struct JellyfinProvider {
+    flavor: Flavor,
+}
 
 impl JellyfinProvider {
     pub fn new() -> Self {
-        Self
+        Self {
+            flavor: Flavor::Jellyfin,
+        }
     }
 
     fn session(client: JellyfinClient, profile: crate::UserProfile) -> ProviderSession {
@@ -50,19 +74,20 @@ impl JellyfinProvider {
     }
 
     async fn connect(
+        flavor: Flavor,
         server: String,
         username: String,
         password: String,
     ) -> Result<ProviderSession> {
         let server = auth::normalize_server(&server)?;
-        let device_id = auth::device_id();
+        let device_id = auth::device_id(flavor);
         let credentials =
-            client::authenticate(&server, username.trim(), &password, &device_id).await?;
+            client::authenticate(flavor, &server, username.trim(), &password, &device_id).await?;
         let client = JellyfinClient::new(&credentials)?;
         let profile = client
             .profile()
             .await
-            .context("cannot reach the jellyfin server")?;
+            .with_context(|| format!("cannot reach the {} server", flavor.slug()))?;
         auth::store(&credentials)?;
         Ok(Self::session(client, profile))
     }
@@ -80,7 +105,10 @@ impl JellyfinProvider {
             Ok(profile) => Ok(Some(Self::session(client, profile))),
             Err(error) if crate::trouble::offline(&format!("{error:#}")) => Err(error),
             Err(error) => {
-                log::warn!("jellyfin: the stored session is no longer usable: {error:#}");
+                log::warn!(
+                    "{}: the stored session is no longer usable: {error:#}",
+                    remembered.flavor.slug()
+                );
                 Ok(None)
             }
         }
@@ -96,11 +124,11 @@ impl Default for JellyfinProvider {
 #[async_trait]
 impl MusicProvider for JellyfinProvider {
     fn name(&self) -> &'static str {
-        NAME
+        self.flavor.name()
     }
 
     fn slug(&self) -> &'static str {
-        "jellyfin"
+        self.flavor.slug()
     }
 
     fn sign_in_options(&self) -> Vec<SignIn> {
@@ -112,17 +140,17 @@ impl MusicProvider for JellyfinProvider {
     }
 
     fn stored(&self) -> bool {
-        auth::load().is_some()
+        auth::load(self.flavor).is_some()
     }
 
     fn location(&self) -> Option<String> {
-        auth::load().map(|credentials| credentials.server)
+        auth::load(self.flavor).map(|credentials| credentials.server)
     }
 
     /// The configured server's host, since a self-hosted library has no address in common with
     /// anyone else's.
     fn reach(&self) -> Option<String> {
-        let server = auth::load()?.server;
+        let server = auth::load(self.flavor)?.server;
         let host = server
             .split_once("://")
             .map_or(server.as_str(), |(_, rest)| rest);
@@ -131,14 +159,19 @@ impl MusicProvider for JellyfinProvider {
     }
 
     fn offline_playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
-        let client = JellyfinClient::new(&auth::load()?)
-            .inspect_err(|error| log::warn!("jellyfin: cannot build an offline client: {error:#}"))
+        let client = JellyfinClient::new(&auth::load(self.flavor)?)
+            .inspect_err(|error| {
+                log::warn!(
+                    "{}: cannot build an offline client: {error:#}",
+                    self.flavor.slug()
+                )
+            })
             .ok()?;
         Some(Arc::new(Factory::new(client)))
     }
 
     async fn restore(&self) -> Result<Option<ProviderSession>> {
-        Self::restore_from(auth::load()).await
+        Self::restore_from(auth::load(self.flavor)).await
     }
 
     /// An empty password is allowed: Jellyfin accounts may have none, as the demo's does.
@@ -149,21 +182,24 @@ impl MusicProvider for JellyfinProvider {
             password,
         } = method
         else {
-            anyhow::bail!("jellyfin signs in with a server address, username and password")
+            anyhow::bail!(
+                "{} signs in with a server address, username and password",
+                self.flavor.slug()
+            )
         };
         if username.trim().is_empty() {
-            anyhow::bail!("the jellyfin username is empty");
+            anyhow::bail!("the {} username is empty", self.flavor.slug());
         }
-        Self::connect(server, username, password).await
+        Self::connect(self.flavor, server, username, password).await
     }
 
     /// Forgets the account at once and tells the server on a thread of its own, so a slow or
     /// gone server never holds up signing out.
     fn sign_out(&self) {
-        let Some(credentials) = auth::load() else {
+        let Some(credentials) = auth::load(self.flavor) else {
             return;
         };
-        auth::forget();
+        auth::forget(self.flavor);
         std::thread::spawn(move || client::logout(&credentials));
     }
 }
