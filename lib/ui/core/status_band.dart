@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../features/accounts/view_models/accounts_view_model.dart';
+import 'app_prefs.dart';
 import 'icons.dart';
 import 'l10n.dart';
 import 'motion.dart';
@@ -8,7 +10,33 @@ import 'theme.dart';
 import 'tint.dart';
 
 /// Whether the phone reaches the network, as the platform reports it.
-final online = ValueNotifier<bool>(true);
+final deviceOnline = ValueNotifier<bool>(true);
+
+/// Whether the app uses the network: everything that asks about the network reads this.
+final ValueListenable<bool> online = EffectiveOnline(deviceOnline, appPrefs);
+
+/// Online when the phone is and offline mode is off, telling its listeners when that changes.
+class EffectiveOnline extends ChangeNotifier implements ValueListenable<bool> {
+  EffectiveOnline(this._device, this._prefs) : _value = _device.value && !_prefs.offlineMode {
+    _device.addListener(_update);
+    _prefs.addListener(_update);
+  }
+
+  final ValueListenable<bool> _device;
+  final AppPrefs _prefs;
+  bool _value;
+
+  bool get _now => _device.value && !_prefs.offlineMode;
+
+  @override
+  bool get value => _value;
+
+  void _update() {
+    if (_now == _value) return;
+    _value = _now;
+    notifyListeners();
+  }
+}
 
 /// What is still wrong, under a tab's header until it is put right: a service to sign in to again
 /// (amber, it needs the listener) or no network (neutral, only informing). It pushes the page
@@ -25,14 +53,14 @@ class StatusBands extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([accounts, online]),
+      listenable: Listenable.merge([accounts, online, appPrefs]),
       builder: (context, _) {
         final bands = [
           if (!online.value)
             _Band(
               key: const ValueKey('offline'),
               glyph: CauceGlyph.offline,
-              strong: context.t('band.offline'),
+              strong: context.t(appPrefs.offlineMode ? 'band.offlineMode' : 'band.offline'),
               text: context.t('band.offline.detail'),
               action: onDownloads == null ? null : context.t('band.view'),
               onAction: onDownloads,

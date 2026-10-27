@@ -49,6 +49,8 @@ Future<void> main() async {
     final data = await getApplicationSupportDirectory();
     final cache = await getApplicationCacheDirectory();
     await core.init(dataDir: data.path, cacheDir: cache.path);
+    // Offline mode holds before any account is reached.
+    await appPrefs.load();
     player = PlayerViewModel(core.playerStates());
     // A playing track saves its position only every few seconds: going away saves it now.
     AppLifecycleListener(onHide: () => player.saveSession().ignore());
@@ -98,6 +100,8 @@ Future<void> main() async {
       }
     }
   });
+  // The core hears it before any account is reached.
+  await core.setOffline(offline: !online.value);
   final playbackSettings = PlaybackSettingsViewModel();
   // Likes, when they download, and kept albums and playlists get what they are missing. An
   // account that only browses, such as a free Spotify one, cannot download: its likes are not
@@ -113,7 +117,8 @@ Future<void> main() async {
   }
 
   playbackSettings.onDownloadLikes = catchUp;
-  online.addListener(() {
+  online.addListener(() async {
+    await core.setOffline(offline: !online.value);
     if (!online.value) return;
     showToast(Toast(title: translate('band.backOnline'), glyph: CauceGlyph.check, tone: ToastTone.info));
     // Accounts that could not be reached offline are tried again.
@@ -163,7 +168,6 @@ Future<void> main() async {
     CachedNetworkImage.prepare(),
     recentSearches.load(),
     language.load(),
-    appPrefs.load(),
     playbackSettings.load(),
     downloads.refresh(),
   ]);

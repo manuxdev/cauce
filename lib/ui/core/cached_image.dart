@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'status_band.dart';
+
 /// Where downloaded images are kept, set once at launch by [CachedNetworkImage.prepare].
 Directory? _folder;
 final _http = HttpClient()..connectionTimeout = const Duration(seconds: 10);
@@ -52,6 +54,7 @@ class CachedNetworkImage extends ImageProvider<CachedNetworkImage> {
       bytes = await file.readAsBytes();
     }
     if (bytes == null || bytes.isEmpty) {
+      if (!online.value) throw StateError('offline: $url is not kept');
       bytes = await _download();
       if (file != null) unawaited(_keep(file, bytes));
     }

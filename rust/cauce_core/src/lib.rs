@@ -260,6 +260,7 @@ impl Core {
     /// Brings back the account a provider stored. Answers its display name, or `None` when there
     /// is no usable account.
     pub fn restore(&self, slug: &str) -> Result<Option<String>> {
+        reachable(self.inner.vault.offline())?;
         let provider = self.inner.provider(slug)?;
         let restored = self.run(async move { provider.restore().await });
         match &restored {
@@ -279,6 +280,7 @@ impl Core {
     /// Signs in with what the webview holds. Answers `None` while the cookies prove no session
     /// yet, so the host keeps polling, and the account's display name once signed in.
     pub fn sign_in_with_cookies(&self, slug: &str, cookies: &[Cookie]) -> Result<Option<String>> {
+        reachable(self.inner.vault.offline())?;
         let provider = self.inner.provider(slug)?;
         let web = provider
             .web_sign_in()
@@ -339,6 +341,7 @@ impl Core {
         method: SignIn,
         on_prompt: impl Fn(SignInPrompt) + Send + Sync + 'static,
     ) -> Result<String> {
+        reachable(self.inner.vault.offline())?;
         let provider = self.inner.provider(slug)?;
         let (input, receiver) = tokio::sync::mpsc::unbounded_channel();
         lock(&self.inner.signing).insert(slug.to_owned(), input);
@@ -608,11 +611,14 @@ impl Core {
             }),
         };
         // Only the services in the groups given are asked: a group left out is turned off.
+        // Offline, only the files beside a track are.
+        let offline = self.inner.vault.offline();
         let services: Vec<_> = self
             .inner
             .lyrics
             .iter()
             .filter(|service| priority.iter().any(|name| name == service.name()))
+            .filter(|service| !offline || service.name() == music::lyrics::LOCAL)
             .cloned()
             .collect();
         self.run(async move {
@@ -721,6 +727,17 @@ impl Core {
                     "not mobile data"
                 }
             );
+            self.inner.pump();
+        }
+    }
+
+    /// Whether the app stays off the network, because the phone has none or the listener turned
+    /// offline mode on. Then only kept tracks and files play, nothing downloads, and no provider
+    /// or online lyrics service is asked anything. Back online, the waiting downloads start.
+    pub fn set_offline(&self, offline: bool) {
+        if self.inner.vault.offline() != offline {
+            log::info!("network: {}", if offline { "offline" } else { "online" });
+            self.inner.vault.set_offline(offline);
             self.inner.pump();
         }
     }
@@ -1096,6 +1113,7 @@ impl Inner {
     }
 
     fn api(&self, slug: &str) -> Result<Arc<dyn MusicApi>> {
+        reachable(self.vault.offline())?;
         lock(&self.sessions)
             .get(slug)
             .map(|connected| connected.api.clone())
@@ -1456,7 +1474,12 @@ impl Inner {
     /// Starts queued downloads while the queue has room. Each one that ends starts the next.
     fn pump(self: &Arc<Self>) {
         loop {
-            if lock(&self.settings).downloads_wifi_only && self.cellular.load(Ordering::Relaxed) {
+            let wifi_only = lock(&self.settings).downloads_wifi_only;
+            if downloads_wait(
+                self.vault.offline(),
+                wifi_only,
+                self.cellular.load(Ordering::Relaxed),
+            ) {
                 break;
             }
             let signed_in: Vec<String> = lock(&self.sessions).keys().cloned().collect();
@@ -1590,6 +1613,19 @@ fn resumed_transport(folder: &std::path::Path, settings: &PlaybackSettings) -> T
 /// The key kept tracks are sealed under, made once and kept in the data folder, which iOS
 /// encrypts while the phone is locked.
 // ponytail: a file rather than the Keychain; move it there if the data folder ever syncs.
+/// Whether queued downloads wait: offline, or on mobile data when they are for Wi-Fi only.
+fn downloads_wait(offline: bool, wifi_only: bool, cellular: bool) -> bool {
+    offline || wifi_only && cellular
+}
+
+/// Refuses what needs the network while the app is offline.
+fn reachable(offline: bool) -> Result<()> {
+    if offline {
+        anyhow::bail!("offline: the app is not using the network");
+    }
+    Ok(())
+}
+
 fn vault_key(folder: &std::path::Path) -> Result<Vec<u8>> {
     let path = folder.join("vault.key");
     if let Ok(key) = std::fs::read(&path) {
@@ -1699,4 +1735,33 @@ p{{margin:0;max-width:300px;font-size:16px;line-height:1.45;color:#a79da8}}
         escape(title),
         escape(line)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nothing_downloads_while_offline_whatever_the_network() {
+        for wifi_only in [false, true] {
+            for cellular in [false, true] {
+                assert!(downloads_wait(true, wifi_only, cellular));
+            }
+        }
+    }
+
+    #[test]
+    fn online_downloads_wait_only_for_wifi_when_asked() {
+        assert!(!downloads_wait(false, false, false));
+        assert!(!downloads_wait(false, false, true));
+        assert!(!downloads_wait(false, true, false));
+        assert!(downloads_wait(false, true, true));
+    }
+
+    #[test]
+    fn offline_nothing_is_asked_of_a_provider() {
+        let refused = reachable(true).unwrap_err().to_string();
+        assert!(refused.contains("offline"), "{refused}");
+        assert!(reachable(false).is_ok());
+    }
 }

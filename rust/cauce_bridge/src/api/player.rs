@@ -924,6 +924,12 @@ pub fn set_cellular(cellular: bool) -> Result<()> {
     Ok(())
 }
 
+/// Whether the app stays off the network: the phone has none, or offline mode is on.
+pub fn set_offline(offline: bool) -> Result<()> {
+    core()?.set_offline(offline);
+    Ok(())
+}
+
 /// Rest once the current track ends, or not, as a sleep timer at the end of a track does.
 pub fn set_stop_after_current(stop: bool) -> Result<()> {
     core()?.set_stop_after_current(stop);

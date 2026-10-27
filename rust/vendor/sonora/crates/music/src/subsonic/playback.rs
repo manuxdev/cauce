@@ -128,6 +128,9 @@ impl Fetch for Subsonic {
         if let Some(loaded) = self.recall(id).await {
             return Ok(loaded);
         }
+        if self.shelf.as_ref().is_some_and(Shelf::offline) {
+            anyhow::bail!("offline: only kept tracks play");
+        }
         let told = Arc::new(OnceLock::new());
         let (stream, details) = tokio::join!(
             async {

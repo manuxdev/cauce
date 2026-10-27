@@ -133,6 +133,10 @@ class AppPrefs extends ChangeNotifier {
 
   /// Downloads keep their lyrics, so they show offline.
   bool saveLyrics = true;
+
+  /// The app stays off the network as if the phone had none: only downloads, kept tracks and
+  /// files play.
+  bool offlineMode = false;
   File? _file;
 
   /// The tab to open on.
@@ -182,6 +186,7 @@ class AppPrefs extends ChangeNotifier {
       ...?(json['lyricsSourcesOff'] as List?)?.whereType<String>().where(lyricsSourceGroups.contains),
     };
     saveLyrics = json['saveLyrics'] as bool? ?? true;
+    offlineMode = json['offlineMode'] as bool? ?? false;
   }
 
   Map<String, Object?> toJson() => {
@@ -216,6 +221,7 @@ class AppPrefs extends ChangeNotifier {
     'lyricsSources': lyricsSources,
     'lyricsSourcesOff': [...lyricsSourcesOff],
     'saveLyrics': saveLyrics,
+    'offlineMode': offlineMode,
   };
 
   /// Puts the player's design, bar, buttons and motion back as they come.

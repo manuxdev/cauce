@@ -200,4 +200,10 @@ void main() {
     expect(again.intensity, MotionIntensity.normal);
     expect(again.movingBackground, isTrue);
   });
+
+  test('offline mode is off until turned on, and reads back the same', () {
+    expect((AppPrefs()..read({})).offlineMode, isFalse);
+    final prefs = AppPrefs()..offlineMode = true;
+    expect((AppPrefs()..read(prefs.toJson())).offlineMode, isTrue);
+  });
 }

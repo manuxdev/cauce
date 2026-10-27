@@ -111,6 +111,8 @@ pub struct Vault {
     limit: AtomicU64,
     /// Whether tracks that only played are kept in the cache.
     caching: AtomicBool,
+    /// Whether only kept tracks play, so nothing is streamed.
+    offline: AtomicBool,
     keys: OnceLock<hkdf::Prk>,
     /// Turns true once the vault has its key or will not get one this session.
     settled: watch::Sender<bool>,
@@ -140,6 +142,7 @@ impl Vault {
             pinned,
             limit: AtomicU64::new(limit),
             caching: AtomicBool::new(true),
+            offline: AtomicBool::new(false),
             keys: OnceLock::new(),
             settled: watch::Sender::new(false),
             used: Mutex::new(None),
@@ -211,6 +214,15 @@ impl Vault {
         let mut players = PLAYERS.lock().unwrap_or_else(|held| held.into_inner());
         players.retain(|(name, _)| *name != player);
         players.push((player, Box::new(clear)));
+    }
+
+    /// Whether only kept tracks play: a track that is not in the vault is not streamed.
+    pub fn set_offline(&self, on: bool) {
+        self.offline.store(on, Ordering::Relaxed);
+    }
+
+    pub fn offline(&self) -> bool {
+        self.offline.load(Ordering::Relaxed)
     }
 
     /// A fresh random master key, for a machine whose keychain has none yet.
@@ -403,6 +415,11 @@ impl Shelf {
     /// `variant` is whatever changes the bytes for the same id, such as the quality asked for.
     /// A download is found whatever the variant, since the listener asked for that copy. A
     /// lookup made while the vault is still unlocking waits for it, up to [`UNLOCK_WAIT`].
+    /// See [`Vault::offline`].
+    pub(crate) fn offline(&self) -> bool {
+        self.vault.offline()
+    }
+
     pub(crate) async fn find(&self, id: &str, variant: &str) -> Option<Kept> {
         let prk = self.vault.ready().await?;
         if let Some(kept) = self.find_in(prk, Place::Pinned, id, variant) {

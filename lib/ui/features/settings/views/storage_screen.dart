@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/app_prefs.dart';
 import '../../../core/l10n.dart';
 import '../../../core/motion.dart';
 import '../../../core/theme.dart';
@@ -116,7 +117,7 @@ class _StorageScreenState extends State<StorageScreen> {
   Widget build(BuildContext context) {
     final playback = widget.playback;
     return ListenableBuilder(
-      listenable: playback,
+      listenable: Listenable.merge([playback, appPrefs]),
       builder: (context, _) {
         final settings = playback.settings;
         if (settings == null) return SettingsPage(title: context.t('settings.storage'), children: const []);
@@ -125,6 +126,16 @@ class _StorageScreenState extends State<StorageScreen> {
           title: context.t('settings.storage'),
           children: [
             _Usage(downloads: usage?.downloadBytes.toInt() ?? 0, cache: usage?.cacheBytes.toInt() ?? 0),
+            SettingsGroup(
+              children: [
+                SettingsSwitch(
+                  title: context.t('storage.offlineMode'),
+                  subtitle: context.t('storage.offlineMode.detail'),
+                  value: appPrefs.offlineMode,
+                  onChanged: (on) => appPrefs.update((prefs) => prefs.offlineMode = on),
+                ),
+              ],
+            ),
             SettingsGroup(
               title: context.t('storage.downloads'),
               children: [
