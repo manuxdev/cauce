@@ -16,6 +16,7 @@ mod sink;
 mod spectrum;
 mod stream;
 pub mod jellyfin;
+pub mod plex;
 pub mod subsonic;
 pub mod trouble;
 pub mod vault;
@@ -841,6 +842,8 @@ pub enum SignIn {
     },
     /// Jellyfin's Quick Connect: the secret of a code another signed-in device authorized.
     QuickConnect { server: String, secret: String },
+    /// Plex: the plex.tv account token an approved PIN carried, and the id of the server picked.
+    Plex { token: String, server: String },
 }
 
 /// A provider refusing for now because too much was asked of it too quickly. Whoever asked can

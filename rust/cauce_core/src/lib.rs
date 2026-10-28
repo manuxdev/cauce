@@ -23,6 +23,7 @@ use anyhow::{Context as _, Result};
 use downloads::{Downloads, State};
 use music::equalizer::{Edit, EqualizerWriter};
 use music::jellyfin::quick_connect;
+use music::plex;
 use music::local::LocalProvider;
 use music::vault::Vault;
 use music::{
@@ -98,6 +99,7 @@ struct Inner {
     scrobbling: Mutex<scrobbling::Scrobbling>,
     /// The scrobbling link waiting for the listener's approval, to give up on.
     linking: Mutex<Option<tokio::task::AbortHandle>>,
+    plex: Mutex<PlexSignIn>,
     sessions: Mutex<HashMap<String, Connected>>,
     /// Engine factories built from a stored account before it was reached, so its downloads
     /// play offline. A session that connects later takes over.
@@ -125,6 +127,25 @@ struct Inner {
     /// The round fetching upcoming tracks into the cache, to stop when the queue moves on.
     prefetching: Mutex<Option<tokio::task::AbortHandle>>,
     on_change: StateSink,
+}
+
+/// A plex.tv sign-in under way: the PIN waiting for the listener's approval, then the account
+/// token it carried, held here only until a server is picked. Neither is ever stored or logged,
+/// and neither leaves the core.
+#[derive(Default)]
+struct PlexSignIn {
+    pin: Option<plex::pin::Pin>,
+    token: Option<String>,
+}
+
+/// Where a plex.tv sign-in stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlexPin {
+    Waiting,
+    /// The account is in reach: its servers can be listed.
+    Approved,
+    /// plex.tv no longer knows the PIN.
+    Expired,
 }
 
 /// One listed download as a screen draws it.
@@ -173,6 +194,7 @@ impl Core {
             Arc::new(music::subsonic::SubsonicProvider::new()),
             Arc::new(music::jellyfin::JellyfinProvider::new()),
             Arc::new(music::jellyfin::JellyfinProvider::emby()),
+            Arc::new(music::plex::PlexProvider::new()),
         ];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
@@ -210,6 +232,7 @@ impl Core {
             shelf: lyrics_shelf::Shelf::at(data_folder.join("lyrics")),
             scrobbling: Mutex::new(scrobbling::Scrobbling::load(&data_folder)),
             linking: Mutex::default(),
+            plex: Mutex::default(),
             sessions: Mutex::default(),
             offline: Mutex::default(),
             transport: Mutex::new(resumed_transport(&paths.data, &settings)),
@@ -285,6 +308,82 @@ impl Core {
     pub fn quick_connect_check(&self, server: String, secret: String) -> Result<quick_connect::Check> {
         reachable(self.inner.vault.offline())?;
         self.run(async move { quick_connect::check(&server, &secret).await })
+    }
+
+    /// Starts a plex.tv sign-in, and answers the page where the listener approves it.
+    pub fn plex_start(&self) -> Result<String> {
+        reachable(self.inner.vault.offline())?;
+        let client_id = plex::auth::client_id();
+        let asked = client_id.clone();
+        let pin = self.run(async move { plex::pin::create(&asked).await })?;
+        let page = plex::pin::approval_url(&client_id, &pin);
+        *lock(&self.inner.plex) = PlexSignIn {
+            pin: Some(pin),
+            token: None,
+        };
+        Ok(page)
+    }
+
+    /// Where the plex.tv sign-in under way stands. Once approved, the account token stays in
+    /// the core for [`Self::plex_servers`] and [`Self::plex_sign_in`].
+    pub fn plex_check(&self) -> Result<PlexPin> {
+        reachable(self.inner.vault.offline())?;
+        let pin = lock(&self.inner.plex)
+            .pin
+            .clone()
+            .context("no plex sign-in is under way")?;
+        let client_id = plex::auth::client_id();
+        let checked = self.run(async move { plex::pin::check(&client_id, &pin).await })?;
+        let mut held = lock(&self.inner.plex);
+        Ok(match checked {
+            plex::pin::Check::Waiting => PlexPin::Waiting,
+            plex::pin::Check::Approved(token) => {
+                *held = PlexSignIn {
+                    pin: None,
+                    token: Some(token),
+                };
+                PlexPin::Approved
+            }
+            plex::pin::Check::Expired => {
+                *held = PlexSignIn::default();
+                PlexPin::Expired
+            }
+        })
+    }
+
+    /// The servers of the account the approved PIN signed in, its own first.
+    pub fn plex_servers(&self) -> Result<Vec<plex::pin::Server>> {
+        reachable(self.inner.vault.offline())?;
+        let token = self.plex_token()?;
+        let client_id = plex::auth::client_id();
+        self.run(async move { plex::pin::servers(&client_id, &token).await })
+    }
+
+    /// Signs in to the account's server `server_id`, and answers the account's name. The account
+    /// token is dropped once the server is in, and kept for another try until then.
+    pub fn plex_sign_in(&self, server_id: String) -> Result<String> {
+        let token = self.plex_token()?;
+        let name = self.sign_in(
+            plex::auth::SLUG,
+            SignIn::Plex {
+                token,
+                server: server_id,
+            },
+        )?;
+        *lock(&self.inner.plex) = PlexSignIn::default();
+        Ok(name)
+    }
+
+    /// Gives up the plex.tv sign-in under way, forgetting its PIN and token.
+    pub fn plex_cancel(&self) {
+        *lock(&self.inner.plex) = PlexSignIn::default();
+    }
+
+    fn plex_token(&self) -> Result<String> {
+        lock(&self.inner.plex)
+            .token
+            .clone()
+            .context("the plex sign-in is not approved")
     }
 
     pub fn sign_out(&self, slug: &str) -> Result<()> {

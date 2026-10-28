@@ -99,6 +99,7 @@ List<(String, String)> _plans(String slug) => switch (slug) {
   'subsonic' => [('plans.server', 'plans.subsonic')],
   'jellyfin' => [('plans.server', 'plans.jellyfin')],
   'emby' => [('plans.server', 'plans.emby')],
+  'plex' => [('plans.server', 'plans.plex')],
   _ => const [],
 };
 

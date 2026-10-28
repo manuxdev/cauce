@@ -216,6 +216,61 @@ pub fn quick_connect_sign_in(slug: String, server: String, secret: String) -> Re
     core()?.sign_in(&slug, music::SignIn::QuickConnect { server, secret })
 }
 
+pub enum PlexPinCheck {
+    Waiting,
+    /// The listener approved the sign-in: the account's servers can be listed.
+    Approved,
+    /// plex.tv no longer knows the sign-in.
+    Expired,
+}
+
+/// A Plex server the signed-in account can reach.
+pub struct PlexServer {
+    pub id: String,
+    pub name: String,
+    /// Whether the account owns it, rather than having it shared with them.
+    pub owned: bool,
+}
+
+/// Starts a plex.tv sign-in, and answers the page where the listener approves it. The PIN and
+/// the account token it brings stay in the core, never shown, stored or logged.
+pub fn plex_start() -> Result<String> {
+    core()?.plex_start()
+}
+
+pub fn plex_check() -> Result<PlexPinCheck> {
+    use cauce_core::PlexPin;
+    Ok(match core()?.plex_check()? {
+        PlexPin::Waiting => PlexPinCheck::Waiting,
+        PlexPin::Approved => PlexPinCheck::Approved,
+        PlexPin::Expired => PlexPinCheck::Expired,
+    })
+}
+
+/// The servers of the account the approved sign-in brought, its own first.
+pub fn plex_servers() -> Result<Vec<PlexServer>> {
+    Ok(core()?
+        .plex_servers()?
+        .into_iter()
+        .map(|server| PlexServer {
+            id: server.id,
+            name: server.name,
+            owned: server.owned,
+        })
+        .collect())
+}
+
+/// Signs in to the account's server `server_id`, and answers the account's name.
+pub fn plex_sign_in(server_id: String) -> Result<String> {
+    core()?.plex_sign_in(server_id)
+}
+
+/// Gives up the plex.tv sign-in under way.
+pub fn plex_cancel() -> Result<()> {
+    core()?.plex_cancel();
+    Ok(())
+}
+
 pub fn sign_out(slug: String) -> Result<()> {
     core()?.sign_out(&slug)
 }

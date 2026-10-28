@@ -119,6 +119,14 @@ const english = <String, String>{
   'signIn.quickConnect.expired': 'The code expired before it was entered. Try again for a new one.',
   'signIn.quickConnect.retry': 'Try again',
   'signIn.emby.help': 'Your Emby server address, such as emby.example.com or 192.168.1.10:8096.',
+  'signIn.plex': 'Sign in with Plex',
+  'signIn.plex.help':
+      'Plex opens its own page to sign in, then Cauce plays the music libraries of your Plex Media Server.',
+  'signIn.plex.servers': 'Choose a server',
+  'signIn.plex.serversHelp': 'Cauce plays the music libraries of the server you choose.',
+  'signIn.plex.shared': 'Shared with you',
+  'signIn.plex.noServers': 'This Plex account has no server Cauce can reach.',
+  'signIn.plex.expired': 'The sign-in expired before it was finished. Try again.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'No playlists yet',
   'library.addFolder': 'Add a folder from Files',
@@ -209,6 +217,7 @@ const english = <String, String>{
       'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
   'plans.emby':
       'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
+  'plans.plex': 'No plans: Cauce browses, searches, plays and downloads what your server holds.',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
 
@@ -633,6 +642,14 @@ const spanish = <String, String>{
   'signIn.quickConnect.expired': 'El código caducó antes de ingresarse. Vuelve a intentarlo para obtener uno nuevo.',
   'signIn.quickConnect.retry': 'Reintentar',
   'signIn.emby.help': 'La dirección de tu servidor Emby, como emby.example.com o 192.168.1.10:8096.',
+  'signIn.plex': 'Iniciar sesión con Plex',
+  'signIn.plex.help':
+      'Plex abre su propia página para iniciar sesión y luego Cauce reproduce las bibliotecas de música de tu Plex Media Server.',
+  'signIn.plex.servers': 'Elige un servidor',
+  'signIn.plex.serversHelp': 'Cauce reproduce las bibliotecas de música del servidor que elijas.',
+  'signIn.plex.shared': 'Compartido contigo',
+  'signIn.plex.noServers': 'Esta cuenta de Plex no tiene ningún servidor al que Cauce pueda llegar.',
+  'signIn.plex.expired': 'El inicio de sesión caducó antes de terminarse. Vuelve a intentarlo.',
   'library.playlists': 'Playlists',
   'library.playlistsNone': 'Aún no hay playlists',
   'library.addFolder': 'Añadir una carpeta de Archivos',
@@ -725,6 +742,7 @@ const spanish = <String, String>{
       'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
   'plans.emby':
       'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
+  'plans.plex': 'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor.',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',
 
