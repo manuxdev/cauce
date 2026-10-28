@@ -129,6 +129,11 @@ impl Fetch for YouTube {
         self.shelf.as_ref()
     }
 
+    /// The bitrate ceiling, which is what `load` keeps a track as.
+    fn variant(&self) -> String {
+        variant(self.ceiling)
+    }
+
     /// Opens the stream and waits for the preroll, giving a stalled attempt one more go before
     /// failing. Only a timeout is retried, since a refusal from the stream host is as final the
     /// second time.

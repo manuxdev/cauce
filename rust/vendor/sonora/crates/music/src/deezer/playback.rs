@@ -126,6 +126,15 @@ impl Fetch for Deezer {
         self.shelf.as_ref()
     }
 
+    /// The format a track is first offered in, which is what `load` keeps it as. Empty, so
+    /// nothing counts as cached, in the moment a sign-in holds the session.
+    fn variant(&self) -> String {
+        self.client
+            .served_now(self.quality)
+            .unwrap_or_default()
+            .to_owned()
+    }
+
     /// Resolves the stream url and its key together, since one answer carries both, at the
     /// chosen level or the best below it the license covers. The download starts decrypting as
     /// it arrives.

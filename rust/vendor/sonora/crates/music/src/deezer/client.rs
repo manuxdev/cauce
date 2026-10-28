@@ -244,9 +244,12 @@ impl DeezerClient {
     /// The format a track is first offered in at `quality` on this account's plan, which is the
     /// one it streams as unless the track lacks it.
     pub async fn served(&self, quality: Quality) -> &'static str {
-        let plan = self.inner.session.read().await.plan;
-        let first = FORMATS.len() - formats_from(quality).len();
-        FORMATS[first.max(plan).min(FORMATS.len() - 1)]
+        served_on(self.inner.session.read().await.plan, quality)
+    }
+
+    /// [`served`](Self::served) without waiting, or `None` while the session is being written.
+    pub fn served_now(&self, quality: Quality) -> Option<&'static str> {
+        Some(served_on(self.inner.session.try_read().ok()?.plan, quality))
     }
 
     async fn user_id(&self) -> String {
@@ -1043,6 +1046,13 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// The format a track is first offered in at `quality` on a plan whose best format sits at
+/// `plan` in `FORMATS`.
+fn served_on(plan: usize, quality: Quality) -> &'static str {
+    let first = FORMATS.len() - formats_from(quality).len();
+    FORMATS[first.max(plan).min(FORMATS.len() - 1)]
 }
 
 /// Where in `FORMATS` the best format a plan covers sits, from the `OPTIONS` of

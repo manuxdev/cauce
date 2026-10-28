@@ -111,6 +111,12 @@ impl Fetch for Apple {
         self.shelf.as_ref()
     }
 
+    /// The quality asked for within what Apple Music offers, which is what `load` keeps a
+    /// track as.
+    fn variant(&self) -> String {
+        self.quality.within(stream::QUALITIES).id().to_owned()
+    }
+
     /// A kept track is still encrypted, and the key that opens it is licensed afresh for each
     /// play and lasts about fifteen minutes, so a download cannot play without the network.
     fn plays_offline(&self) -> bool {

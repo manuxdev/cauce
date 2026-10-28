@@ -964,6 +964,11 @@ impl Fetch for Tidal {
         self.shelf.as_ref()
     }
 
+    /// The quality asked for, which is what `load` keeps a track as.
+    fn variant(&self) -> String {
+        self.quality.id().to_owned()
+    }
+
     /// Asks for the chosen quality, or the best below it the account may play, and starts the
     /// download, waiting only for the preroll, and for that no longer than `PRIMING`.
     async fn load(&self, id: &str) -> Result<Loaded> {
