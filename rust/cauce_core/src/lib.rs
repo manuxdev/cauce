@@ -22,6 +22,7 @@ use std::time::Duration;
 use anyhow::{Context as _, Result};
 use downloads::{Downloads, State};
 use music::equalizer::{Edit, EqualizerWriter};
+use music::jellyfin::quick_connect;
 use music::local::LocalProvider;
 use music::vault::Vault;
 use music::{
@@ -265,6 +266,25 @@ impl Core {
         self.inner
             .connect(slug, session.api, session.playback, session.capabilities);
         Ok(name)
+    }
+
+    /// Whether the Jellyfin server at `server` offers Quick Connect.
+    pub fn quick_connect_enabled(&self, server: String) -> Result<bool> {
+        reachable(self.inner.vault.offline())?;
+        self.run(async move { quick_connect::enabled(&server).await })
+    }
+
+    /// A Quick Connect code for the listener to authorize on a device already signed in.
+    pub fn quick_connect_start(&self, server: String) -> Result<quick_connect::Code> {
+        reachable(self.inner.vault.offline())?;
+        self.run(async move { quick_connect::initiate(&server).await })
+    }
+
+    /// Where the Quick Connect code with `secret` stands. Once authorized, signing in with
+    /// [`SignIn::QuickConnect`] trades it for the account.
+    pub fn quick_connect_check(&self, server: String, secret: String) -> Result<quick_connect::Check> {
+        reachable(self.inner.vault.offline())?;
+        self.run(async move { quick_connect::check(&server, &secret).await })
     }
 
     pub fn sign_out(&self, slug: &str) -> Result<()> {

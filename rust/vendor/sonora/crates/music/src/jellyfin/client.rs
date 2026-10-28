@@ -45,7 +45,7 @@ pub fn scrub(text: &str, token: &str) -> String {
 }
 
 /// A transport error as text with no url and no token in it.
-fn failed(error: reqwest::Error, token: &str) -> anyhow::Error {
+pub(super) fn failed(error: reqwest::Error, token: &str) -> anyhow::Error {
     anyhow!(scrub(
         &format!("{:#}", anyhow::Error::from(error.without_url())),
         token
@@ -53,14 +53,14 @@ fn failed(error: reqwest::Error, token: &str) -> anyhow::Error {
 }
 
 /// The header value for `authorization`, marked sensitive so nothing that logs headers shows it.
-fn header(authorization: &str) -> Result<HeaderValue> {
+pub(super) fn header(authorization: &str) -> Result<HeaderValue> {
     let mut value =
         HeaderValue::from_str(authorization).context("cannot build the server authorization")?;
     value.set_sensitive(true);
     Ok(value)
 }
 
-fn header_name(flavor: Flavor) -> HeaderName {
+pub(super) fn header_name(flavor: Flavor) -> HeaderName {
     HeaderName::from_static(auth::header_name(flavor))
 }
 
@@ -144,6 +144,44 @@ pub async fn authenticate(
             flavor.slug()
         );
     }
+    signed_in(response, flavor, server, device_id).await
+}
+
+/// Signs in to Jellyfin with the secret of an authorized Quick Connect code, and answers what
+/// to store, as a password sign-in does. The secret goes in the body of this one request.
+pub async fn authenticate_with_quick_connect(
+    server: &str,
+    secret: &str,
+    device_id: &str,
+) -> Result<Credentials> {
+    let flavor = Flavor::Jellyfin;
+    let response = reqwest::Client::new()
+        .post(format!("{server}/Users/AuthenticateWithQuickConnect"))
+        .header(
+            header_name(flavor),
+            header(&auth::authorization(device_id, None))?,
+        )
+        .json(&serde_json::json!({ "Secret": secret }))
+        .send()
+        .await
+        .map_err(|error| failed(error, secret))
+        .context("cannot reach the jellyfin server")?;
+    if matches!(
+        response.status(),
+        StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND
+    ) {
+        anyhow::bail!("the jellyfin server refused the quick connect code");
+    }
+    signed_in(response, flavor, server, device_id).await
+}
+
+/// What to store from a sign-in's answer.
+async fn signed_in(
+    response: reqwest::Response,
+    flavor: Flavor,
+    server: &str,
+    device_id: &str,
+) -> Result<Credentials> {
     let answer: Authenticated = response
         .error_for_status()
         .map_err(|error| failed(error, ""))
@@ -1356,6 +1394,60 @@ mod demo {
         assert_eq!(left, [first, second.clone()]);
         assert_eq!(detail.playlist.name, "cauce-live-check renamed");
         assert!(after > before);
+    }
+
+    /// The demo user authorizes the code itself, standing in for the signed-in device. Never
+    /// prints the code or the secret.
+    #[tokio::test]
+    #[ignore = "reaches demo.jellyfin.org"]
+    async fn jellyfin_demo_signs_in_with_quick_connect() {
+        use crate::jellyfin::quick_connect::{self, Check};
+
+        let server = auth::normalize_server("demo.jellyfin.org/stable").unwrap();
+        assert!(quick_connect::enabled(&server).await.unwrap());
+        let device = "cauce-live-check-qc";
+        let code = quick_connect::initiate_as(&server, device).await.unwrap();
+        let waiting = quick_connect::check(&server, &code.secret).await.unwrap();
+
+        let authorizer = authenticate(Flavor::Jellyfin, &server, "demo", "", "cauce-live-check")
+            .await
+            .unwrap();
+        let authorized = reqwest::Client::new()
+            .post(format!("{server}/QuickConnect/Authorize"))
+            .query(&[("code", code.code.as_str())])
+            .header(
+                header_name(Flavor::Jellyfin),
+                header(&auth::authorization(
+                    &authorizer.device_id,
+                    Some(&authorizer.token),
+                ))
+                .unwrap(),
+            )
+            .send()
+            .await
+            .unwrap()
+            .status();
+        println!("authorize: {authorized}");
+        let after = quick_connect::check(&server, &code.secret).await.unwrap();
+
+        let credentials = authenticate_with_quick_connect(&server, &code.secret, device)
+            .await
+            .unwrap();
+        let profile = JellyfinClient::new(&credentials)
+            .unwrap()
+            .profile()
+            .await
+            .unwrap();
+        println!("signed in as {}", profile.display_name);
+        std::thread::spawn(move || {
+            logout(&credentials);
+            logout(&authorizer);
+        })
+        .join()
+        .unwrap();
+        assert_eq!(waiting, Check::Waiting);
+        assert_eq!(after, Check::Authorized);
+        assert_eq!(profile.display_name, "demo");
     }
 }
 

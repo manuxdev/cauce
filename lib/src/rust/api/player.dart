@@ -30,6 +30,21 @@ Future<String> signIn({
   required String password,
 }) => RustLib.instance.api.crateApiPlayerSignIn(slug: slug, server: server, username: username, password: password);
 
+/// Whether the Jellyfin server at `server` offers Quick Connect.
+Future<bool> quickConnectEnabled({required String server}) =>
+    RustLib.instance.api.crateApiPlayerQuickConnectEnabled(server: server);
+
+Future<QuickConnectCode> quickConnectStart({required String server}) =>
+    RustLib.instance.api.crateApiPlayerQuickConnectStart(server: server);
+
+Future<QuickConnectCheck> quickConnectCheck({required String server, required String secret}) =>
+    RustLib.instance.api.crateApiPlayerQuickConnectCheck(server: server, secret: secret);
+
+/// Signs `slug` in with an authorized Quick Connect code, and answers the account's name. The
+/// account is stored as a password sign-in's is; the secret is not.
+Future<String> quickConnectSignIn({required String slug, required String server, required String secret}) =>
+    RustLib.instance.api.crateApiPlayerQuickConnectSignIn(slug: slug, server: server, secret: secret);
+
 Future<void> signOut({required String slug}) => RustLib.instance.api.crateApiPlayerSignOut(slug: slug);
 
 Future<List<TrackItem>> search({required String slug, required String query}) =>
@@ -761,6 +776,33 @@ class QualityOption {
           id == other.id &&
           encoding == other.encoding &&
           upTo == other.upTo;
+}
+
+enum QuickConnectCheck {
+  waiting,
+  authorized,
+
+  /// The server no longer knows the code.
+  expired,
+}
+
+/// A Jellyfin Quick Connect code. `secret` is a credential: kept in memory only until it is
+/// traded for the account, never shown, stored or logged.
+class QuickConnectCode {
+  final String secret;
+
+  /// What the listener enters on a device already signed in.
+  final String code;
+
+  const QuickConnectCode({required this.secret, required this.code});
+
+  @override
+  int get hashCode => secret.hashCode ^ code.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QuickConnectCode && runtimeType == other.runtimeType && secret == other.secret && code == other.code;
 }
 
 /// What stations are browsed by.

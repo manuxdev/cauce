@@ -173,6 +173,49 @@ pub fn sign_in(slug: String, server: String, username: String, password: String)
     )
 }
 
+/// A Jellyfin Quick Connect code. `secret` is a credential: kept in memory only until it is
+/// traded for the account, never shown, stored or logged.
+pub struct QuickConnectCode {
+    pub secret: String,
+    /// What the listener enters on a device already signed in.
+    pub code: String,
+}
+
+pub enum QuickConnectCheck {
+    Waiting,
+    Authorized,
+    /// The server no longer knows the code.
+    Expired,
+}
+
+/// Whether the Jellyfin server at `server` offers Quick Connect.
+pub fn quick_connect_enabled(server: String) -> Result<bool> {
+    core()?.quick_connect_enabled(server)
+}
+
+pub fn quick_connect_start(server: String) -> Result<QuickConnectCode> {
+    let code = core()?.quick_connect_start(server)?;
+    Ok(QuickConnectCode {
+        secret: code.secret,
+        code: code.code,
+    })
+}
+
+pub fn quick_connect_check(server: String, secret: String) -> Result<QuickConnectCheck> {
+    use music::jellyfin::quick_connect::Check;
+    Ok(match core()?.quick_connect_check(server, secret)? {
+        Check::Waiting => QuickConnectCheck::Waiting,
+        Check::Authorized => QuickConnectCheck::Authorized,
+        Check::Expired => QuickConnectCheck::Expired,
+    })
+}
+
+/// Signs `slug` in with an authorized Quick Connect code, and answers the account's name. The
+/// account is stored as a password sign-in's is; the secret is not.
+pub fn quick_connect_sign_in(slug: String, server: String, secret: String) -> Result<String> {
+    core()?.sign_in(&slug, music::SignIn::QuickConnect { server, secret })
+}
+
 pub fn sign_out(slug: String) -> Result<()> {
     core()?.sign_out(&slug)
 }

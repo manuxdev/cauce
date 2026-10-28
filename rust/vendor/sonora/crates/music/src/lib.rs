@@ -839,6 +839,8 @@ pub enum SignIn {
         username: String,
         password: String,
     },
+    /// Jellyfin's Quick Connect: the secret of a code another signed-in device authorized.
+    QuickConnect { server: String, secret: String },
 }
 
 /// A provider refusing for now because too much was asked of it too quickly. Whoever asked can
