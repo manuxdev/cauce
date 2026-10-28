@@ -855,7 +855,7 @@ const spanish = <String, String>{
   'home.nothingConnected': 'Conecta un servicio para ver lo que te recomienda',
   'home.empty': 'Todavía no hay nada para recomendar',
   'home.offline': 'Sin conexión',
-  'home.offline.downloads': 'Tus descargas se siguen reproduciendo. Las encontrás en Biblioteca.',
+  'home.offline.downloads': 'Tus descargas se siguen reproduciendo. Las encuentras en Biblioteca.',
   'home.offline.detail':
       'No se pueden cargar las recomendaciones de {service}. Tus descargas y archivos siguen disponibles.',
 
@@ -904,7 +904,7 @@ const spanish = <String, String>{
   'podcasts.left': 'Quedan {time}',
   'podcasts.months': 'ene feb mar abr may jun jul ago sep oct nov dic',
   'library.likedNone': 'Todavía no hay favoritos en {service}',
-  'library.filesHint': 'Copiá MP3, M4A o FLAC a Cauce desde la app Archivos o el Finder.',
+  'library.filesHint': 'Copia MP3, M4A o FLAC a Cauce desde la app Archivos o el Finder.',
   'library.likedEmpty': 'Las canciones que marques con el corazón aparecen acá.',
   'library.likedCount': '{count} canciones que te gustan',
   'library.goHome': 'Ir a Inicio',
@@ -1035,7 +1035,7 @@ const spanish = <String, String>{
   'connect.subtitle': 'Cauce no aloja música. Reproduce la de tus servicios y tu iPhone.',
   'connect.pick': 'Conecta uno o varios',
   'connect.action': 'Conectar',
-  'connect.later': 'Podés agregar más en Ajustes.',
+  'connect.later': 'Puedes agregar más en Ajustes.',
   'connect.skip': 'Seguir sin una cuenta',
 
   'search.library': 'Biblioteca',
