@@ -78,6 +78,10 @@ Future<void> plexCancel() => RustLib.instance.api.crateApiPlayerPlexCancel();
 
 Future<void> signOut({required String slug}) => RustLib.instance.api.crateApiPlayerSignOut(slug: slug);
 
+/// The page of track `id` on its provider's own site, when the provider links back to it.
+Future<String?> trackLink({required String slug, required String id}) =>
+    RustLib.instance.api.crateApiPlayerTrackLink(slug: slug, id: id);
+
 Future<List<TrackItem>> search({required String slug, required String query}) =>
     RustLib.instance.api.crateApiPlayerSearch(slug: slug, query: query);
 

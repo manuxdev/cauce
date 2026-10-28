@@ -265,15 +265,17 @@ class _CollectionScreenState extends State<CollectionScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _DownloadAll(
-                      slug: widget.slug,
-                      card: widget.card,
-                      tracks: tracks,
-                      name: _name ?? widget.card.title,
+                  if (canDownload(widget.slug)) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DownloadAll(
+                        slug: widget.slug,
+                        card: widget.card,
+                        tracks: tracks,
+                        name: _name ?? widget.card.title,
+                      ),
                     ),
-                  ),
+                  ],
                   FutureBuilder(
                     future: _mine,
                     builder: (context, mine) => mine.data ?? false

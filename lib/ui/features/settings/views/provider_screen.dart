@@ -9,6 +9,7 @@ import '../../../core/selected_service.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
 import '../../accounts/view_models/accounts_view_model.dart';
+import '../../accounts/views/audius_connect_screen.dart';
 import 'settings_widgets.dart';
 
 /// One connected provider: who is signed in, making it the active one, and signing out.
@@ -78,6 +79,7 @@ class ProviderScreen extends StatelessWidget {
                     SettingsRow(title: context.t(label), subtitle: context.t(text), trailing: const SizedBox.shrink()),
                 ],
               ),
+            if (service.slug == 'audius') const AudiusTerms(),
             SettingsGroup(
               footer: context.t('providers.keepsDownloadsOf', {'service': service.name}),
               children: [
@@ -114,6 +116,7 @@ List<(String, String)> _plans(String slug) => switch (slug) {
   'jellyfin' => [('plans.server', 'plans.jellyfin')],
   'emby' => [('plans.server', 'plans.emby')],
   'plex' => [('plans.server', 'plans.plex')],
+  'audius' => [('plans.catalog', 'plans.audius')],
   _ => const [],
 };
 

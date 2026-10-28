@@ -62,7 +62,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -934977516;
+  int get rustContentHash => 1312424164;
 
   static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
     stem: 'cauce_bridge',
@@ -307,6 +307,8 @@ abstract class RustLibApi extends BaseApi {
   bool crateApiPlayerStored({required String slug});
 
   bool crateApiPlayerStreams({required String slug});
+
+  Future<String?> crateApiPlayerTrackLink({required String slug, required String id});
 
   Future<void> crateApiPlayerUnkeepCollection({required String slug, required CardKind kind, required String id});
 
@@ -2282,6 +2284,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPlayerStreamsConstMeta => const TaskConstMeta(debugName: "streams", argNames: ["slug"]);
 
   @override
+  Future<String?> crateApiPlayerTrackLink({required String slug, required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(slug, serializer);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiPlayerTrackLinkConstMeta,
+        argValues: [slug, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPlayerTrackLinkConstMeta =>
+      const TaskConstMeta(debugName: "track_link", argNames: ["slug", "id"]);
+
+  @override
   Future<void> crateApiPlayerUnkeepCollection({required String slug, required CardKind kind, required String id}) {
     return handler.executeNormal(
       NormalTask(
@@ -2290,7 +2313,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(slug, serializer);
           sse_encode_card_kind(kind, serializer);
           sse_encode_String(id, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiPlayerUnkeepCollectionConstMeta,
@@ -2310,7 +2333,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(slug, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 97, port: port_);
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_web_login,

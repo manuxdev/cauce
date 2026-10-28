@@ -1,0 +1,25 @@
+{
+ "data": {
+  "id": "aWvp71",
+  "name": "Ciara Graves",
+  "handle": "ciaragraves",
+  "is_verified": true,
+  "follower_count": 661,
+  "followee_count": 423,
+  "track_count": 6,
+  "playlist_count": 1,
+  "bio": "dj/producer\nit's sweet treat o'clock",
+  "profile_picture": {
+   "1000x1000": "https://val002.open-audio-validator.com/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/1000x1000.jpg",
+   "150x150": "https://val002.open-audio-validator.com/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/150x150.jpg",
+   "480x480": "https://val002.open-audio-validator.com/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/480x480.jpg",
+   "mirrors": [
+    "https://v.monophonic.digital",
+    "https://val017.open-audio-validator.com",
+    "https://audius-04.staked.cloud"
+   ]
+  },
+  "is_deactivated": false,
+  "is_available": true
+ }
+}

@@ -30,6 +30,7 @@ mod sink;
 mod spectrum;
 pub mod spotify;
 mod stream;
+pub mod audius;
 pub mod jellyfin;
 pub mod plex;
 pub mod podcast;

@@ -1,0 +1,100 @@
+{
+ "data": [
+  {
+   "id": "M2Qd5Eo",
+   "playlist_name": "Flight of The Butterfly",
+   "is_album": false,
+   "is_private": false,
+   "is_delete": false,
+   "is_stream_gated": false,
+   "access": {
+    "stream": true,
+    "download": true
+   },
+   "artwork": {
+    "150x150": "https://val011.open-audio-validator.com/content/baeaaaiqsedjertsf3uxrr77m52ye6p4udeax6pvgeey5ua3vrwkd7t4gqmfqk/150x150.jpg",
+    "480x480": "https://val011.open-audio-validator.com/content/baeaaaiqsedjertsf3uxrr77m52ye6p4udeax6pvgeey5ua3vrwkd7t4gqmfqk/480x480.jpg",
+    "1000x1000": "https://val011.open-audio-validator.com/content/baeaaaiqsedjertsf3uxrr77m52ye6p4udeax6pvgeey5ua3vrwkd7t4gqmfqk/1000x1000.jpg",
+    "mirrors": [
+     "https://v.monophonic.digital",
+     "https://validator.soundmaxx.xyz",
+     "https://audius-figment-1-validator-19.figment.io"
+    ]
+   },
+   "track_count": 15,
+   "permalink": "/lottaboom/playlist/flight-of-the-butterfly",
+   "release_date": "2026-10-02T13:59:07Z",
+   "user": {
+    "id": "bQ3Kk",
+    "name": "KaRMaTRaiN379",
+    "handle": "lottaboom",
+    "is_verified": true,
+    "follower_count": 6231,
+    "followee_count": 5974,
+    "track_count": 13,
+    "playlist_count": 50,
+    "bio": "Audius is very intimate for me and want you to know that I am listening  have felt and managed my emotions to your tracks. I've listened to many but in my playlists lies my emotions too!\nI love you all\n🔥🔥🙌🔥🔥",
+    "profile_picture": {
+     "1000x1000": "https://v.monophonic.digital/content/baeaaaiqseaevxu47xyfolcu23f7mr7ysqoyfchflhswitrallgdjdnvv2cxgk/1000x1000.jpg",
+     "150x150": "https://v.monophonic.digital/content/baeaaaiqseaevxu47xyfolcu23f7mr7ysqoyfchflhswitrallgdjdnvv2cxgk/150x150.jpg",
+     "480x480": "https://v.monophonic.digital/content/baeaaaiqseaevxu47xyfolcu23f7mr7ysqoyfchflhswitrallgdjdnvv2cxgk/480x480.jpg",
+     "mirrors": [
+      "https://val012.open-audio-validator.com",
+      "https://audius-04.staked.cloud",
+      "https://audius-content-4.figment.io"
+     ]
+    },
+    "is_deactivated": false,
+    "is_available": true
+   }
+  },
+  {
+   "id": "DOPRl",
+   "playlist_name": "Hot & New on Audius🔥",
+   "is_album": false,
+   "is_private": false,
+   "is_delete": false,
+   "is_stream_gated": false,
+   "access": {
+    "stream": true,
+    "download": true
+   },
+   "artwork": {
+    "150x150": "https://validator.soundmaxx.xyz/content/01KH6XGYQ8T86WPVSMN21NECWB/150x150.jpg",
+    "480x480": "https://validator.soundmaxx.xyz/content/01KH6XGYQ8T86WPVSMN21NECWB/480x480.jpg",
+    "1000x1000": "https://validator.soundmaxx.xyz/content/01KH6XGYQ8T86WPVSMN21NECWB/1000x1000.jpg",
+    "mirrors": [
+     "https://audius-discovery-2.altego.net",
+     "https://creatornode.audius.co",
+     "https://v.monophonic.digital"
+    ]
+   },
+   "track_count": 20,
+   "permalink": "/Audius/playlist/hot-new-on-audius🔥",
+   "release_date": "2020-01-11T00:08:35Z",
+   "user": {
+    "id": "eJ57D",
+    "name": "Audius",
+    "handle": "Audius",
+    "is_verified": true,
+    "follower_count": 1988218,
+    "followee_count": 2596,
+    "track_count": 3,
+    "playlist_count": 8,
+    "bio": "The official Audius account!\n\nCreating a decentralized and open-source streaming music platform controlled by artists, fans, & developers.\n\nhttps://discord.gg/audius",
+    "profile_picture": {
+     "1000x1000": "https://v.monophonic.digital/content/01KH6RG3Y0Y748QFHF3R9FP31V/1000x1000.jpg",
+     "150x150": "https://v.monophonic.digital/content/01KH6RG3Y0Y748QFHF3R9FP31V/150x150.jpg",
+     "480x480": "https://v.monophonic.digital/content/01KH6RG3Y0Y748QFHF3R9FP31V/480x480.jpg",
+     "mirrors": [
+      "https://audius-content-7.figment.io",
+      "https://val005.open-audio-validator.com",
+      "https://val018.open-audio-validator.com"
+     ]
+    },
+    "is_deactivated": false,
+    "is_available": true
+   }
+  }
+ ]
+}

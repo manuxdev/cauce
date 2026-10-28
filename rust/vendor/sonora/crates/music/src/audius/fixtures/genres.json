@@ -1,0 +1,24 @@
+{
+ "data": [
+  {
+   "name": "Electronic",
+   "count": 381180
+  },
+  {
+   "name": "Hip-Hop/Rap",
+   "count": 358515
+  },
+  {
+   "name": "Metal",
+   "count": 119838
+  },
+  {
+   "name": "Rock",
+   "count": 114118
+  },
+  {
+   "name": "Alternative",
+   "count": 112662
+  }
+ ]
+}

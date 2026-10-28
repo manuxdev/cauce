@@ -1,0 +1,183 @@
+{
+ "data": [
+  {
+   "id": "mzXmz1",
+   "title": "On The Floor",
+   "duration": 180,
+   "genre": "Dubstep",
+   "permalink": "/ciaragraves/on-the-floor",
+   "release_date": "2026-10-16T04:00:00Z",
+   "play_count": 1853,
+   "favorite_count": 64,
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_downloadable": false,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true,
+   "access": {
+    "stream": true,
+    "download": true
+   },
+   "stream_conditions": null,
+   "allowed_api_keys": null,
+   "license": "All rights reserved",
+   "artwork": {
+    "150x150": "https://v.monophonic.digital/content/baeaaaiqsebkzr2fnqn7cuser72u2ipxqb53q5p322vao3ewyvaagdpx62h5ja/150x150.jpg",
+    "480x480": "https://v.monophonic.digital/content/baeaaaiqsebkzr2fnqn7cuser72u2ipxqb53q5p322vao3ewyvaagdpx62h5ja/480x480.jpg",
+    "1000x1000": "https://v.monophonic.digital/content/baeaaaiqsebkzr2fnqn7cuser72u2ipxqb53q5p322vao3ewyvaagdpx62h5ja/1000x1000.jpg",
+    "mirrors": [
+     "https://val013.open-audio-validator.com",
+     "https://audius-discovery-1.altego.net",
+     "https://audius-content-4.figment.io"
+    ]
+   },
+   "user": {
+    "id": "aWvp71",
+    "name": "Ciara Graves",
+    "handle": "ciaragraves",
+    "is_verified": true,
+    "follower_count": 661,
+    "followee_count": 423,
+    "track_count": 6,
+    "playlist_count": 1,
+    "bio": "dj/producer\nit's sweet treat o'clock",
+    "profile_picture": {
+     "1000x1000": "https://v.monophonic.digital/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/1000x1000.jpg",
+     "150x150": "https://v.monophonic.digital/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/150x150.jpg",
+     "480x480": "https://v.monophonic.digital/content/baeaaaiqseba6euqqacdonq34espwunsivdz4khrhj62x4oxgimgqk4hycftzy/480x480.jpg",
+     "mirrors": [
+      "https://val002.open-audio-validator.com",
+      "https://audius-04.staked.cloud",
+      "https://val017.open-audio-validator.com"
+     ]
+    },
+    "is_deactivated": false,
+    "is_available": true
+   }
+  },
+  {
+   "id": "W08NKdZ",
+   "title": "iLLPeTiLL - Post HospitiLL Slapperzzz Mix (Audius Exclusive)",
+   "duration": 394,
+   "genre": "Electronic",
+   "permalink": "/iLLPeTiLL/illpetill-post-hospitill-slapperzzz-mix-audius-exclusive",
+   "release_date": "2026-10-24T14:31:47Z",
+   "play_count": 708,
+   "favorite_count": 62,
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_downloadable": false,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true,
+   "access": {
+    "stream": true,
+    "download": true
+   },
+   "stream_conditions": null,
+   "allowed_api_keys": null,
+   "license": null,
+   "artwork": {
+    "150x150": "https://val005.open-audio-validator.com/content/baeaaaiqsedszpcmjuiem7b5qilvws4622vnsrht4ybnlqldmfzgxogcogawsa/150x150.jpg",
+    "480x480": "https://val005.open-audio-validator.com/content/baeaaaiqsedszpcmjuiem7b5qilvws4622vnsrht4ybnlqldmfzgxogcogawsa/480x480.jpg",
+    "1000x1000": "https://val005.open-audio-validator.com/content/baeaaaiqsedszpcmjuiem7b5qilvws4622vnsrht4ybnlqldmfzgxogcogawsa/1000x1000.jpg",
+    "mirrors": [
+     "https://audius-01.staked.cloud",
+     "https://v.monophonic.digital",
+     "https://audius-content-6.figment.io"
+    ]
+   },
+   "user": {
+    "id": "O5lQz",
+    "name": "@iLLPeTiLL",
+    "handle": "iLLPeTiLL",
+    "is_verified": true,
+    "follower_count": 617,
+    "followee_count": 1142,
+    "track_count": 46,
+    "playlist_count": 0,
+    "bio": "Professional Music Producer/DJ  Dubstep/Swagstep/Trap/HipHop/EDM Producer.",
+    "profile_picture": {
+     "1000x1000": "https://audius-creator-12.theblueprint.xyz/content/baeaaaiqseb7bvkecmpxxz3xbgt6vefpyx7ikvui5t65vpngwq2jnfgghiosi6/1000x1000.jpg",
+     "150x150": "https://audius-creator-12.theblueprint.xyz/content/baeaaaiqseb7bvkecmpxxz3xbgt6vefpyx7ikvui5t65vpngwq2jnfgghiosi6/150x150.jpg",
+     "480x480": "https://audius-creator-12.theblueprint.xyz/content/baeaaaiqseb7bvkecmpxxz3xbgt6vefpyx7ikvui5t65vpngwq2jnfgghiosi6/480x480.jpg",
+     "mirrors": [
+      "https://v.audius.rickyrombo.com",
+      "https://v.monophonic.digital",
+      "https://audius-content-9.figment.io"
+     ]
+    },
+    "is_deactivated": false,
+    "is_available": true
+   }
+  },
+  {
+   "id": "722A8Bv",
+   "title": "Rowsfred - The Bloop [Festival Edit] (Original Mix)",
+   "duration": 248,
+   "genre": "Hardstyle",
+   "permalink": "/ROWSFRED/rowsfred-the-bloop-festival-edit-original-mix",
+   "release_date": "2026-10-28T12:43:40.80148Z",
+   "play_count": 8,
+   "favorite_count": 6,
+   "is_streamable": true,
+   "is_stream_gated": true,
+   "is_downloadable": true,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true,
+   "access": {
+    "stream": false,
+    "download": false
+   },
+   "stream_conditions": {
+    "usdc_purchase": {
+     "price": 500,
+     "splits": [
+      {
+       "user_id": 995159948,
+       "percentage": 100
+      }
+     ]
+    }
+   },
+   "allowed_api_keys": null,
+   "license": null,
+   "artwork": {
+    "150x150": "https://audius-03.staked.cloud/content/baeaaaiqsec6gnzr2ftdiwh3mudwkhfooylxvq2secftk7vi3pblwh4bql2qee/150x150.jpg",
+    "480x480": "https://audius-03.staked.cloud/content/baeaaaiqsec6gnzr2ftdiwh3mudwkhfooylxvq2secftk7vi3pblwh4bql2qee/480x480.jpg",
+    "1000x1000": "https://audius-03.staked.cloud/content/baeaaaiqsec6gnzr2ftdiwh3mudwkhfooylxvq2secftk7vi3pblwh4bql2qee/1000x1000.jpg",
+    "mirrors": [
+     "https://val012.open-audio-validator.com",
+     "https://audius-creator-14.theblueprint.xyz",
+     "https://v.monophonic.digital"
+    ]
+   },
+   "user": {
+    "id": "KvKjw3y",
+    "name": "ROWSFRED",
+    "handle": "ROWSFRED",
+    "is_verified": false,
+    "follower_count": 66,
+    "followee_count": 117,
+    "track_count": 13,
+    "playlist_count": 0,
+    "bio": "ROWSFRED es un talentoso DJ y productor musical de el estado de Hidalgo, creando música Global Bass",
+    "profile_picture": {
+     "1000x1000": "https://val014.open-audio-validator.com/content/baeaaaiqsea5f4ttdqdo4ysi3ertg6vlaypnxdkkvmcc4tm7niv4u36p4z5cdk/1000x1000.jpg",
+     "150x150": "https://val014.open-audio-validator.com/content/baeaaaiqsea5f4ttdqdo4ysi3ertg6vlaypnxdkkvmcc4tm7niv4u36p4z5cdk/150x150.jpg",
+     "480x480": "https://val014.open-audio-validator.com/content/baeaaaiqsea5f4ttdqdo4ysi3ertg6vlaypnxdkkvmcc4tm7niv4u36p4z5cdk/480x480.jpg",
+     "mirrors": [
+      "https://audius-content-13.figment.io",
+      "https://audius-creator-9.theblueprint.xyz",
+      "https://v.monophonic.digital"
+     ]
+    },
+    "is_deactivated": false,
+    "is_available": true
+   },
+   "stream": null
+  }
+ ]
+}

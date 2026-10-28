@@ -254,6 +254,21 @@ const english = <String, String>{
       'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes and playlists there.',
   'plans.plex':
       'No plans: Cauce browses, searches, plays and downloads what your server holds, and keeps your likes (as five stars) and playlists there.',
+  'plans.catalog': 'Open catalog',
+  'plans.audius':
+      'No plans: Cauce browses, searches and streams Audius for free. Likes stay on this phone. Tracks an artist sells or gates show but do not play, and nothing downloads.',
+  'audius.connect.detail':
+      'Audius is an open catalog of independent music. It needs no account: connect it to browse, search and play. Likes stay on this phone, and tracks only stream, so they cannot be downloaded.',
+  'audius.connect.agree': "By connecting, you agree to Audius's API Terms and Privacy Policy.",
+  'audius.terms': 'Audius',
+  'audius.attribution':
+      'Music on Audius is © its artists and plays under the Audius Open Music License or the license each artist chose.',
+  'audius.apiTerms': 'API Terms',
+  'audius.privacy': 'Privacy Policy',
+  'audius.license': 'Open Music License',
+  'audius.open': 'Open on Audius',
+  'audius.openFailed': 'Cannot open this track on Audius',
+  'track.noPlaylists': 'Playlists here are edited on the service itself',
   'search.all': 'All',
   'search.inAll': 'Search all providers',
 
@@ -852,6 +867,21 @@ const spanish = <String, String>{
       'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta y tus listas.',
   'plans.plex':
       'Sin planes: Cauce explora, busca, reproduce y descarga lo que tenga tu servidor, y guarda ahí tus me gusta (como cinco estrellas) y tus listas.',
+  'plans.catalog': 'Catálogo abierto',
+  'plans.audius':
+      'Sin planes: Cauce explora, busca y reproduce Audius gratis. Los me gusta se quedan en este teléfono. Las canciones que un artista vende o restringe se muestran pero no se reproducen, y nada se descarga.',
+  'audius.connect.detail':
+      'Audius es un catálogo abierto de música independiente. No necesita cuenta: conéctalo para explorar, buscar y reproducir. Los me gusta se quedan en este teléfono y las canciones solo se reproducen en streaming, así que no se pueden descargar.',
+  'audius.connect.agree': 'Al conectarlo, aceptas los Términos de la API y la Política de privacidad de Audius.',
+  'audius.terms': 'Audius',
+  'audius.attribution':
+      'La música de Audius es © de sus artistas y se reproduce bajo la Audius Open Music License o la licencia que eligió cada artista.',
+  'audius.apiTerms': 'Términos de la API',
+  'audius.privacy': 'Política de privacidad',
+  'audius.license': 'Open Music License',
+  'audius.open': 'Abrir en Audius',
+  'audius.openFailed': 'No se puede abrir esta canción en Audius',
+  'track.noPlaylists': 'Las playlists de este servicio se editan en el propio servicio',
   'search.all': 'Todos',
   'search.inAll': 'Buscar en todos los proveedores',
 

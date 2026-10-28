@@ -235,6 +235,7 @@ impl Core {
             // Android its license comes from the system's MediaDrm.
             #[cfg(any(target_os = "ios", target_os = "android"))]
             Arc::new(music::apple::AppleProvider::new()),
+            Arc::new(music::audius::AudiusProvider::new(paths.data.join("audius"))),
         ];
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::local::LocalLyrics),
@@ -568,6 +569,19 @@ impl Core {
     /// Whether `slug` has an account stored, without reaching it.
     pub fn stored(&self, slug: &str) -> Result<bool> {
         Ok(self.inner.provider(slug)?.stored())
+    }
+
+    /// The page of track `id` on its provider's own site, for a provider that links back to
+    /// it. A track it has not read yet is read first.
+    pub fn track_link(&self, slug: &str, id: String) -> Result<Option<String>> {
+        let api = self.inner.api(slug)?;
+        self.run(async move {
+            if let Some(link) = api.share_url(MediaKind::Track, &id) {
+                return Ok(Some(link));
+            }
+            api.track(&id).await?;
+            Ok(api.share_url(MediaKind::Track, &id))
+        })
     }
 
     pub fn search(&self, slug: &str, query: String) -> Result<Vec<Track>> {

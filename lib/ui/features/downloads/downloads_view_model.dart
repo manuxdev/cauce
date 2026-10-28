@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../src/rust/api/player.dart' as core;
 import '../../core/app_prefs.dart';
+import '../accounts/view_models/accounts_view_model.dart';
 import 'download_batch.dart';
 
 /// The downloaded tracks and the ones on their way. The core runs the queue; this asks it again
@@ -195,12 +196,16 @@ class DownloadsViewModel extends ChangeNotifier {
 
   static String _collection(String slug, core.CardKind kind, String id) => '$slug\u0000${kind.name}\u0000$id';
 
-  /// The ones a provider can download: not local files, and playable.
+  /// The ones a provider can download: not local files nor an open catalog's, and playable.
   static List<core.TrackItem> _wanted(List<core.TrackItem> tracks) => [
     for (final track in tracks)
-      if (track.source != 'local' && track.playable) track,
+      if (canDownload(track.source) && track.playable) track,
   ];
 }
+
+/// Whether a track of `source` can be downloaded: not a file already on the phone, and not an
+/// open catalog's, which only streams.
+bool canDownload(String source) => source != 'local' && !openCatalogs.contains(source);
 
 final downloads = DownloadsViewModel();
 
