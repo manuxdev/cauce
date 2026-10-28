@@ -176,7 +176,7 @@ impl MusicProvider for AppleProvider {
             }
             SignIn::Anonymous => anyhow::bail!("apple music has no anonymous sign-in"),
             SignIn::Path(_) => anyhow::bail!("apple music does not sign in with a folder path"),
-            SignIn::Credentials { .. } => {
+            SignIn::Credentials { .. } | SignIn::QuickConnect { .. } => {
                 anyhow::bail!("apple music does not sign in with a server address")
             }
         }

@@ -163,7 +163,11 @@ impl MusicProvider for TidalProvider {
                 () = closed(&mut input) => Err(SignInFailure(SignInProblem::Cancelled))
                     .context("the tidal sign-in was cancelled"),
             },
-            SignIn::Secret | SignIn::Anonymous | SignIn::Path(_) | SignIn::Credentials { .. } => {
+            SignIn::Secret
+            | SignIn::Anonymous
+            | SignIn::Path(_)
+            | SignIn::Credentials { .. }
+            | SignIn::QuickConnect { .. } => {
                 Err(anyhow::anyhow!("tidal only signs in with a device code"))
             }
         }

@@ -106,6 +106,15 @@ pub struct PlaylistEntries {
     pub item_ids: Vec<String>,
 }
 
+/// `/QuickConnect/Initiate` and `/QuickConnect/Connect`: a code and whether it is authorized.
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct QuickConnectResult {
+    pub authenticated: bool,
+    pub secret: String,
+    pub code: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Authenticated {

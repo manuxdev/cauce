@@ -153,7 +153,7 @@ impl MusicProvider for DeezerProvider {
             SignIn::Path(_) => Err(anyhow::anyhow!(
                 "deezer does not sign in with a folder path"
             )),
-            SignIn::Credentials { .. } => Err(anyhow::anyhow!(
+            SignIn::Credentials { .. } | SignIn::QuickConnect { .. } => Err(anyhow::anyhow!(
                 "deezer does not sign in with a server address"
             )),
         }

@@ -232,6 +232,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   QualityOption dco_decode_quality_option(dynamic raw);
 
   @protected
+  QuickConnectCheck dco_decode_quick_connect_check(dynamic raw);
+
+  @protected
+  QuickConnectCode dco_decode_quick_connect_code(dynamic raw);
+
+  @protected
   RadioBrowse dco_decode_radio_browse(dynamic raw);
 
   @protected
@@ -499,6 +505,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   QualityOption sse_decode_quality_option(SseDeserializer deserializer);
 
   @protected
+  QuickConnectCheck sse_decode_quick_connect_check(SseDeserializer deserializer);
+
+  @protected
+  QuickConnectCode sse_decode_quick_connect_code(SseDeserializer deserializer);
+
+  @protected
   RadioBrowse sse_decode_radio_browse(SseDeserializer deserializer);
 
   @protected
@@ -764,6 +776,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_quality_option(QualityOption self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quick_connect_check(QuickConnectCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quick_connect_code(QuickConnectCode self, SseSerializer serializer);
 
   @protected
   void sse_encode_radio_browse(RadioBrowse self, SseSerializer serializer);

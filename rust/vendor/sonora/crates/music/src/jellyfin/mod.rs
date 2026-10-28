@@ -6,6 +6,7 @@ pub(crate) mod auth;
 mod client;
 mod lyrics;
 mod playback;
+pub mod quick_connect;
 mod wire;
 
 use std::sync::Arc;
@@ -83,21 +84,13 @@ impl JellyfinProvider {
         }
     }
 
-    async fn connect(
-        flavor: Flavor,
-        server: String,
-        username: String,
-        password: String,
-    ) -> Result<ProviderSession> {
-        let server = auth::normalize_server(&server)?;
-        let device_id = auth::device_id(flavor);
-        let credentials =
-            client::authenticate(flavor, &server, username.trim(), &password, &device_id).await?;
+    /// Reads the account the server signed in, and only then stores it.
+    async fn connect(credentials: auth::Credentials) -> Result<ProviderSession> {
         let client = JellyfinClient::new(&credentials)?;
         let profile = client
             .profile()
             .await
-            .with_context(|| format!("cannot reach the {} server", flavor.slug()))?;
+            .with_context(|| format!("cannot reach the {} server", credentials.flavor.slug()))?;
         auth::store(&credentials)?;
         Ok(Self::session(client, profile))
     }
@@ -185,28 +178,39 @@ impl MusicProvider for JellyfinProvider {
     }
 
     /// An empty password is allowed: Jellyfin and Emby accounts may have none, as the Jellyfin
-    /// demo's does.
+    /// demo's does. Jellyfin also signs in with Quick Connect.
     async fn sign_in(
         &self,
         method: SignIn,
         _prompt: crate::PromptSink,
         _input: crate::InputSource,
     ) -> Result<ProviderSession> {
-        let SignIn::Credentials {
-            server,
-            username,
-            password,
-        } = method
-        else {
-            anyhow::bail!(
+        let flavor = self.flavor;
+        let credentials = match method {
+            SignIn::Credentials {
+                server,
+                username,
+                password,
+            } => {
+                if username.trim().is_empty() {
+                    anyhow::bail!("the {} username is empty", flavor.slug());
+                }
+                let server = auth::normalize_server(&server)?;
+                let device_id = auth::device_id(flavor);
+                client::authenticate(flavor, &server, username.trim(), &password, &device_id)
+                    .await?
+            }
+            SignIn::QuickConnect { server, secret } if flavor == Flavor::Jellyfin => {
+                let server = auth::normalize_server(&server)?;
+                let device_id = auth::device_id(flavor);
+                client::authenticate_with_quick_connect(&server, &secret, &device_id).await?
+            }
+            _ => anyhow::bail!(
                 "{} signs in with a server address, username and password",
-                self.flavor.slug()
-            )
+                flavor.slug()
+            ),
         };
-        if username.trim().is_empty() {
-            anyhow::bail!("the {} username is empty", self.flavor.slug());
-        }
-        Self::connect(self.flavor, server, username, password).await
+        Self::connect(credentials).await
     }
 
     /// Forgets the account at once and tells the server on a thread of its own, so a slow or
@@ -233,5 +237,23 @@ mod tests {
             .block_on(JellyfinProvider::restore_from(None))
             .unwrap();
         assert!(restored.is_none());
+    }
+
+    #[test]
+    fn emby_has_no_quick_connect() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let method = SignIn::QuickConnect {
+            server: "emby.example.com".to_owned(),
+            secret: "s".to_owned(),
+        };
+        let (_input, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let refused = runtime.block_on(JellyfinProvider::emby().sign_in(
+            method,
+            Arc::new(|_| {}),
+            receiver,
+        ));
+        assert!(refused.is_err());
     }
 }
