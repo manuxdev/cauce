@@ -8,10 +8,15 @@ use crate::{Album, ArtistRef, Codec, Genre, Playlist, ReleaseType, SavedArtist, 
 
 const COVER: u32 = 300;
 const COVER_LARGE: u32 = 600;
+/// The rating Plex keeps for five stars, out of ten. A liked item is one rated that, as the
+/// thumbs up of Plexamp sets it.
+pub const LIKED: f32 = 10.0;
 /// What the engine decodes as it comes, so the server sends these files untouched.
 const DIRECT: &[&str] = &[
     "mp3", "flac", "aac", "m4a", "mp4", "alac", "ogg", "oga", "opus", "webm", "wav", "aiff",
 ];
+/// Plex's stream type for lyrics.
+const LYRICS: u32 = 4;
 
 /// Every answer of the server comes wrapped in a `MediaContainer`.
 #[derive(Default, Deserialize)]
@@ -166,6 +171,10 @@ fn some(text: &Option<String>) -> Option<String> {
     text.clone().filter(|text| !text.is_empty())
 }
 
+pub fn liked(item: &Metadata) -> bool {
+    item.user_rating.is_some_and(|rating| rating >= LIKED)
+}
+
 pub fn track(item: Metadata, art: &Art) -> Track {
     let cover = art
         .cover(item.thumb.as_deref(), COVER)
@@ -307,6 +316,18 @@ fn streams(item: &Metadata) -> impl Iterator<Item = &Stream> {
 pub fn loudness(item: &Metadata) -> Option<Loudness> {
     let audio = streams(item).find(|stream| stream.gain.is_some())?;
     Some(Loudness::replay_gain(audio.gain?, audio.peak))
+}
+
+/// Where the track's lyrics are read: a `.lrc` or `.txt` beside it, or lyrics in its tags.
+pub fn lyrics_key(item: &Metadata) -> Option<String> {
+    streams(item)
+        .filter(|stream| stream.stream_type == Some(LYRICS))
+        .find(|stream| {
+            let kind = stream.codec.as_deref().or(stream.format.as_deref());
+            matches!(kind, Some("lrc" | "txt"))
+        })
+        .and_then(|stream| stream.key.clone())
+        .filter(|key| key.starts_with('/'))
 }
 
 /// How a track is fetched.
@@ -494,7 +515,17 @@ mod tests {
     }
 
     #[test]
-    fn the_loudness_comes_from_the_streams() {
+    fn five_stars_is_a_like() {
+        let mut item = first(TRACK);
+        assert!(liked(&item));
+        item.user_rating = Some(8.0);
+        assert!(!liked(&item));
+        item.user_rating = None;
+        assert!(!liked(&item));
+    }
+
+    #[test]
+    fn the_loudness_and_lyrics_come_from_the_streams() {
         let item = first(TRACK);
         let loudness = loudness(&item).unwrap();
         assert_eq!(loudness.peak, Some(0.98));
@@ -503,6 +534,15 @@ mod tests {
             Loudness::replay_gain(-7.5, None).lufs,
             "the gain is ReplayGain's"
         );
+        assert_eq!(lyrics_key(&item).as_deref(), Some("/library/streams/32"));
+    }
+
+    #[test]
+    fn lyrics_in_a_format_other_than_lrc_or_text_are_left_alone() {
+        let mut item = first(TRACK);
+        item.media[0].part[0].stream[1].codec = Some("xml".into());
+        item.media[0].part[0].stream[1].format = Some("xml".into());
+        assert_eq!(lyrics_key(&item), None);
     }
 
     #[test]

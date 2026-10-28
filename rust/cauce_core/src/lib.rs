@@ -201,6 +201,7 @@ impl Core {
             Arc::new(music::subsonic::SubsonicLyrics::new()),
             Arc::new(music::jellyfin::JellyfinLyrics::new()),
             Arc::new(music::jellyfin::JellyfinLyrics::emby()),
+            Arc::new(music::plex::PlexLyrics::new()),
             Arc::new(music::lrclib::LrcLib::new()),
         ];
         let settings = PlaybackSettings::load(&paths.data);

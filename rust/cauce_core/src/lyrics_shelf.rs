@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use music::Lyrics;
 
 /// The lyrics services in each group the listener orders: `.lrc` files beside local tracks, the
-/// signed-in Subsonic, Jellyfin or Emby server, and LRCLIB.
+/// signed-in Subsonic, Jellyfin, Emby or Plex server, and LRCLIB.
 const GROUPS: [(&str, &[&str]); 3] = [
     ("lrc", &[music::lyrics::LOCAL]),
-    ("server", &["Subsonic", "Jellyfin", "Emby"]),
+    ("server", &["Subsonic", "Jellyfin", "Emby", "Plex"]),
     ("lrclib", &["LrcLib"]),
 ];
 
@@ -194,6 +194,7 @@ mod tests {
                 "Subsonic",
                 "Jellyfin",
                 "Emby",
+                "Plex",
                 "LrcLib"
             ]
         );
