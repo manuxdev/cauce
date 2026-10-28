@@ -323,6 +323,10 @@ impl MusicPlayer for Engine {
             .is_some_and(|shelf| shelf.holds(track_id))
     }
 
+    fn download_size(&self, track_id: &str) -> Option<u64> {
+        self.shelf.as_ref()?.size(track_id)
+    }
+
     fn plays_offline(&self, track_id: &str) -> bool {
         self.shelf
             .as_ref()
