@@ -51,8 +51,11 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
       now-playing titles where the stream sends them. Left out: HLS stations (filtered out), lower bitrates on data
       saver, plain-http station logos (the placeholder shows), HE-AAC over ADTS plays its core only, and the lyrics
       button stays on screen for a station but does nothing
-- [ ] Podcasts through RSS: subscribe by URL or search, new-episode checks, resume per episode, playback speed, download
-      episodes
+- [x] Podcasts through RSS: search through the iTunes Search API or add by feed URL, subscriptions, resume per episode,
+      played at 95 %, download episodes for offline. Left out: OPML import and export, new-episode notifications and
+      checks in the background (a page reads its feed when opened or pulled), auto-download, playback speed (the engine
+      has no rate), chapters, transcripts, private or authenticated feeds, episode descriptions, plain-http artwork (the
+      placeholder shows), and the iTunes ~20 calls a minute limit is only met by the 350 ms debounce
 - [ ] Internet Archive: public-domain and Creative Commons music through its official API
 - [ ] Audius: independent artists through its open API
 - [ ] Jamendo: Creative Commons music. Its API is free for non-commercial use, so a paid app needs an agreement with
