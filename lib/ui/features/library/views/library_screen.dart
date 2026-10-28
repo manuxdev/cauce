@@ -47,6 +47,20 @@ String? pickLibrarySection(String slug, List<String> providers) {
   return null;
 }
 
+/// The sources the downloads come from, in the order they first appear.
+@visibleForTesting
+List<String> downloadSources(Iterable<core.TrackItem> tracks) => {for (final track in tracks) track.source}.toList();
+
+/// The downloads from `source`, or all of them when none is picked or it has none left.
+@visibleForTesting
+List<core.TrackItem> downloadsFrom(List<core.TrackItem> tracks, String? source) {
+  final from = [
+    for (final track in tracks)
+      if (track.source == source) track,
+  ];
+  return from.isEmpty ? tracks : from;
+}
+
 /// The starred tracks of each connected service, the downloads, and the files on the phone.
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -140,7 +154,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       case _playlists || _radio || _podcasts:
         return null;
       case _downloads:
-        final tracks = downloads.done;
+        final tracks = downloadsFrom(downloads.done, _downloadsSource);
         return tracks.isEmpty ? null : () => widget.player.playQueue(tracks, 0);
       case _files:
         if (_deviceSongs?.isNotEmpty ?? false) return () => _playDevice(0);
@@ -162,6 +176,36 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Playlists, Downloads or Files when one is open, null while the provider's likes show.
   String? _section;
 
+  /// The provider the downloads are narrowed to, or null for all of them.
+  String? _downloadsSource;
+
+  /// Each chip by its source, to bring the one picked into view.
+  final _chips = <String, GlobalKey>{};
+
+  /// The source on screen, and which way the last change went: 1 to the right, -1 to the left.
+  String? _shown;
+  var _direction = 1;
+
+  Widget _chip(String source, Widget child) =>
+      KeyedSubtree(key: _chips.putIfAbsent(source, GlobalKey.new), child: child);
+
+  /// Follows a change of section: the chip scrolls into the middle of the row.
+  void _follow(String source, List<String> order, bool still) {
+    if (source == _shown) return;
+    if (_shown != null) _direction = order.indexOf(source) >= order.indexOf(_shown!) ? 1 : -1;
+    _shown = source;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chip = _chips[source]?.currentContext;
+      if (chip == null || !chip.mounted) return;
+      Scrollable.ensureVisible(
+        chip,
+        alignment: 0.5,
+        duration: still ? Duration.zero : const Duration(milliseconds: 380),
+        curve: CauceCurves.exit,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -180,6 +224,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         final source = section ?? provider ?? _downloads;
         final play = _playAll(source);
         final still = MediaQuery.disableAnimationsOf(context);
+        final order = [?provider, if (connected.isNotEmpty) _playlists, _downloads, _files, _radio, _podcasts];
+        _follow(source, order, still);
         return Scaffold(
           body: SafeArea(
             bottom: false,
@@ -241,27 +287,50 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: CauceMetrics.gutter),
                           children: [
                             if (provider != null)
-                              Builder(
-                                builder: (context) => Pill(
-                                  label: connected.firstWhere((service) => service.slug == provider).name,
-                                  dot: brandOf(provider).color,
-                                  chevron: true,
-                                  selected: source == provider,
-                                  onTap: () => source == provider
-                                      ? _pickProvider(context, connected, provider)
-                                      : _choose(provider),
+                              _chip(
+                                provider,
+                                Builder(
+                                  builder: (context) => Pill(
+                                    label: connected.firstWhere((service) => service.slug == provider).name,
+                                    dot: brandOf(provider).color,
+                                    chevron: true,
+                                    selected: source == provider,
+                                    onTap: () => source == provider
+                                        ? _pickProvider(context, connected, provider)
+                                        : _choose(provider),
+                                  ),
                                 ),
                               ),
+                            if (connected.isNotEmpty)
+                              _chip(
+                                _playlists,
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Pill(
+                                    label: context.t('library.playlists'),
+                                    selected: source == _playlists,
+                                    onTap: () => _choose(_playlists),
+                                  ),
+                                ),
+                              ),
+                            _chip(
+                              _downloads,
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Builder(builder: (context) => _downloadsPill(context, source == _downloads)),
+                              ),
+                            ),
                             for (final (slug, label) in [
-                              if (connected.isNotEmpty) (_playlists, context.t('library.playlists')),
-                              (_downloads, context.t('downloads.title')),
                               (_files, context.t('library.files')),
                               (_radio, context.t('library.radio')),
                               (_podcasts, context.t('library.podcasts')),
                             ])
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Pill(label: label, selected: source == slug, onTap: () => _choose(slug)),
+                              _chip(
+                                slug,
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Pill(label: label, selected: source == slug, onTap: () => _choose(slug)),
+                                ),
                               ),
                           ],
                         ),
@@ -276,14 +345,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     onHorizontalDragEnd: (details) {
                       final velocity = details.primaryVelocity ?? 0;
                       if (velocity.abs() < 300) return;
-                      final order = [
-                        ?provider,
-                        if (connected.isNotEmpty) _playlists,
-                        _downloads,
-                        _files,
-                        _radio,
-                        _podcasts,
-                      ];
                       final next = order.indexOf(source) + (velocity < 0 ? 1 : -1);
                       if (next >= 0 && next < order.length) _choose(order[next]);
                     },
@@ -294,14 +355,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         }
                         return false;
                       },
-                      child: switch (source) {
-                        _files => _filesList(),
-                        _radio => RadioSection(player: widget.player, favorites: widget.favorites),
-                        _podcasts => PodcastsSection(player: widget.player),
-                        _downloads => _downloadsList(),
-                        _playlists => _playlistsList(connected),
-                        _ => _favoritesList(source),
-                      },
+                      // The section comes in from the side it was moved towards, the last one fading out.
+                      child: AnimatedSwitcher(
+                        duration: still ? Duration.zero : const Duration(milliseconds: 280),
+                        switchInCurve: CauceCurves.exit,
+                        switchOutCurve: CauceCurves.accelerate,
+                        transitionBuilder: (child, animation) {
+                          final coming = child.key == ValueKey(source);
+                          final offset = Offset(0.08 * _direction * (coming ? 1 : -1), 0);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween(begin: offset, end: Offset.zero).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey(source),
+                          child: switch (source) {
+                            _files => _filesList(),
+                            _radio => RadioSection(player: widget.player, favorites: widget.favorites),
+                            _podcasts => PodcastsSection(player: widget.player),
+                            _downloads => _downloadsList(),
+                            _playlists => _playlistsList(connected),
+                            _ => _favoritesList(source),
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -359,6 +440,56 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return signIn(context, service, widget.accounts);
     }
     _choose(picked);
+  }
+
+  /// The provider a download comes from, by name.
+  String _sourceName(String slug) => slug == _podcasts
+      ? context.t('library.podcasts')
+      : streamingServices.where((service) => service.slug == slug).firstOrNull?.name ?? slug;
+
+  /// Downloads, with the provider it is narrowed to; tapped while open, it picks another.
+  Widget _downloadsPill(BuildContext context, bool open) {
+    final sources = downloadSources(downloads.done);
+    final from = sources.contains(_downloadsSource) ? _downloadsSource : null;
+    return Pill(
+      label: from == null ? context.t('downloads.title') : '${context.t('downloads.title')} · ${_sourceName(from)}',
+      dot: from == null ? null : brandOf(from).color,
+      chevron: sources.length > 1,
+      selected: open,
+      onTap: open && sources.length > 1
+          ? () => _pickDownloadsSource(context, sources, from)
+          : () => _choose(_downloads),
+    );
+  }
+
+  Future<void> _pickDownloadsSource(BuildContext context, List<String> sources, String? current) async {
+    const all = '';
+    int count(String? source) => downloadsFrom(downloads.done, source).length;
+    final picked = await showDropdown<String>(
+      context,
+      items: [
+        DropdownItem(
+          value: all,
+          leading: SizedBox.square(
+            dimension: 30,
+            child: Center(child: CauceIcon(CauceGlyph.download, size: 20, color: CauceColors.foreground)),
+          ),
+          title: context.t('downloads.allSources'),
+          subtitle: context.t('playlist.count', {'count': count(null)}),
+          selected: current == null,
+        ),
+        for (final source in sources)
+          DropdownItem(
+            value: source,
+            leading: BrandBadge(slug: source, size: 30),
+            title: _sourceName(source),
+            subtitle: context.t('playlist.count', {'count': count(source)}),
+            selected: source == current,
+          ),
+      ],
+    );
+    if (!mounted || picked == null) return;
+    setState(() => _downloadsSource = picked == all ? null : picked);
   }
 
   Widget _favoritesList(String slug) {
@@ -420,10 +551,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _downloadsList() {
-    final tracks = downloads.done;
+    final tracks = downloadsFrom(downloads.done, _downloadsSource);
+    final from = downloadSources(downloads.done).contains(_downloadsSource) ? _downloadsSource : null;
     final pending = [
       for (final item in downloads.items)
-        if (item.state != core.DownloadState.done) item.track,
+        if (item.state != core.DownloadState.done && (from == null || item.track.source == from)) item.track,
     ];
     final current = widget.player.track;
     void play(core.TrackItem track) => widget.player.playQueue(tracks, tracks.indexOf(track));

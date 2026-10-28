@@ -521,6 +521,7 @@ const english = <String, String>{
 
   // Downloads
   'downloads.title': 'Downloads',
+  'downloads.allSources': 'All providers',
   'downloads.all': 'Download all',
   'downloads.started': 'Downloading {count} tracks',
   'downloads.empty': 'Tracks you download show up here and play without downloading them again.',
@@ -1055,6 +1056,7 @@ const spanish = <String, String>{
   'search.nothingDownloaded.detail': 'No tienes descargada ninguna canción que coincida con «{query}».',
 
   'downloads.title': 'Descargas',
+  'downloads.allSources': 'Todos los proveedores',
   'downloads.all': 'Descargar todo',
   'downloads.started': 'Descargando {count} canciones',
   'downloads.empty': 'Las canciones que descargues aparecen acá y se reproducen sin volver a bajarlas.',
