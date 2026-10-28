@@ -57,7 +57,12 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
       has no rate), chapters, transcripts, private or authenticated feeds, episode descriptions, plain-http artwork (the
       placeholder shows), and the iTunes ~20 calls a minute limit is only met by the 350 ms debounce
 - [ ] Internet Archive: public-domain and Creative Commons music through its official API
-- [ ] Audius: independent artists through its open API
+- [x] Audius: independent artists through its open API, connected with no account: home shelves, genres, search,
+      artist, album and playlist pages, seekable streaming, likes kept on the phone. Left out, as the API terms allow
+      only caching for the session: downloads, offline play and the vault cache (even for tracks the artist marks
+      downloadable). Also left out: Audius accounts (log in, likes, reposts and plays on Audius), playlist editing,
+      stations, lyrics of Audius's own, comments, and tracks gated behind a purchase or a follow, which show as
+      unavailable
 - [ ] Jamendo: Creative Commons music. Its API is free for non-commercial use, so a paid app needs an agreement with
       Jamendo first
 
