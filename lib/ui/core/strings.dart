@@ -764,7 +764,7 @@ const spanish = <String, String>{
   'sleep.secondsLeft': 'Quedan {count} s',
   'playback.quality': 'Calidad de streaming',
   'playback.quality.detail': 'Más calidad usa más datos. Se aplica a {service}.',
-  'playback.quality.none': 'Conectá un servicio para elegir su calidad.',
+  'playback.quality.none': 'Conecta un servicio para elegir su calidad.',
   'quality.hi-res': 'Alta resolución',
   'quality.lossless': 'Sin pérdida',
   'quality.high': 'Alta',
@@ -813,7 +813,7 @@ const spanish = <String, String>{
   'common.error': 'Error',
   'common.retry': 'Reintentar',
 
-  'home.nothingConnected': 'Conectá un servicio para ver lo que te recomienda',
+  'home.nothingConnected': 'Conecta un servicio para ver lo que te recomienda',
   'home.empty': 'Todavía no hay nada para recomendar',
   'home.offline': 'Sin conexión',
   'home.offline.downloads': 'Tus descargas se siguen reproduciendo. Las encontrás en Biblioteca.',
@@ -826,7 +826,7 @@ const spanish = <String, String>{
   'search.hint': 'Artistas, canciones, álbumes',
   'search.recent': 'Recientes',
   'search.remove': 'Quitar',
-  'search.nothingConnected': 'Conectá un servicio para buscar en él',
+  'search.nothingConnected': 'Conecta un servicio para buscar en él',
 
   'library.files': 'Archivos',
   'library.radio': 'Radio',
@@ -857,7 +857,7 @@ const spanish = <String, String>{
   'library.copied': 'Copiadas en Cauce',
   'library.filesEmpty':
       'Las canciones de tu biblioteca de Música guardadas en este iPhone aparecen acá. '
-      'También podés copiar música a Cauce con el Finder o la app Archivos.',
+      'También puedes copiar música a Cauce con el Finder o la app Archivos.',
 
   'lyrics.none': 'No hay letra para esta canción',
 
@@ -956,7 +956,7 @@ const spanish = <String, String>{
   'playlist.create': 'Nueva playlist',
   'playlist.createAndAdd': 'Crear y agregar',
   'playlist.name': 'Nombre de la playlist',
-  'playlist.none': 'Todavía no tenés playlists.',
+  'playlist.none': 'Todavía no tienes playlists.',
   'playlist.count': '{count} canciones',
   'playlist.added': 'Agregada a {name}',
   'playlist.yours': 'Tus playlists en {service}',
@@ -976,7 +976,7 @@ const spanish = <String, String>{
 
   'connect.title': 'Toda tu música, en un solo lugar.',
   'connect.subtitle': 'Cauce no aloja música. Reproduce la de tus servicios y tu iPhone.',
-  'connect.pick': 'Conectá uno o varios',
+  'connect.pick': 'Conecta uno o varios',
   'connect.action': 'Conectar',
   'connect.later': 'Podés agregar más en Ajustes.',
   'connect.skip': 'Seguir sin una cuenta',
@@ -992,11 +992,11 @@ const spanish = <String, String>{
   'search.artist': 'Artista',
   'search.album': 'Álbum · {artist}',
   'search.nothing': 'No se encontró nada para "{query}"',
-  'search.libraryHint': 'Buscá en tus descargas',
+  'search.libraryHint': 'Busca en tus descargas',
   'search.in': 'Buscar en {service}',
   'search.nothingTitle': 'Sin resultados',
   'search.nothingDownloaded': 'Nada en tus descargas',
-  'search.nothingDownloaded.detail': 'No tenés descargada ninguna canción que coincida con «{query}».',
+  'search.nothingDownloaded.detail': 'No tienes descargada ninguna canción que coincida con «{query}».',
 
   'downloads.title': 'Descargas',
   'downloads.all': 'Descargar todo',
@@ -1017,5 +1017,5 @@ const spanish = <String, String>{
   'downloads.remove.confirm':
       'Las canciones de {name} se borran del iPhone y las nuevas dejan de descargarse. Siguen en tu biblioteca.',
 
-  'signIn.title': 'Iniciá sesión en {service}',
+  'signIn.title': 'Inicia sesión en {service}',
 };
