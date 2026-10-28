@@ -99,11 +99,17 @@ Future<void> main() async {
     }
   });
   final playbackSettings = PlaybackSettingsViewModel();
-  // Likes, when they download, and kept albums and playlists get what they are missing.
+  // Likes, when they download, and kept albums and playlists get what they are missing. An
+  // account that only browses, such as a free Spotify one, cannot download: its likes are not
+  // fetched for nothing.
   void catchUp() {
     if (!online.value) return;
     final likes = playbackSettings.settings?.downloadLikes ?? false;
-    downloads.catchUp([for (final service in accounts.connected) service.slug], likes: likes).ignore();
+    final signedIn = [
+      for (final service in accounts.connected)
+        if (!accounts.browsesOnly(service.slug)) service.slug,
+    ];
+    downloads.catchUp(signedIn, likes: likes).ignore();
   }
 
   playbackSettings.onDownloadLikes = catchUp;
