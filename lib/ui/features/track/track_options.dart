@@ -17,6 +17,7 @@ import '../downloads/downloads_view_model.dart';
 import '../home/views/collection_screen.dart';
 import '../../core/toast.dart';
 import '../../core/error_text.dart';
+import '../podcasts/podcasts_section.dart';
 import '../radio/radio_section.dart';
 
 /// Opens the album `track` is on.
@@ -92,8 +93,9 @@ Future<void> queueTracks(
 /// it, heart it, add it to a playlist or, with `onRemove`, take it out of the one it is in, then go
 /// to its album or artists. A file has no download, heart or playlist.
 /// Whether `track` is kept the way a provider's track is: downloaded, hearted on its service,
-/// added to a playlist. A file has no account, and a live station has nothing to keep.
-bool keepsLikeATrack(core.TrackItem track) => track.source != 'local' && !isStation(track);
+/// added to a playlist. A file has no account, a live station has nothing to keep, and an
+/// episode is only downloaded.
+bool keepsLikeATrack(core.TrackItem track) => track.source != 'local' && !isStation(track) && !isEpisode(track);
 
 Future<void> showTrackOptions(
   BuildContext context,
@@ -173,6 +175,7 @@ Future<void> showTrackOptions(
                           ),
                         ),
                       if (isStation(track)) _FavoriteRow(track: track),
+                      if (isEpisode(track)) _DownloadRow(track: track),
                       if (streamed) ...[
                         _DownloadRow(track: track),
                         _FavoriteRow(track: track),

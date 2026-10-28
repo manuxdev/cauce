@@ -17,6 +17,7 @@ mod spectrum;
 mod stream;
 pub mod jellyfin;
 pub mod plex;
+pub mod podcast;
 pub mod subsonic;
 pub mod trouble;
 pub mod vault;

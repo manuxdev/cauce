@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `kept_collection`, `quality`, `secret`, `shelves`, `snapshot`, `stations`, `track_item`
+// These functions are ignored because they are not marked as `pub`: `card`, `core`, `encoding`, `item`, `karaoke`, `kept_collection`, `quality`, `secret`, `shelves`, `show`, `snapshot`, `stations`, `track_item`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
 
 /// Starts the core once. Await it before any other call: everything else needs the core.
@@ -129,6 +129,22 @@ Future<List<RadioFacet>> radioBrowse({required RadioBrowse kind}) =>
 /// `saved_tracks("radio")`.
 Future<void> setRadioFavourite({required TrackItem track, required bool favourite}) =>
     RustLib.instance.api.crateApiPlayerSetRadioFavourite(track: track, favourite: favourite);
+
+/// Shows matching `term` in the podcast directory, each with the feed it plays from.
+Future<List<PodcastShow>> podcastSearch({required String term}) =>
+    RustLib.instance.api.crateApiPlayerPodcastSearch(term: term);
+
+/// The shows subscribed to, newest first. They need no network to list.
+Future<List<PodcastShow>> podcastSubscriptions() => RustLib.instance.api.crateApiPlayerPodcastSubscriptions();
+
+/// The show at `feed_url` with its episodes. Without `refresh`, one already read answers with
+/// no network; offline, a subscription answers with what was stored.
+Future<PodcastPage> podcastPage({required String feedUrl, required bool refresh}) =>
+    RustLib.instance.api.crateApiPlayerPodcastPage(feedUrl: feedUrl, refresh: refresh);
+
+/// Subscribes to the show at `feed_url`, or stops.
+Future<void> podcastSubscribe({required String feedUrl, required bool subscribed}) =>
+    RustLib.instance.api.crateApiPlayerPodcastSubscribe(feedUrl: feedUrl, subscribed: subscribed);
 
 /// The tracks behind an album, playlist or artist card.
 Future<List<TrackItem>> collectionTracks({required String slug, required CardKind kind, required String id}) =>
@@ -802,6 +818,84 @@ class PlexServer {
           id == other.id &&
           name == other.name &&
           owned == other.owned;
+}
+
+/// One episode: a track of source `podcast` with the show as its artists, when it came out,
+/// and how far it has been heard.
+class PodcastEpisode {
+  final TrackItem track;
+  final PlatformInt64? publishedSecs;
+  final BigInt positionMs;
+  final bool played;
+
+  const PodcastEpisode({required this.track, this.publishedSecs, required this.positionMs, required this.played});
+
+  @override
+  int get hashCode => track.hashCode ^ publishedSecs.hashCode ^ positionMs.hashCode ^ played.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PodcastEpisode &&
+          runtimeType == other.runtimeType &&
+          track == other.track &&
+          publishedSecs == other.publishedSecs &&
+          positionMs == other.positionMs &&
+          played == other.played;
+}
+
+/// A show's page: the show, its episodes newest first, and whether it is subscribed to.
+class PodcastPage {
+  final PodcastShow podcast;
+  final List<PodcastEpisode> episodes;
+  final bool subscribed;
+
+  const PodcastPage({required this.podcast, required this.episodes, required this.subscribed});
+
+  @override
+  int get hashCode => podcast.hashCode ^ episodes.hashCode ^ subscribed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PodcastPage &&
+          runtimeType == other.runtimeType &&
+          podcast == other.podcast &&
+          episodes == other.episodes &&
+          subscribed == other.subscribed;
+}
+
+/// A podcast show as its row and page show it. `feed_url` is what tells shows apart.
+class PodcastShow {
+  final String feedUrl;
+  final String title;
+  final String author;
+
+  /// Plain text: the feed's markup is stripped in the core.
+  final String description;
+  final String? artwork;
+
+  const PodcastShow({
+    required this.feedUrl,
+    required this.title,
+    required this.author,
+    required this.description,
+    this.artwork,
+  });
+
+  @override
+  int get hashCode => feedUrl.hashCode ^ title.hashCode ^ author.hashCode ^ description.hashCode ^ artwork.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PodcastShow &&
+          runtimeType == other.runtimeType &&
+          feedUrl == other.feedUrl &&
+          title == other.title &&
+          author == other.author &&
+          description == other.description &&
+          artwork == other.artwork;
 }
 
 /// One stream level a service serves: `id` to store, `encoding` to show.

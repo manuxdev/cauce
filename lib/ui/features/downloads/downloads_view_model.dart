@@ -65,8 +65,8 @@ class DownloadsViewModel extends ChangeNotifier {
     if (_wasDone case final wasDone? when appPrefs.saveLyrics) {
       for (final item in items) {
         final key = _key(item.track.source, item.track.id);
-        // Lyrics found are kept beside the download; none found is fine.
-        if (nowDone.contains(key) && !wasDone.contains(key)) {
+        // Lyrics found are kept beside the download; none found is fine. An episode has none.
+        if (nowDone.contains(key) && !wasDone.contains(key) && item.track.source != 'podcast') {
           core.keepLyrics(track: item.track, sources: appPrefs.askedLyricsSources).ignore();
         }
       }

@@ -21,6 +21,7 @@ class DetailPage extends StatefulWidget {
     this.compactAction,
     this.header,
     this.barEdge,
+    this.onRefresh,
   });
 
   /// The cover the page takes its hue from.
@@ -43,6 +44,9 @@ class DetailPage extends StatefulWidget {
   /// Drawn along the bottom edge of the bar, such as how far a download has got.
   final Widget? barEdge;
 
+  /// Pulling the list down runs this, such as reading a feed again.
+  final Future<void> Function()? onRefresh;
+
   @override
   State<DetailPage> createState() => _DetailPageState();
 }
@@ -63,6 +67,16 @@ class _DetailPageState extends State<DetailPage> {
     super.dispose();
   }
 
+  Widget _refreshable(Widget list) => switch (widget.onRefresh) {
+    final refresh? => RefreshIndicator(
+      color: CauceColors.foreground,
+      edgeOffset: MediaQuery.paddingOf(context).top + 50,
+      onRefresh: refresh,
+      child: list,
+    ),
+    null => list,
+  };
+
   @override
   Widget build(BuildContext context) {
     return CoverTint(
@@ -79,11 +93,13 @@ class _DetailPageState extends State<DetailPage> {
               body: Stack(
                 children: [
                   if (widget.header case final header?) header(context, _offset),
-                  ListView(
-                    controller: _controller,
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    padding: const EdgeInsets.only(bottom: bottomChromeInset),
-                    children: widget.children,
+                  _refreshable(
+                    ListView(
+                      controller: _controller,
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      padding: const EdgeInsets.only(bottom: bottomChromeInset),
+                      children: widget.children,
+                    ),
                   ),
                   Positioned(
                     left: 0,
