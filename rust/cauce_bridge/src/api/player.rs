@@ -584,6 +584,95 @@ pub fn set_radio_favourite(track: TrackItem, favourite: bool) -> Result<()> {
     Ok(())
 }
 
+/// A podcast show as its row and page show it. `feed_url` is what tells shows apart.
+pub struct PodcastShow {
+    pub feed_url: String,
+    pub title: String,
+    pub author: String,
+    /// Plain text: the feed's markup is stripped in the core.
+    pub description: String,
+    pub artwork: Option<String>,
+}
+
+/// One episode: a track of source `podcast` with the show as its artists, when it came out,
+/// and how far it has been heard.
+pub struct PodcastEpisode {
+    pub track: TrackItem,
+    pub published_secs: Option<i64>,
+    pub position_ms: u64,
+    pub played: bool,
+}
+
+/// A show's page: the show, its episodes newest first, and whether it is subscribed to.
+pub struct PodcastPage {
+    pub podcast: PodcastShow,
+    pub episodes: Vec<PodcastEpisode>,
+    pub subscribed: bool,
+}
+
+fn show(podcast: music::podcast::Podcast) -> PodcastShow {
+    PodcastShow {
+        feed_url: podcast.feed,
+        title: podcast.title,
+        author: podcast.author,
+        description: podcast.description,
+        artwork: podcast.artwork,
+    }
+}
+
+/// Shows matching `term` in the podcast directory, each with the feed it plays from.
+pub fn podcast_search(term: String) -> Result<Vec<PodcastShow>> {
+    Ok(core()?.podcast_search(term)?.into_iter().map(show).collect())
+}
+
+/// The shows subscribed to, newest first. They need no network to list.
+pub fn podcast_subscriptions() -> Result<Vec<PodcastShow>> {
+    Ok(core()?
+        .podcast_subscriptions()
+        .into_iter()
+        .map(|feed| show(feed.podcast))
+        .collect())
+}
+
+/// The show at `feed_url` with its episodes. Without `refresh`, one already read answers with
+/// no network; offline, a subscription answers with what was stored.
+pub fn podcast_page(feed_url: String, refresh: bool) -> Result<PodcastPage> {
+    let core = core()?;
+    let feed = core.podcast_feed(&feed_url, refresh)?;
+    let ids: Vec<String> = feed.episodes.iter().map(|episode| episode.id.clone()).collect();
+    let progress = core.podcast_progress(&ids);
+    let subscribed = core
+        .podcast_subscriptions()
+        .iter()
+        .any(|kept| kept.podcast.feed == feed.podcast.feed);
+    let episodes = feed
+        .episodes
+        .iter()
+        .filter_map(|episode| {
+            let heard = progress.get(&episode.id);
+            Some(PodcastEpisode {
+                track: track_item(
+                    cauce_core::podcasts::PODCAST,
+                    &episode.track(&feed.podcast),
+                )?,
+                published_secs: episode.published,
+                position_ms: heard.map_or(0, |heard| heard.position_ms),
+                played: heard.is_some_and(|heard| heard.played),
+            })
+        })
+        .collect();
+    Ok(PodcastPage {
+        podcast: show(feed.podcast),
+        episodes,
+        subscribed,
+    })
+}
+
+/// Subscribes to the show at `feed_url`, or stops.
+pub fn podcast_subscribe(feed_url: String, subscribed: bool) -> Result<()> {
+    core()?.podcast_subscribe(&feed_url, subscribed)
+}
+
 /// The tracks behind an album, playlist or artist card.
 pub fn collection_tracks(slug: String, kind: CardKind, id: String) -> Result<Vec<TrackItem>> {
     let kind = match kind {
@@ -979,6 +1068,10 @@ pub fn scrobble(track: TrackItem, started_secs: u64) -> Result<()> {
 /// Finds lyrics for a downloaded `track` and keeps them for offline, answering whether any were
 /// found.
 pub fn keep_lyrics(track: TrackItem, sources: Vec<String>) -> Result<bool> {
+    // An episode has no lyrics to look for.
+    if cauce_core::podcasts::is_episode(&track.source) {
+        return Ok(false);
+    }
     core()?.keep_lyrics(&item(track), &sources)
 }
 

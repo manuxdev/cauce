@@ -10,6 +10,7 @@ pub mod levels;
 pub mod logging;
 pub mod lyrics_shelf;
 pub mod native;
+pub mod podcasts;
 pub mod queue;
 pub mod radio;
 pub mod scrobbling;
@@ -99,6 +100,14 @@ struct Inner {
     radio: music::radio::RadioBrowser,
     stations: Arc<music::radio::playback::Factory>,
     favourites: Mutex<radio::Favourites>,
+    /// The podcast directory and feeds, the enclosures episodes play from, the engine factory
+    /// they play through, and the subscriptions and progress.
+    directory: music::podcast::Directory,
+    episodes: music::podcast::playback::Episodes,
+    episode_engine: Arc<music::podcast::playback::Factory>,
+    podcasts: Mutex<podcasts::Library>,
+    /// Feeds read this session that are not subscribed to, to subscribe without reading again.
+    fetched: Mutex<HashMap<String, music::podcast::Feed>>,
     providers: Vec<Arc<dyn MusicProvider>>,
     lyrics: Vec<Arc<dyn LyricsProvider>>,
     /// Lyrics kept for downloaded tracks.
@@ -262,12 +271,29 @@ impl Core {
             Ordering::Relaxed,
         );
         let radio_browser = music::radio::RadioBrowser::new();
+        let library = podcasts::Library::load(&data_folder);
+        let episodes = music::podcast::playback::Episodes::default();
+        for feed in library.subscriptions() {
+            feed.episodes.iter().for_each(|episode| episodes.register(episode));
+        }
+        // An episode heard from a show not subscribed to still resumes after a restart.
+        for (id, heard) in library.heard_episodes() {
+            if episodes.url(id).is_none() {
+                let duration = (heard.duration_ms > 0).then_some(heard.duration_ms / 1000);
+                episodes.note(id, &heard.url, duration);
+            }
+        }
         let inner = Arc::new(Inner {
             runtime: runtime.handle().clone(),
             local: LocalProvider::new(paths.cache, database, cache),
             radio: radio_browser.clone(),
             stations: Arc::new(music::radio::playback::Factory::new(radio_browser)),
             favourites: Mutex::new(radio::Favourites::load(&data_folder)),
+            directory: music::podcast::Directory::new(),
+            episode_engine: Arc::new(music::podcast::playback::Factory::new(episodes.clone())),
+            episodes,
+            podcasts: Mutex::new(library),
+            fetched: Mutex::default(),
             providers,
             lyrics,
             shelf: lyrics_shelf::Shelf::at(data_folder.join("lyrics")),
@@ -760,6 +786,81 @@ impl Core {
         favourites.save(&self.inner.data);
     }
 
+    /// Shows matching `term` in the podcast directory.
+    pub fn podcast_search(&self, term: String) -> Result<Vec<music::podcast::Podcast>> {
+        reachable(self.inner.vault.offline())?;
+        let directory = self.inner.directory.clone();
+        self.run(async move { directory.search(&term).await })
+    }
+
+    /// The show at feed `url` and its episodes, newest first. Without `refresh`, a subscription
+    /// or a feed read this session answers without the network; with it, or offline, it is
+    /// read again or the stored one answers. A subscription keeps what was read.
+    pub fn podcast_feed(&self, url: &str, refresh: bool) -> Result<music::podcast::Feed> {
+        let stored = || {
+            lock(&self.inner.podcasts)
+                .feed(url)
+                .cloned()
+                .or_else(|| lock(&self.inner.fetched).get(url).cloned())
+        };
+        if !refresh || self.inner.vault.offline() {
+            if let Some(feed) = stored() {
+                return Ok(feed);
+            }
+        }
+        reachable(self.inner.vault.offline())?;
+        let directory = self.inner.directory.clone();
+        let owned = url.to_owned();
+        let feed = self.run(async move { directory.feed(&owned).await })?;
+        for episode in &feed.episodes {
+            self.inner.episodes.register(episode);
+        }
+        let mut library = lock(&self.inner.podcasts);
+        if library.refresh(&feed) {
+            library.save(&self.inner.data);
+        } else {
+            lock(&self.inner.fetched).insert(url.to_owned(), feed.clone());
+        }
+        Ok(feed)
+    }
+
+    /// The shows subscribed to, newest first, with the episodes stored for each.
+    pub fn podcast_subscriptions(&self) -> Vec<music::podcast::Feed> {
+        lock(&self.inner.podcasts).subscriptions().to_vec()
+    }
+
+    /// Subscribes to the show at feed `url`, reading it first when it has not been this
+    /// session, or stops.
+    pub fn podcast_subscribe(&self, url: &str, on: bool) -> Result<()> {
+        let feed = match on {
+            true => self.podcast_feed(url, false)?,
+            false => match lock(&self.inner.podcasts).feed(url).cloned() {
+                Some(feed) => feed,
+                None => return Ok(()),
+            },
+        };
+        if !on {
+            lock(&self.inner.fetched).insert(url.to_owned(), feed.clone());
+        }
+        let mut library = lock(&self.inner.podcasts);
+        library.subscribe(feed, on);
+        library.save(&self.inner.data);
+        log::info!(
+            "podcast: {} {}",
+            if on { "subscribed to" } else { "unsubscribed from" },
+            music::podcast::host(url)
+        );
+        Ok(())
+    }
+
+    /// How far each of `ids` has been heard, for those that have been.
+    pub fn podcast_progress(&self, ids: &[String]) -> HashMap<String, podcasts::Progress> {
+        let library = lock(&self.inner.podcasts);
+        ids.iter()
+            .filter_map(|id| Some((id.clone(), library.progress(id)?.clone())))
+            .collect()
+    }
+
     /// The tracks of an album or a playlist.
     pub fn collection_tracks(&self, slug: &str, kind: MediaKind, id: String) -> Result<Vec<Track>> {
         let api = self.inner.api(slug)?;
@@ -1035,6 +1136,7 @@ impl Core {
 
     /// Writes the session now, whatever the saver says, as the app goes to the background.
     pub fn save_session(&self) {
+        lock(&self.inner.podcasts).save(&self.inner.data);
         if let Some(session) = session::Session::of(&lock(&self.inner.transport).snapshot()) {
             session.save(&self.inner.data);
         }
@@ -1499,6 +1601,9 @@ impl Inner {
         if radio::is_live(source) {
             return Ok(self.stations.clone());
         }
+        if podcasts::is_episode(source) {
+            return Ok(self.episode_engine.clone());
+        }
         if source == LOCAL {
             return self
                 .local
@@ -1531,9 +1636,16 @@ impl Inner {
                 if let Some(round) = lock(&self.prefetching).take() {
                     round.abort();
                 }
-                self.load(&item, Duration::ZERO, seamless)
+                // An episode starts where it was left.
+                let at = match podcasts::is_episode(&item.source) {
+                    true => lock(&self.podcasts).starting(&item.id),
+                    false => Duration::ZERO,
+                };
+                self.load(&item, at, seamless && at.is_zero())
             }
             Some(Command::Preload { .. }) if !self.preloads() => Ok(()),
+            // An episode is long and maybe never reached: it is fetched when it is played.
+            Some(Command::Preload { item }) if podcasts::is_episode(&item.source) => Ok(()),
             Some(Command::Preload { item }) => {
                 self.prefetch(&item);
                 self.with_engine_of(&item.source, |player| player.preload(&item.id, true))
@@ -1694,6 +1806,7 @@ impl Inner {
                         }
                         encodings.insert(id.clone(), encoding);
                     }
+                    inner.follow_episode(&event);
                     // The track failed because its account turned out to play previews only:
                     // the same track stands in from another service, or counts as unplayable
                     // when none has it.
@@ -1739,6 +1852,44 @@ impl Inner {
         }
         let engine = engine.as_ref().context("no engine is running")?;
         engine.player.load(&item.id, at, seamless && !switching)
+    }
+
+    /// Notes how far the episode playing has been heard, writing it down every so often, when
+    /// it pauses and when it ends.
+    fn follow_episode(&self, event: &PlaybackEvent) {
+        let Some(id) = event.id() else {
+            return;
+        };
+        let duration = {
+            let transport = lock(&self.transport).snapshot();
+            match transport.item {
+                Some(item) if item.id == id && podcasts::is_episode(&item.source) => {
+                    transport.duration
+                }
+                _ => return,
+            }
+        };
+        let Some(url) = self.episodes.url(id) else {
+            return;
+        };
+        let mut library = lock(&self.podcasts);
+        let save = match event {
+            PlaybackEvent::Position { at, .. } | PlaybackEvent::Seeked { at, .. } => {
+                library.heard(id, &url, *at, duration, std::time::Instant::now())
+            }
+            PlaybackEvent::Paused { at, .. } => {
+                library.heard(id, &url, *at, duration, std::time::Instant::now());
+                true
+            }
+            PlaybackEvent::Ended { .. } => {
+                library.finished(id, &url, duration);
+                true
+            }
+            _ => false,
+        };
+        if save {
+            library.save(&self.data);
+        }
     }
 
     fn with_engine_of(
@@ -1835,7 +1986,9 @@ impl Inner {
             ) {
                 break;
             }
-            let signed_in: Vec<String> = lock(&self.sessions).keys().cloned().collect();
+            // Episodes need no account.
+            let mut signed_in: Vec<String> = lock(&self.sessions).keys().cloned().collect();
+            signed_in.push(podcasts::PODCAST.to_owned());
             let next = lock(&self.downloads)
                 .next_ready(|source| signed_in.iter().any(|slug| slug == source));
             let Some((source, id)) = next else {

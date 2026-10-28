@@ -216,7 +216,12 @@ impl Transport {
         self.queue
             .ahead(depth)
             .into_iter()
-            .filter(|item| !crate::radio::is_live(&item.source) && !kept(item))
+            // An episode is long and heard once: it is never fetched before it is asked for.
+            .filter(|item| {
+                !crate::radio::is_live(&item.source)
+                    && !crate::podcasts::is_episode(&item.source)
+                    && !kept(item)
+            })
             .cloned()
             .collect()
     }
@@ -662,6 +667,22 @@ mod tests {
                 seamless: false
             })
         );
+    }
+
+    #[test]
+    fn episodes_are_never_prefetched() {
+        let mut transport = Transport::default();
+        let episode = Item {
+            source: crate::podcasts::PODCAST.to_owned(),
+            ..item("b")
+        };
+        transport.start(vec![item("a"), episode, item("c")], 0);
+        let ids: Vec<String> = transport
+            .prefetch(5, |_| false)
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        assert_eq!(ids, ["c"]);
     }
 
     #[test]

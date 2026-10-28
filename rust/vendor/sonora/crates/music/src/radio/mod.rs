@@ -15,7 +15,7 @@ use tokio::sync::OnceCell;
 
 use crate::Track;
 
-const AGENT: &str = concat!(
+pub(crate) const AGENT: &str = concat!(
     "Cauce/",
     env!("CARGO_PKG_VERSION"),
     " (https://github.com/manuxdev/cause)"

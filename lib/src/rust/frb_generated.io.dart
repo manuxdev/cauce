@@ -49,6 +49,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreTitles dco_decode_box_autoadd_genre_titles(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
   KeptCollection dco_decode_box_autoadd_kept_collection(dynamic raw);
 
   @protected
@@ -112,6 +115,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
   KeptCollection dco_decode_kept_collection(dynamic raw);
 
   @protected
@@ -155,6 +161,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlexServer> dco_decode_list_plex_server(dynamic raw);
+
+  @protected
+  List<PodcastEpisode> dco_decode_list_podcast_episode(dynamic raw);
+
+  @protected
+  List<PodcastShow> dco_decode_list_podcast_show(dynamic raw);
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
@@ -202,6 +214,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
   KeptCollection? dco_decode_opt_box_autoadd_kept_collection(dynamic raw);
 
   @protected
@@ -236,6 +251,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlexServer dco_decode_plex_server(dynamic raw);
+
+  @protected
+  PodcastEpisode dco_decode_podcast_episode(dynamic raw);
+
+  @protected
+  PodcastPage dco_decode_podcast_page(dynamic raw);
+
+  @protected
+  PodcastShow dco_decode_podcast_show(dynamic raw);
 
   @protected
   QualityOption dco_decode_quality_option(dynamic raw);
@@ -331,6 +355,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreTitles sse_decode_box_autoadd_genre_titles(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
   KeptCollection sse_decode_box_autoadd_kept_collection(SseDeserializer deserializer);
 
   @protected
@@ -394,6 +421,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
   KeptCollection sse_decode_kept_collection(SseDeserializer deserializer);
 
   @protected
@@ -437,6 +467,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlexServer> sse_decode_list_plex_server(SseDeserializer deserializer);
+
+  @protected
+  List<PodcastEpisode> sse_decode_list_podcast_episode(SseDeserializer deserializer);
+
+  @protected
+  List<PodcastShow> sse_decode_list_podcast_show(SseDeserializer deserializer);
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
@@ -484,6 +520,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
   KeptCollection? sse_decode_opt_box_autoadd_kept_collection(SseDeserializer deserializer);
 
   @protected
@@ -518,6 +557,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlexServer sse_decode_plex_server(SseDeserializer deserializer);
+
+  @protected
+  PodcastEpisode sse_decode_podcast_episode(SseDeserializer deserializer);
+
+  @protected
+  PodcastPage sse_decode_podcast_page(SseDeserializer deserializer);
+
+  @protected
+  PodcastShow sse_decode_podcast_show(SseDeserializer deserializer);
 
   @protected
   QualityOption sse_decode_quality_option(SseDeserializer deserializer);
@@ -613,6 +661,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_genre_titles(GenreTitles self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_kept_collection(KeptCollection self, SseSerializer serializer);
 
   @protected
@@ -676,6 +727,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
   void sse_encode_kept_collection(KeptCollection self, SseSerializer serializer);
 
   @protected
@@ -719,6 +773,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_plex_server(List<PlexServer> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_podcast_episode(List<PodcastEpisode> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_podcast_show(List<PodcastShow> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_f_32_strict(Float32List self, SseSerializer serializer);
@@ -766,6 +826,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_i_64(PlatformInt64? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_kept_collection(KeptCollection? self, SseSerializer serializer);
 
   @protected
@@ -800,6 +863,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_plex_server(PlexServer self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_podcast_episode(PodcastEpisode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_podcast_page(PodcastPage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_podcast_show(PodcastShow self, SseSerializer serializer);
 
   @protected
   void sse_encode_quality_option(QualityOption self, SseSerializer serializer);

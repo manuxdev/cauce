@@ -32,6 +32,7 @@ pub mod spotify;
 mod stream;
 pub mod jellyfin;
 pub mod plex;
+pub mod podcast;
 pub mod subsonic;
 pub mod tidal;
 mod trim;

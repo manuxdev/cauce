@@ -561,7 +561,7 @@ impl Shelf {
         }
     }
 
-    fn is_wanted(&self, id: &str) -> bool {
+    pub(crate) fn is_wanted(&self, id: &str) -> bool {
         self.vault
             .wanted()
             .contains(&(self.provider, id.to_owned()))
