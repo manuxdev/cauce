@@ -1,12 +1,14 @@
 //! Audius, an open catalog of independent music, read through its public API with no account.
 //!
-//! Connecting stores nothing secret: a marker that Audius is on, and the likes made here. Tracks
-//! only stream, since the API terms allow caching for the session alone, and a track gated
-//! behind a purchase or a follow is listed as unavailable rather than fetched some other way.
+//! Connecting stores nothing secret: a marker that Audius is on, and the likes and playlists
+//! made here. Tracks only stream, since the API terms allow caching for the session alone, and
+//! a track gated behind a purchase or a follow is listed as unavailable rather than fetched some
+//! other way.
 
 mod client;
 mod likes;
 mod playback;
+mod playlists;
 mod wire;
 
 use std::path::PathBuf;
@@ -139,7 +141,7 @@ impl MusicProvider for AudiusProvider {
         Ok(self.session().await)
     }
 
-    /// Turns Audius off. The likes stay, for when it is connected again.
+    /// Turns Audius off. The likes and playlists stay, for when it is connected again.
     fn sign_out(&self) {
         if let Err(error) = std::fs::remove_file(self.folder.join(MARKER))
             && error.kind() != std::io::ErrorKind::NotFound

@@ -1,7 +1,7 @@
 //! The Audius API as a [`MusicApi`]: an open catalog read with no account. Likes live on the
-//! phone, and nothing is ever written to Audius.
+//! phone, as do the listener's own playlists, and nothing is ever written to Audius.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 
 use super::likes::Likes;
+use super::playlists::{self, Playlists};
 use super::wire::{self, APP_NAME, Collection, Data, User, WireGenre, WireTrack};
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, GenreDetail, GenreItem, GenreSection, HomeFeed,
@@ -22,6 +23,9 @@ const PATIENCE: Duration = Duration::from_secs(20);
 /// How many tracks a shelf, a search or an artist's top list asks for.
 const PAGE: &str = "30";
 
+/// How many tracks one request reads back by id.
+const BATCH: usize = 50;
+
 /// Editing a playlist or liking on Audius takes an Audius account, which Cauce does not hold.
 const READ_ONLY: &str = "audius playlists are only edited on audius.co";
 
@@ -29,9 +33,10 @@ const READ_ONLY: &str = "audius playlists are only edited on audius.co";
 pub struct AudiusClient {
     http: reqwest::Client,
     host: Arc<str>,
-    /// Where the likes are kept.
+    /// Where the likes and the listener's own playlists are kept.
     folder: PathBuf,
     likes: Arc<Mutex<Likes>>,
+    playlists: Arc<Mutex<Playlists>>,
     /// The audius.co page of each track, artist and collection read so far, by id, which is
     /// how a link back to Audius is made without asking again.
     permalinks: Arc<Mutex<HashMap<String, String>>>,
@@ -46,6 +51,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl AudiusClient {
     pub fn new(host: String, folder: PathBuf) -> Self {
         let likes = Likes::load(&folder);
+        let playlists = Playlists::load(&folder);
         Self {
             http: reqwest::Client::builder()
                 .user_agent(crate::radio::AGENT)
@@ -55,6 +61,7 @@ impl AudiusClient {
             host: host.into(),
             folder,
             likes: Arc::new(Mutex::new(likes)),
+            playlists: Arc::new(Mutex::new(playlists)),
             permalinks: Arc::default(),
         }
     }
@@ -151,6 +158,62 @@ impl AudiusClient {
         let mut likes = lock(&self.likes);
         change(&mut likes);
         likes.save(&self.folder)
+    }
+
+    /// Changes the listener's own playlists and keeps them, or leaves them as they were when
+    /// `change` fails.
+    fn save_playlists<T>(&self, change: impl FnOnce(&mut Playlists) -> Result<T>) -> Result<T> {
+        let mut playlists = lock(&self.playlists);
+        let changed = change(&mut playlists)?;
+        playlists.save(&self.folder)?;
+        Ok(changed)
+    }
+
+    /// The tracks `ids` name, read from Audius in batches; one Audius no longer lists is left
+    /// out. With `asked`, a batch that cannot be read is left out too and the ids of the others
+    /// noted; without, it fails.
+    async fn tracks_by_id(
+        &self,
+        ids: &[String],
+        mut asked: Option<&mut HashSet<String>>,
+    ) -> Result<HashMap<String, Track>> {
+        let mut found = HashMap::new();
+        for batch in ids.chunks(BATCH) {
+            let query: Vec<(&str, &str)> = batch.iter().map(|id| ("id", id.as_str())).collect();
+            match self.get::<Vec<WireTrack>>("/tracks", &query).await {
+                Ok(items) => {
+                    if let Some(asked) = asked.as_deref_mut() {
+                        asked.extend(batch.iter().cloned());
+                    }
+                    found.extend(
+                        self.tracks_of(items)
+                            .into_iter()
+                            .filter_map(|track| Some((track.id.clone()?, track))),
+                    );
+                }
+                Err(error) if asked.is_some() => {
+                    log::warn!("audius: cannot read a playlist's tracks: {error:#}");
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(found)
+    }
+
+    /// One of the listener's own playlists with its tracks as Audius lists them now.
+    async fn own_playlist(&self, playlist_id: &str) -> Result<(Playlist, Vec<Track>)> {
+        let own = lock(&self.playlists).get(playlist_id)?.clone();
+        let mut ids: Vec<String> = own
+            .tracks
+            .iter()
+            .filter_map(|track| track.id.clone())
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let mut asked = HashSet::new();
+        let fetched = self.tracks_by_id(&ids, Some(&mut asked)).await?;
+        let tracks = playlists::refreshed(&own.tracks, &fetched, &asked);
+        Ok((own.playlist(&tracks), tracks))
     }
 }
 
@@ -255,20 +318,33 @@ impl MusicApi for AudiusClient {
         Ok(self.track(track_id).await?.playcount)
     }
 
+    /// The listener's own playlists, then the Audius ones they saved.
     async fn playlists(&self) -> Result<Vec<Playlist>> {
-        Ok(lock(&self.likes).playlists.clone())
+        let mut listed: Vec<Playlist> = lock(&self.playlists)
+            .list
+            .iter()
+            .map(|own| own.playlist(&own.tracks))
+            .collect();
+        listed.extend(lock(&self.likes).playlists.iter().cloned());
+        Ok(listed)
     }
 
-    async fn create_playlist(&self, _name: &str) -> Result<String> {
-        anyhow::bail!(READ_ONLY)
+    async fn create_playlist(&self, name: &str) -> Result<String> {
+        self.save_playlists(|playlists| Ok(playlists.create(name)))
     }
 
-    async fn rename_playlist(&self, _playlist_id: &str, _name: &str) -> Result<()> {
-        anyhow::bail!(READ_ONLY)
+    async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()> {
+        if !playlists::is_own(playlist_id) {
+            anyhow::bail!(READ_ONLY)
+        }
+        self.save_playlists(|playlists| playlists.rename(playlist_id, name))
     }
 
-    async fn delete_playlist(&self, _playlist_id: &str) -> Result<()> {
-        anyhow::bail!(READ_ONLY)
+    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
+        if !playlists::is_own(playlist_id) {
+            anyhow::bail!(READ_ONLY)
+        }
+        self.save_playlists(|playlists| playlists.delete(playlist_id))
     }
 
     async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()> {
@@ -284,17 +360,36 @@ impl MusicApi for AudiusClient {
         anyhow::bail!(READ_ONLY)
     }
 
-    async fn add_track_to_playlist(&self, _playlist_id: &str, _track_id: &str) -> Result<()> {
-        anyhow::bail!(READ_ONLY)
+    async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
+        self.add_tracks_to_playlist(playlist_id, &[track_id.to_owned()])
+            .await
+    }
+
+    /// Reads the tracks from Audius first, so the playlist keeps their title and artist, and
+    /// adds none when one of them is gone.
+    async fn add_tracks_to_playlist(&self, playlist_id: &str, track_ids: &[String]) -> Result<()> {
+        if !playlists::is_own(playlist_id) {
+            anyhow::bail!(READ_ONLY)
+        }
+        lock(&self.playlists).get(playlist_id)?;
+        let found = self.tracks_by_id(track_ids, None).await?;
+        let tracks = track_ids
+            .iter()
+            .map(|id| found.get(id).cloned().context("that audius track is gone"))
+            .collect::<Result<Vec<_>>>()?;
+        self.save_playlists(|playlists| playlists.add(playlist_id, tracks))
     }
 
     async fn remove_track_from_playlist(
         &self,
-        _playlist_id: &str,
-        _track_id: &str,
-        _copy: usize,
+        playlist_id: &str,
+        track_id: &str,
+        copy: usize,
     ) -> Result<()> {
-        anyhow::bail!(READ_ONLY)
+        if !playlists::is_own(playlist_id) {
+            anyhow::bail!(READ_ONLY)
+        }
+        self.save_playlists(|playlists| playlists.remove(playlist_id, track_id, copy))
     }
 
     async fn saved_albums(&self) -> Result<Vec<Album>> {
@@ -333,6 +428,14 @@ impl MusicApi for AudiusClient {
     }
 
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail> {
+        if playlists::is_own(playlist_id) {
+            let (playlist, tracks) = self.own_playlist(playlist_id).await?;
+            return Ok(PlaylistDetail {
+                playlist,
+                tracks,
+                continuation: None,
+            });
+        }
         let (found, tracks) = self.collection(playlist_id).await?;
         Ok(PlaylistDetail {
             playlist: found.playlist(),
@@ -342,6 +445,9 @@ impl MusicApi for AudiusClient {
     }
 
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>> {
+        if playlists::is_own(playlist_id) {
+            return Ok(self.own_playlist(playlist_id).await?.1);
+        }
         Ok(self.collection(playlist_id).await?.1)
     }
 
@@ -450,6 +556,78 @@ impl MusicApi for AudiusClient {
             name: genre_id.to_owned(),
             sections: sections.into_iter().flatten().collect(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn own_playlists_are_listed_first_owned_and_kept_on_the_phone() {
+        let folder = tempfile::tempdir().unwrap();
+        let client = AudiusClient::new("http://127.0.0.1:9".to_owned(), folder.path().to_owned());
+        let id = client.create_playlist("Mine").await.unwrap();
+        client.rename_playlist(&id, "Renamed").await.unwrap();
+        client
+            .save_likes(|likes| {
+                let mut saved = Playlist {
+                    id: "D7KyD".to_owned(),
+                    ..lock(&client.playlists).get(&id).unwrap().playlist(&[])
+                };
+                saved.owned = false;
+                likes.playlist("D7KyD", Some(saved));
+            })
+            .unwrap();
+        let reopened = AudiusClient::new("http://127.0.0.1:9".to_owned(), folder.path().to_owned());
+        let listed = reopened.playlists().await.unwrap();
+        assert_eq!(listed.len(), 2);
+        assert_eq!(
+            (listed[0].name.as_str(), listed[0].owned),
+            ("Renamed", true)
+        );
+        assert!(!listed[1].owned);
+        assert!(reopened.rename_playlist("D7KyD", "No").await.is_err());
+        assert!(reopened.add_track_to_playlist("D7KyD", "x").await.is_err());
+        reopened.delete_playlist(&id).await.unwrap();
+        assert_eq!(reopened.playlists().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn an_own_playlist_opens_from_what_was_stored_when_audius_cannot_be_reached() {
+        let folder = tempfile::tempdir().unwrap();
+        let client = AudiusClient::new("http://127.0.0.1:9".to_owned(), folder.path().to_owned());
+        let id = client.create_playlist("Mine").await.unwrap();
+        let track = Track {
+            cover: Some("https://art/a".to_owned()),
+            ..sample("a")
+        };
+        client
+            .save_playlists(|playlists| playlists.add(&id, vec![track.clone(), sample("b")]))
+            .unwrap();
+        let detail = client.playlist(&id).await.unwrap();
+        assert_eq!(detail.tracks.len(), 2);
+        assert_eq!(detail.tracks[1].name, "Song b");
+        assert!(detail.playlist.owned);
+        assert_eq!(detail.playlist.cover.as_deref(), Some("https://art/a"));
+        client
+            .remove_track_from_playlist(&id, "a", 0)
+            .await
+            .unwrap();
+        assert_eq!(client.playlist_tracks(&id).await.unwrap().len(), 1);
+    }
+
+    fn sample(id: &str) -> Track {
+        let mut track = wire::tracks(vec![
+            serde_json::from_value(
+                serde_json::json!({"id": id, "title": format!("Song {id}"), "user": {"id": "u"}}),
+            )
+            .unwrap(),
+        ])
+        .pop()
+        .unwrap();
+        track.cover = None;
+        track
     }
 }
 

@@ -25,8 +25,18 @@ fn path(folder: &Path) -> PathBuf {
     folder.join("likes.json")
 }
 
-fn now() -> Option<i64> {
+pub(crate) fn now() -> Option<i64> {
     Some(SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64)
+}
+
+/// Writes `file` in `folder` beside a temporary copy renamed over the old one, so a crash
+/// leaves it whole.
+pub(crate) fn write(folder: &Path, file: &str, bytes: &[u8]) -> Result<()> {
+    std::fs::create_dir_all(folder).context("cannot create the audius folder")?;
+    let temporary = folder.join(format!(".{file}.tmp"));
+    std::fs::write(&temporary, bytes).with_context(|| format!("cannot write the audius {file}"))?;
+    std::fs::rename(&temporary, folder.join(file))
+        .with_context(|| format!("cannot keep the audius {file}"))
 }
 
 /// Puts `item` first, or takes every entry with its id out. Liking twice keeps one.
@@ -48,14 +58,9 @@ impl Likes {
             .unwrap_or_default()
     }
 
-    /// Writes the likes beside a temporary copy renamed over the old file, so a crash leaves
-    /// one whole list.
     pub fn save(&self, folder: &Path) -> Result<()> {
-        std::fs::create_dir_all(folder).context("cannot create the audius folder")?;
         let bytes = serde_json::to_vec(self).context("cannot serialize the audius likes")?;
-        let temporary = folder.join(".likes.json.tmp");
-        std::fs::write(&temporary, bytes).context("cannot write the audius likes")?;
-        std::fs::rename(&temporary, path(folder)).context("cannot keep the audius likes")
+        write(folder, "likes.json", &bytes)
     }
 
     pub fn track(&mut self, id: &str, track: Option<Track>) {

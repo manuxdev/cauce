@@ -180,12 +180,11 @@ Future<void> showTrackOptions(
                       if (streamed) ...[
                         if (canDownload(track.source)) _DownloadRow(track: track),
                         _FavoriteRow(track: track),
-                        if (!openCatalogs.contains(track.source))
-                          OptionRow(
-                            glyph: CauceGlyph.plus,
-                            label: context.t('track.addToPlaylist'),
-                            onTap: () => run(() => showAddToPlaylist(context, track)),
-                          ),
+                        OptionRow(
+                          glyph: CauceGlyph.plus,
+                          label: context.t('track.addToPlaylist'),
+                          onTap: () => run(() => showAddToPlaylist(context, track)),
+                        ),
                         if (track.source == 'audius')
                           OptionRow(
                             glyph: CauceGlyph.external,
@@ -390,10 +389,6 @@ Future<void> openOnAudius(BuildContext context, core.TrackItem track) async {
 }
 
 Future<void> showAddToPlaylist(BuildContext context, core.TrackItem track) {
-  if (openCatalogs.contains(track.source)) {
-    showToast(Toast(title: translate('track.noPlaylists'), glyph: CauceGlyph.info));
-    return Future.value();
-  }
   return behindSheet(
     showModalBottomSheet<void>(
       sheetAnimationStyle: sheetAnimation,
