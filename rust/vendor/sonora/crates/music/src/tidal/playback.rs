@@ -970,6 +970,9 @@ impl Fetch for Tidal {
         if let Some(loaded) = self.recall(id).await {
             return Ok(loaded);
         }
+        if self.shelf.as_ref().is_some_and(Shelf::offline) {
+            anyhow::bail!("offline: only kept tracks play");
+        }
         let playback = self.client.playback(id, self.quality).await?;
         log::info!(
             "tidal: {id} streams as {} {}",

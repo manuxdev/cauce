@@ -218,8 +218,21 @@ impl Engine {
         (engine, events)
     }
 
+    /// Refuses a track that is not kept while the app is offline, which would stream it.
+    fn reachable(&self, track_id: &str) -> Result<()> {
+        if self
+            .shelf
+            .as_ref()
+            .is_some_and(|shelf| shelf.offline() && shelf.open_pinned(track_id).is_none())
+        {
+            anyhow::bail!("offline: only kept tracks play");
+        }
+        Ok(())
+    }
+
     fn load(&self, track_id: &str, at: Duration, seamless: bool) -> Result<()> {
         let uri = track_uri(track_id)?;
+        self.reachable(track_id)?;
         log::debug!("playback: spotify loads {track_id} at {at:?}, seamless {seamless}");
 
         if !seamless || !self.gapless {
@@ -232,6 +245,7 @@ impl Engine {
 
     fn load_paused_at(&self, track_id: &str, at: Duration) -> Result<()> {
         let uri = track_uri(track_id)?;
+        self.reachable(track_id)?;
 
         self.cue.clear();
         self.learn(track_id);

@@ -123,6 +123,10 @@ impl Fetch for Apple {
     /// makes a join gapless needs it: the encode itself says nowhere how long the music is,
     /// only how long the file is.
     async fn load(&self, id: &str) -> Result<Loaded> {
+        // A kept Apple Music track still licenses each play over the network.
+        if self.shelf.as_ref().is_some_and(Shelf::offline) {
+            anyhow::bail!("offline: Apple Music needs a connection to play");
+        }
         let (prepared, details) = tokio::join!(
             stream::prepare(
                 self.client.http(),

@@ -136,6 +136,9 @@ impl Fetch for YouTube {
         if let Some(loaded) = self.recall(id).await {
             return Ok(loaded);
         }
+        if self.shelf.as_ref().is_some_and(Shelf::offline) {
+            anyhow::bail!("offline: only kept tracks play");
+        }
         let mut attempt = 1;
         loop {
             match attempt_open(&self.api, id, self.ceiling, self.shelf.as_ref()).await {
