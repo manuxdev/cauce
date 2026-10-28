@@ -31,7 +31,10 @@ final streamingServices = [
 /// its downloads encrypted and licenses every play afresh; the rest play their downloads from
 /// the account kept on the phone. A file on the phone never waits.
 bool needsSignIn(String source, Set<String> signedIn, {bool toPlay = false}) =>
-    source != 'local' && !signedIn.contains(source) && (!toPlay || source == 'apple');
+    !_accountless.contains(source) && !signedIn.contains(source) && (!toPlay || source == 'apple');
+
+/// Sources with no account behind them: files on the phone, radio stations, podcast episodes.
+const _accountless = {'local', 'radio', 'podcast'};
 
 /// What keeps a track from playing now, short of trying it.
 enum PlayBlock { none, signIn, offline }

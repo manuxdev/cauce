@@ -16,6 +16,11 @@ void main() {
     expect(needsSignIn('local', const {}), isFalse);
   });
 
+  test('a station or an episode needs no account to be kept', () {
+    expect(needsSignIn('radio', const {}), isFalse);
+    expect(needsSignIn('podcast', const {}), isFalse);
+  });
+
   test('an Apple Music download waits on a connection, after its sign-in; the rest play offline', () {
     expect(playBlock('apple', const {}, online: false), PlayBlock.signIn);
     expect(playBlock('apple', const {}, online: true), PlayBlock.signIn);
