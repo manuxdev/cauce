@@ -20,7 +20,7 @@ final streamingServices = [
 ];
 
 /// Open catalogs, connected with no account: nothing of theirs downloads, as their terms allow
-/// only streaming, and none of their playlists is the listener's to edit.
+/// only streaming. The listener's own playlists of their tracks are kept on the phone.
 const openCatalogs = {'audius'};
 
 /// Whether `source`'s track waits on signing in to its service to be liked, with `signedIn`
