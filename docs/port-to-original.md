@@ -5,6 +5,8 @@ what makes `original` special: its providers, their sign-in flows and their prov
 
 Store-only commits (removing providers or lyrics sources, the bundle id, store copy) never go to `original`.
 
+Everything listed below, plus `5bfd06f` (three more strings in tú), was ported to `original` on 2026-10-28 (up to `fa0b47a` there). Add new rows under the ported ones and port from there next time.
+
 | Commit | Feature | Notes |
 |---|---|---|
 | `f6e7732` | Play next, add to queue, queue saved at once, scrolling track options sheet | Touches the bridge, so regenerate it with `flutter_rust_bridge_codegen generate` after porting. The track options sheet in `original` also has its provider rows |
