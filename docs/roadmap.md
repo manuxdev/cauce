@@ -27,7 +27,14 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
 - [x] Emby, through the Jellyfin provider with an Emby flavor: the same features as Jellyfin, checked against a local
       Emby 4.10 server (no public demo exists). Skipped: Quick Connect (Jellyfin only) and public/private playlists
       (Emby has none). Lyrics come from the track's text subtitle (an `.lrc` or `.txt` beside it)
-- [ ] Plex: the most used media server. Documented API; check which remote uses need Plex Pass
+- [x] Plex: sign in through plex.tv's PIN flow and pick a server (local, then remote, then relay address), library,
+      search, home, genres, streaming (the file or an MP3 conversion for the quality setting), downloads, likes as
+      five-star ratings, playlists (create, add, remove by copy, rename, delete), server lyrics (`.lrc`/`.txt` lyrics
+      streams) and finished listens through `/:/scrobble`. Checked with fixtures only: no Plex server was run. Skipped:
+      a manual server address or token-less local sign-in, the `/:/timeline` now-playing reports (the core never calls
+      `report`), conversions to AAC or Opus (Plex converts music to MP3 for a plain download), public/private
+      playlists (Plex has none), and filtering servers by music library before the pick (a server without one fails
+      at sign-in)
 - [ ] Servers that speak the Subsonic API already work through the Subsonic provider: Navidrome, Ampache, Gonic,
       Airsonic, Funkwhale. Test each one and list them in the sign-in help
 - [ ] Ampache's own API, only if its Subsonic support falls short
