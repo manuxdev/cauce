@@ -1,7 +1,10 @@
-//! A Plex Media Server: sign-in through plex.tv, the library, search, playback and downloads.
+//! A Plex Media Server: sign-in through plex.tv, the library, search, playback and downloads,
+//! likes as five-star ratings, playlist edits, server lyrics, and finished listens recorded on
+//! the server.
 
 pub mod auth;
 mod client;
+mod lyrics;
 pub mod pin;
 mod playback;
 mod wire;
@@ -12,6 +15,7 @@ use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 
 pub use client::PlexClient;
+pub use lyrics::PlexLyrics;
 
 use crate::plex::auth::{Credentials, SLUG};
 use crate::plex::playback::Factory;
@@ -25,9 +29,8 @@ pub const NAME: &str = "Plex";
 /// What plex.tv and the server are told the app is called.
 pub const PRODUCT: &str = "Cauce";
 
-/// Everything but stations and likes, plus converting on request.
+/// Everything but stations, plus converting on request. Following an artist is liking it.
 const CAPABILITIES: Capabilities = Capabilities {
-    follow_artists: false,
     radio: false,
     transcode: true,
     ..Capabilities::ALL

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use music::Lyrics;
 
 /// The lyrics services in each group the listener orders: the providers' own, the signed-in
-/// Subsonic, Jellyfin or Emby server, LRCLIB, and `.lrc` files beside local tracks.
+/// Subsonic, Jellyfin, Emby or Plex server, LRCLIB, and `.lrc` files beside local tracks.
 const GROUPS: [(&str, &[&str]); 4] = [
     (
         "provider",
@@ -18,7 +18,7 @@ const GROUPS: [(&str, &[&str]); 4] = [
             "NetEase",
         ],
     ),
-    ("server", &["Subsonic", "Jellyfin", "Emby"]),
+    ("server", &["Subsonic", "Jellyfin", "Emby", "Plex"]),
     ("lrclib", &["LrcLib"]),
     ("lrc", &[music::lyrics::LOCAL]),
 ];
@@ -201,9 +201,10 @@ mod tests {
         assert_eq!(services[1], "Subsonic");
         assert_eq!(services[2], "Jellyfin");
         assert_eq!(services[3], "Emby");
-        assert_eq!(services[4], music::lyrics::LOCAL);
-        assert_eq!(services[5], "YouTube Music");
-        assert_eq!(services.len(), 10);
+        assert_eq!(services[4], "Plex");
+        assert_eq!(services[5], music::lyrics::LOCAL);
+        assert_eq!(services[6], "YouTube Music");
+        assert_eq!(services.len(), 11);
     }
 
     #[test]
