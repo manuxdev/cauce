@@ -154,6 +154,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PlaylistItem> dco_decode_list_playlist_item(dynamic raw);
 
   @protected
+  List<PlexServer> dco_decode_list_plex_server(dynamic raw);
+
+  @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
 
   @protected
@@ -227,6 +230,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaylistItem dco_decode_playlist_item(dynamic raw);
+
+  @protected
+  PlexPinCheck dco_decode_plex_pin_check(dynamic raw);
+
+  @protected
+  PlexServer dco_decode_plex_server(dynamic raw);
 
   @protected
   QualityOption dco_decode_quality_option(dynamic raw);
@@ -427,6 +436,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PlaylistItem> sse_decode_list_playlist_item(SseDeserializer deserializer);
 
   @protected
+  List<PlexServer> sse_decode_list_plex_server(SseDeserializer deserializer);
+
+  @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -500,6 +512,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaylistItem sse_decode_playlist_item(SseDeserializer deserializer);
+
+  @protected
+  PlexPinCheck sse_decode_plex_pin_check(SseDeserializer deserializer);
+
+  @protected
+  PlexServer sse_decode_plex_server(SseDeserializer deserializer);
 
   @protected
   QualityOption sse_decode_quality_option(SseDeserializer deserializer);
@@ -700,6 +718,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_playlist_item(List<PlaylistItem> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_plex_server(List<PlexServer> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_f_32_strict(Float32List self, SseSerializer serializer);
 
   @protected
@@ -773,6 +794,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_playlist_item(PlaylistItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plex_pin_check(PlexPinCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plex_server(PlexServer self, SseSerializer serializer);
 
   @protected
   void sse_encode_quality_option(QualityOption self, SseSerializer serializer);

@@ -31,6 +31,7 @@ mod spectrum;
 pub mod spotify;
 mod stream;
 pub mod jellyfin;
+pub mod plex;
 pub mod subsonic;
 pub mod tidal;
 mod trim;
@@ -892,6 +893,8 @@ pub enum SignIn {
     },
     /// Jellyfin's Quick Connect: the secret of a code another signed-in device authorized.
     QuickConnect { server: String, secret: String },
+    /// Plex: the plex.tv account token an approved PIN carried, and the id of the server picked.
+    Plex { token: String, server: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

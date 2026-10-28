@@ -167,7 +167,8 @@ impl MusicProvider for TidalProvider {
             | SignIn::Anonymous
             | SignIn::Path(_)
             | SignIn::Credentials { .. }
-            | SignIn::QuickConnect { .. } => {
+            | SignIn::QuickConnect { .. }
+            | SignIn::Plex { .. } => {
                 Err(anyhow::anyhow!("tidal only signs in with a device code"))
             }
         }

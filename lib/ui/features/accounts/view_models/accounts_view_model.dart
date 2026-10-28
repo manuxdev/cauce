@@ -23,6 +23,7 @@ final streamingServices = [
   const StreamingService('subsonic', 'Subsonic'),
   const StreamingService('jellyfin', 'Jellyfin'),
   const StreamingService('emby', 'Emby'),
+  const StreamingService('plex', 'Plex'),
 ];
 
 /// Whether `source`'s track waits on signing in to its service, with `signedIn` the services

@@ -16,6 +16,7 @@ use async_trait::async_trait;
 
 pub use client::{JellyfinClient, scrub};
 pub use lyrics::JellyfinLyrics;
+pub(crate) use wire::home;
 
 use crate::jellyfin::playback::Factory;
 use crate::{

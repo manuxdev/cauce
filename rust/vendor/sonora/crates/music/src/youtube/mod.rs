@@ -401,7 +401,7 @@ impl MusicProvider for YouTubeProvider {
             SignIn::Path(_) => Err(anyhow::anyhow!(
                 "youtube does not sign in with a folder path"
             )),
-            SignIn::Credentials { .. } | SignIn::QuickConnect { .. } => Err(anyhow::anyhow!(
+            SignIn::Credentials { .. } | SignIn::QuickConnect { .. } | SignIn::Plex { .. } => Err(anyhow::anyhow!(
                 "youtube does not sign in with a server address"
             )),
         }

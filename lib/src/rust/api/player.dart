@@ -60,6 +60,22 @@ Future<QuickConnectCheck> quickConnectCheck({required String server, required St
 Future<String> quickConnectSignIn({required String slug, required String server, required String secret}) =>
     RustLib.instance.api.crateApiPlayerQuickConnectSignIn(slug: slug, server: server, secret: secret);
 
+/// Starts a plex.tv sign-in, and answers the page where the listener approves it. The PIN and
+/// the account token it brings stay in the core, never shown, stored or logged.
+Future<String> plexStart() => RustLib.instance.api.crateApiPlayerPlexStart();
+
+Future<PlexPinCheck> plexCheck() => RustLib.instance.api.crateApiPlayerPlexCheck();
+
+/// The servers of the account the approved sign-in brought, its own first.
+Future<List<PlexServer>> plexServers() => RustLib.instance.api.crateApiPlayerPlexServers();
+
+/// Signs in to the account's server `server_id`, and answers the account's name.
+Future<String> plexSignIn({required String serverId}) =>
+    RustLib.instance.api.crateApiPlayerPlexSignIn(serverId: serverId);
+
+/// Gives up the plex.tv sign-in under way.
+Future<void> plexCancel() => RustLib.instance.api.crateApiPlayerPlexCancel();
+
 Future<void> signOut({required String slug}) => RustLib.instance.api.crateApiPlayerSignOut(slug: slug);
 
 Future<List<TrackItem>> search({required String slug, required String query}) =>
@@ -822,6 +838,39 @@ class PlaylistItem {
           name == other.name &&
           cover == other.cover &&
           trackCount == other.trackCount;
+}
+
+enum PlexPinCheck {
+  waiting,
+
+  /// The listener approved the sign-in: the account's servers can be listed.
+  approved,
+
+  /// plex.tv no longer knows the sign-in.
+  expired,
+}
+
+/// A Plex server the signed-in account can reach.
+class PlexServer {
+  final String id;
+  final String name;
+
+  /// Whether the account owns it, rather than having it shared with them.
+  final bool owned;
+
+  const PlexServer({required this.id, required this.name, required this.owned});
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode ^ owned.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlexServer &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          owned == other.owned;
 }
 
 /// One stream level a service serves: `id` to store, `encoding` to show.
