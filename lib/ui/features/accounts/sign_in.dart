@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/selected_service.dart';
 import 'view_models/accounts_view_model.dart';
+import 'views/audius_connect_screen.dart';
 import 'views/flow_sign_in_screen.dart';
 import 'views/plex_sign_in_screen.dart';
 
@@ -10,7 +11,11 @@ Future<void> signIn(BuildContext context, StreamingService service, AccountsView
   final name = await Navigator.of(context, rootNavigator: true).push<String>(
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => service.slug == 'plex' ? PlexSignInScreen(service: service) : FlowSignInScreen(service: service),
+      builder: (_) => switch (service.slug) {
+        'plex' => PlexSignInScreen(service: service),
+        'audius' => AudiusConnectScreen(service: service),
+        _ => FlowSignInScreen(service: service),
+      },
     ),
   );
   if (name == null) return;

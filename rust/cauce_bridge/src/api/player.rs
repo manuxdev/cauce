@@ -275,6 +275,11 @@ pub fn sign_out(slug: String) -> Result<()> {
     core()?.sign_out(&slug)
 }
 
+/// The page of track `id` on its provider's own site, when the provider links back to it.
+pub fn track_link(slug: String, id: String) -> Result<Option<String>> {
+    core()?.track_link(&slug, id)
+}
+
 pub fn search(slug: String, query: String) -> Result<Vec<TrackItem>> {
     let tracks = core()?.search(&slug, query)?;
     Ok(tracks

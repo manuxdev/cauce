@@ -62,7 +62,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -809651718;
+  int get rustContentHash => -1092138155;
 
   static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
     stem: 'cauce_bridge',
@@ -288,6 +288,8 @@ abstract class RustLibApi extends BaseApi {
   Future<StorageUsage> crateApiPlayerStorageUsage();
 
   bool crateApiPlayerStored({required String slug});
+
+  Future<String?> crateApiPlayerTrackLink({required String slug, required String id});
 
   Future<void> crateApiPlayerUnkeepCollection({required String slug, required CardKind kind, required String id});
 }
@@ -2139,6 +2141,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPlayerStoredConstMeta => const TaskConstMeta(debugName: "stored", argNames: ["slug"]);
 
   @override
+  Future<String?> crateApiPlayerTrackLink({required String slug, required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(slug, serializer);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90, port: port_);
+        },
+        codec: SseCodec(decodeSuccessData: sse_decode_opt_String, decodeErrorData: sse_decode_AnyhowException),
+        constMeta: kCrateApiPlayerTrackLinkConstMeta,
+        argValues: [slug, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPlayerTrackLinkConstMeta =>
+      const TaskConstMeta(debugName: "track_link", argNames: ["slug", "id"]);
+
+  @override
   Future<void> crateApiPlayerUnkeepCollection({required String slug, required CardKind kind, required String id}) {
     return handler.executeNormal(
       NormalTask(
@@ -2147,7 +2170,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(slug, serializer);
           sse_encode_card_kind(kind, serializer);
           sse_encode_String(id, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90, port: port_);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_unit, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiPlayerUnkeepCollectionConstMeta,

@@ -15,6 +15,7 @@ pub mod scrobble;
 mod sink;
 mod spectrum;
 mod stream;
+pub mod audius;
 pub mod jellyfin;
 pub mod plex;
 pub mod podcast;

@@ -16,7 +16,12 @@ final streamingServices = [
   const StreamingService('jellyfin', 'Jellyfin'),
   const StreamingService('emby', 'Emby'),
   const StreamingService('plex', 'Plex'),
+  const StreamingService('audius', 'Audius'),
 ];
+
+/// Open catalogs, connected with no account: nothing of theirs downloads, as their terms allow
+/// only streaming, and none of their playlists is the listener's to edit.
+const openCatalogs = {'audius'};
 
 /// Whether `source`'s track waits on signing in to its service to be liked, with `signedIn`
 /// the services that have an account in. Downloads play from the account kept on the phone,

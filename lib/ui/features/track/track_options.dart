@@ -16,6 +16,7 @@ import '../artist/views/artist_screen.dart';
 import '../downloads/downloads_view_model.dart';
 import '../home/views/collection_screen.dart';
 import '../../core/toast.dart';
+import '../../core/web_page.dart';
 import '../../core/error_text.dart';
 import '../podcasts/podcasts_section.dart';
 import '../radio/radio_section.dart';
@@ -177,13 +178,20 @@ Future<void> showTrackOptions(
                       if (isStation(track)) _FavoriteRow(track: track),
                       if (isEpisode(track)) _DownloadRow(track: track),
                       if (streamed) ...[
-                        _DownloadRow(track: track),
+                        if (canDownload(track.source)) _DownloadRow(track: track),
                         _FavoriteRow(track: track),
-                        OptionRow(
-                          glyph: CauceGlyph.plus,
-                          label: context.t('track.addToPlaylist'),
-                          onTap: () => run(() => showAddToPlaylist(context, track)),
-                        ),
+                        if (!openCatalogs.contains(track.source))
+                          OptionRow(
+                            glyph: CauceGlyph.plus,
+                            label: context.t('track.addToPlaylist'),
+                            onTap: () => run(() => showAddToPlaylist(context, track)),
+                          ),
+                        if (track.source == 'audius')
+                          OptionRow(
+                            glyph: CauceGlyph.external,
+                            label: context.t('audius.open'),
+                            onTap: () => run(() => openOnAudius(context, track).ignore()),
+                          ),
                       ],
                       if (onRemove != null)
                         OptionRow(
@@ -365,7 +373,27 @@ class _FavoriteRow extends StatelessWidget {
 }
 
 /// The account's playlists to put `track` into, with a way to make a new one for it.
+/// Opens `track`'s page on audius.co, which credits its artist and links to the rest of their music.
+Future<void> openOnAudius(BuildContext context, core.TrackItem track) async {
+  final navigator = Navigator.of(context, rootNavigator: true);
+  try {
+    final url = await core.trackLink(slug: track.source, id: track.id);
+    if (url == null) return;
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => WebPage(title: 'Audius', url: url),
+      ),
+    );
+  } catch (error) {
+    showToast(Toast(title: translate('audius.openFailed'), detail: explainError(error), tone: ToastTone.error));
+  }
+}
+
 Future<void> showAddToPlaylist(BuildContext context, core.TrackItem track) {
+  if (openCatalogs.contains(track.source)) {
+    showToast(Toast(title: translate('track.noPlaylists'), glyph: CauceGlyph.info));
+    return Future.value();
+  }
   return behindSheet(
     showModalBottomSheet<void>(
       sheetAnimationStyle: sheetAnimation,

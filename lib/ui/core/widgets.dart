@@ -314,6 +314,7 @@ class InitialAvatar extends StatelessWidget {
   'jellyfin' => (color: const Color(0xFFAA5CC3), letters: 'JF'),
   'emby' => (color: const Color(0xFF52B54B), letters: 'EM'),
   'plex' => (color: const Color(0xFFE5A00D), letters: 'PX'),
+  'audius' => (color: const Color(0xFFCC0FE0), letters: 'AU'),
   _ => (color: CauceColors.accent, letters: slug.isEmpty ? '?' : slug.substring(0, 2).toUpperCase()),
 };
 
