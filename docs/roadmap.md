@@ -23,7 +23,7 @@ Order: Jellyfin, Emby, Plex, then radio and podcasts.
   - [x] Part 2: likes, playlists (create, add, remove by copy), server lyrics in the `server` lyrics group, finished
     listens recorded on the server (`/UserPlayedItems`, at scrobble time, dropped offline). No live session reporting
     (`/Sessions/Playing`), so the server's dashboard does not show what is playing
-  - [ ] Quick Connect sign-in
+  - [x] Quick Connect sign-in
 - [x] Emby, through the Jellyfin provider with an Emby flavor: the same features as Jellyfin, checked against a local
       Emby 4.10 server (no public demo exists). Skipped: Quick Connect (Jellyfin only) and public/private playlists
       (Emby has none). Lyrics come from the track's text subtitle (an `.lrc` or `.txt` beside it)
